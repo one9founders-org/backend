@@ -197,3 +197,4 @@ GOOGLE_CLIENT_SECRET=your_google_client_secret
 4. Set up deployment (AWS, Heroku, etc.)
 5. Configure email service for newsletters
 # backend
+# backend
