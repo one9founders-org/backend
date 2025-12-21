@@ -22,6 +22,9 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework.authtoken',
     'corsheaders',
+    'import_export',
+    'ckeditor',
+    'ckeditor_uploader',
     'allauth',
     'allauth.account',
     'allauth.socialaccount',
@@ -156,3 +159,11 @@ SOCIALACCOUNT_PROVIDERS = {
 }
 
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', '')
+
+CKEDITOR_UPLOAD_PATH = 'uploads/'
+CKEDITOR_CONFIGS = {
+    'default': {
+        'toolbar': 'full',
+        'height': 300,
+    },
+}
