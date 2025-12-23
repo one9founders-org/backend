@@ -10,6 +10,22 @@ SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-change-this')
 DEBUG = os.getenv('DEBUG', 'True') == 'True'
 ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
+# Add ECS subnet range for dynamic IPs
+if not DEBUG:
+    import socket
+    try:
+        # Get current instance IP
+        hostname = socket.gethostname()
+        local_ip = socket.gethostbyname(hostname)
+        if local_ip.startswith('172.31.'):
+            ALLOWED_HOSTS.append(local_ip)
+    except:
+        pass
+    # Allow common ECS/EC2 private IP ranges
+    ALLOWED_HOSTS.extend(['172.31.*', '10.0.*', '192.168.*'])
+else:
+    ALLOWED_HOSTS.append('*')  # Allow all in debug mode
+
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -35,6 +51,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -70,8 +87,8 @@ DATABASES = {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': os.getenv('DATABASE_NAME', 'one9data'),
         'USER': os.getenv('DATABASE_USER', 'one9user'),
-        'PASSWORD': os.getenv('DATABASE_PASSWORD', '12345678'),
-        'HOST': os.getenv('DATABASE_HOST', 'localhost'),
+        'PASSWORD': os.getenv('DATABASE_PASSWORD', 'rNAVxlOtgOjJCpIDxpFC'),
+        'HOST': os.getenv('DATABASE_HOST', 'one9data.cp24a6auwj7h.ap-south-1.rds.amazonaws.com'),
         'PORT': os.getenv('DATABASE_PORT', '5432'),
     }
 }
