@@ -24,10 +24,14 @@ RUN pip install --upgrade pip && pip install -r requirements.txt
 # installs dependencies in requirements.txt
 
 # Install curl for health checks
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+
 COPY . .
 # copies application code to the working directory
 
-RUN python manage.py collectstatic --noinput
+# Create staticfiles directory and collect static files
+RUN mkdir -p /app/backend/staticfiles
+RUN python manage.py collectstatic --noinput --clear
 # collects static files for production
 
 CMD ["gunicorn", "--bind", "0.0.0.0:8000", "config.wsgi:application"]
