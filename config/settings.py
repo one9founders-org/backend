@@ -81,27 +81,16 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "config.wsgi.application"
 
-# DATABASES = {
-#     "default": {
-#         "ENGINE": "django.db.backends.postgresql",
-#         "NAME": os.getenv("DATABASE_NAME", "one9data"),
-#         "USER": os.getenv("DATABASE_USER", "one9user"),
-#         "PASSWORD": os.getenv("DATABASE_PASSWORD", "rNAVxlOtgOjJCpIDxpFC"),
-#         "HOST": os.getenv(
-#             "DATABASE_HOST", "one9data.cp24a6auwj7h.ap-south-1.rds.amazonaws.com"
-#         ),
-#         "PORT": os.getenv("DATABASE_PORT", "5432"),
-#     }
-# }
-
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
-        "NAME": "test_one9founders",
-        "USER": "one9testuser",
-        "PASSWORD": "one9testpass",
-        "HOST": "localhost",
-        "PORT": "5432",
+        "NAME": os.getenv("DATABASE_NAME", "one9data"),
+        "USER": os.getenv("DATABASE_USER", "one9user"),
+        "PASSWORD": os.getenv("DATABASE_PASSWORD", "rNAVxlOtgOjJCpIDxpFC"),
+        "HOST": os.getenv(
+            "DATABASE_HOST", "one9data.cp24a6auwj7h.ap-south-1.rds.amazonaws.com"
+        ),
+        "PORT": os.getenv("DATABASE_PORT", "5432"),
     }
 }
 
