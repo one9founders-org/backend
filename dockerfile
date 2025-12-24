@@ -30,7 +30,7 @@ RUN python manage.py collectstatic --noinput
 # collects static files for production
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:8000/health/ || exit 1
+    CMD curl -f http://localhost:8000/api/health/ || exit 1
 
 CMD ["gunicorn", "--bind", "0.0.0.0:8000", "config.wsgi:application"]
  # Command to run the Django application in our Docker container
