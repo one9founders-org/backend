@@ -14,4 +14,16 @@ db.sqlite3
 *.log
 coverage/
 *.egg-info/
-dist/       
+dist/
+
+# Test artifacts
+htmlcov/
+.coverage
+coverage.xml
+.pytest_cache/
+bandit-report.json
+safety-report.json
+.tox/
+
+# Pre-commit
+.pre-commit-cache/

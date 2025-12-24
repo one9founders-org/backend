@@ -1,11 +1,14 @@
 import os
+
 import django
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
+
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
 django.setup()
 
 import google.generativeai as genai
-from api.models import Tool
 from django.conf import settings
+
+from api.models import Tool
 
 genai.configure(api_key=settings.GEMINI_API_KEY)
 
@@ -15,11 +18,8 @@ print(f"Generating embeddings for {tools.count()} tools...")
 for tool in tools:
     text = f"{tool.name} - {tool.description}"
     try:
-        result = genai.embed_content(
-            model="models/text-embedding-004",
-            content=text
-        )
-        tool.embedding = result['embedding']
+        result = genai.embed_content(model="models/text-embedding-004", content=text)
+        tool.embedding = result["embedding"]
         tool.save()
         print(f"✓ {tool.name}")
     except Exception as e:

@@ -1,36 +1,44 @@
-from rest_framework import viewsets, status, filters
-from rest_framework.decorators import action, api_view, permission_classes
-from rest_framework.response import Response
-from rest_framework.permissions import AllowAny, IsAuthenticated
-from django.db.models import Q, F
 import google.generativeai as genai
 from django.conf import settings
-from .models import Tool, Category, Review, Deal, News, NewsletterSubscription, ToolSubmission
+from django.db.models import F, Q
+from rest_framework import status, viewsets
+from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.permissions import AllowAny
+from rest_framework.response import Response
+
+from .models import Category, Deal, News, Review, Tool, ToolSubmission
 from .serializers import (
-    ToolListSerializer, ToolDetailSerializer, CategorySerializer, ReviewSerializer, 
-    DealSerializer, NewsListSerializer, NewsDetailSerializer, NewsletterSubscriptionSerializer,
-    ToolSubmissionSerializer
+    CategorySerializer,
+    DealSerializer,
+    NewsDetailSerializer,
+    NewsletterSubscriptionSerializer,
+    NewsListSerializer,
+    ReviewSerializer,
+    ToolDetailSerializer,
+    ToolListSerializer,
+    ToolSubmissionSerializer,
 )
 
 genai.configure(api_key=settings.GEMINI_API_KEY)
 
+
 class ToolViewSet(viewsets.ModelViewSet):
-    queryset = Tool.objects.filter(is_active=True).prefetch_related('categories')
+    queryset = Tool.objects.filter(is_active=True).prefetch_related("categories")
     permission_classes = [AllowAny]
-    lookup_field = 'slug'
-    
+    lookup_field = "slug"
+
     def get_serializer_class(self):
-        if self.action == 'retrieve':
+        if self.action == "retrieve":
             return ToolDetailSerializer
         return ToolListSerializer
-    
+
     def get_queryset(self):
         queryset = super().get_queryset()
-        category = self.request.query_params.get('category')
-        pricing = self.request.query_params.get('pricing')
-        featured = self.request.query_params.get('featured')
-        startup_friendly = self.request.query_params.get('startup_friendly')
-        
+        category = self.request.query_params.get("category")
+        pricing = self.request.query_params.get("pricing")
+        featured = self.request.query_params.get("featured")
+        startup_friendly = self.request.query_params.get("startup_friendly")
+
         if category:
             queryset = queryset.filter(categories__slug=category)
         if pricing:
@@ -39,119 +47,190 @@ class ToolViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(is_featured=True)
         if startup_friendly:
             queryset = queryset.filter(startup_friendly=True)
-        
+
         return queryset.distinct()
-    
+
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
-        Tool.objects.filter(pk=instance.pk).update(views_count=F('views_count') + 1)
+        Tool.objects.filter(pk=instance.pk).update(views_count=F("views_count") + 1)
         instance.refresh_from_db()
         serializer = self.get_serializer(instance)
         return Response(serializer.data)
-    
-    @action(detail=False, methods=['post'])
+
+    @action(detail=False, methods=["post"])
     def search(self, request):
-        query = request.data.get('query', '')
+        query = request.data.get("query", "")
         if not query:
             return Response([])
-        
+
         try:
             embedding = genai.embed_content(
-                model="models/text-embedding-004",
-                content=query
-            )['embedding']
-            
+                model="models/text-embedding-004", content=query
+            )["embedding"]
+
             from django.db import connection
+
             with connection.cursor() as cursor:
-                cursor.execute("""
-                    SELECT t.*, 
+                cursor.execute(
+                    """
+                    SELECT t.*,
                            1 - (t.embedding <=> %s::vector) AS similarity
                     FROM tools t
-                    WHERE t.is_active = TRUE 
+                    WHERE t.is_active = TRUE
                       AND t.embedding IS NOT NULL
                       AND 1 - (t.embedding <=> %s::vector) > 0.3
                     ORDER BY t.embedding <=> %s::vector
                     LIMIT 20
-                """, [embedding, embedding, embedding])
-                
+                """,
+                    [embedding, embedding, embedding],
+                )
+
                 columns = [col[0] for col in cursor.description]
                 results = [dict(zip(columns, row)) for row in cursor.fetchall()]
-            
+
             return Response(results)
-        except Exception as e:
+        except Exception:
             # Fallback to text search
             tools = Tool.objects.filter(
                 Q(name__icontains=query) | Q(description__icontains=query),
-                is_active=True
+                is_active=True,
             )[:20]
             return Response(ToolListSerializer(tools, many=True).data)
+
 
 class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Category.objects.all()
     serializer_class = CategorySerializer
     permission_classes = [AllowAny]
 
+
 class ReviewViewSet(viewsets.ModelViewSet):
     queryset = Review.objects.all()
     serializer_class = ReviewSerializer
     permission_classes = [AllowAny]
-    
+
     def get_queryset(self):
         queryset = Review.objects.all()
-        tool_id = self.request.query_params.get('tool_id')
+        tool_id = self.request.query_params.get("tool_id")
         if tool_id:
             queryset = queryset.filter(tool_id=tool_id)
-        return queryset.order_by('-created_at')
+        return queryset.order_by("-created_at")
+
 
 class DealViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = Deal.objects.filter(is_active=True).order_by('-featured_deal', '-created_at')
+    queryset = Deal.objects.filter(is_active=True).order_by(
+        "-featured_deal", "-created_at"
+    )
     serializer_class = DealSerializer
     permission_classes = [AllowAny]
 
+
 class NewsViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = News.objects.filter(is_published=True).prefetch_related('related_tools').order_by('-published_at')
+    queryset = (
+        News.objects.filter(is_published=True)
+        .prefetch_related("related_tools")
+        .order_by("-published_at")
+    )
     permission_classes = [AllowAny]
-    lookup_field = 'slug'
-    
+    lookup_field = "slug"
+
     def get_serializer_class(self):
-        if self.action == 'retrieve':
+        if self.action == "retrieve":
             return NewsDetailSerializer
         return NewsListSerializer
-    
+
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
-        News.objects.filter(pk=instance.pk).update(views_count=F('views_count') + 1)
+        News.objects.filter(pk=instance.pk).update(views_count=F("views_count") + 1)
         instance.refresh_from_db()
         serializer = self.get_serializer(instance)
         return Response(serializer.data)
 
-@api_view(['POST'])
+
+@api_view(["POST"])
 @permission_classes([AllowAny])
 def subscribe_newsletter(request):
     serializer = NewsletterSubscriptionSerializer(data=request.data)
     if serializer.is_valid():
         try:
-            serializer.save()
-            return Response({'success': True}, status=status.HTTP_201_CREATED)
+            # subscription = serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
         except Exception as e:
-            if 'unique' in str(e).lower():
-                return Response({'success': False, 'error': 'Email already subscribed'}, status=status.HTTP_400_BAD_REQUEST)
-            return Response({'success': False, 'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            if "unique" in str(e).lower():
+                return Response(
+                    {"error": "Email already subscribed"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+
 class ToolSubmissionViewSet(viewsets.ModelViewSet):
-    queryset = ToolSubmission.objects.all().order_by('-created_at')
+    queryset = ToolSubmission.objects.all().order_by("-created_at")
     serializer_class = ToolSubmissionSerializer
     permission_classes = [AllowAny]
-    
+
     def get_queryset(self):
         queryset = super().get_queryset()
-        status_filter = self.request.query_params.get('status')
+        status_filter = self.request.query_params.get("status")
         if status_filter:
             queryset = queryset.filter(status=status_filter)
         return queryset
 
-@api_view(['GET'])
+
+@api_view(["GET"])
 @permission_classes([AllowAny])
 def health_check(request):
-    return Response({'status': 'ok', 'message': 'API is running'})
+    return Response({"status": "ok", "message": "API is running"})
+
+
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def search_tools(request):
+    query = request.data.get("query", "")
+    if not query:
+        return Response([])
+
+    try:
+        embedding = genai.embed_content(
+            model="models/text-embedding-004", content=query
+        )["embedding"]
+
+        from django.db import connection
+
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT t.*,
+                       1 - (t.embedding <=> %s::vector) AS similarity
+                FROM tools t
+                WHERE t.is_active = TRUE
+                  AND t.embedding IS NOT NULL
+                  AND 1 - (t.embedding <=> %s::vector) > 0.3
+                ORDER BY t.embedding <=> %s::vector
+                LIMIT 20
+            """,
+                [embedding, embedding, embedding],
+            )
+
+            columns = [col[0] for col in cursor.description]
+            results = [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+        return Response(results)
+    except Exception:
+        # Fallback to text search
+        tools = Tool.objects.filter(
+            Q(name__icontains=query) | Q(description__icontains=query),
+            is_active=True,
+        )[:20]
+        return Response(ToolListSerializer(tools, many=True).data)
+
+
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def add_tool(request):
+    serializer = ToolDetailSerializer(data=request.data)
+    if serializer.is_valid():
+        tool = serializer.save()
+        return Response(ToolDetailSerializer(tool).data, status=status.HTTP_201_CREATED)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

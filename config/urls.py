@@ -1,18 +1,24 @@
-from django.contrib import admin
-from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
-from django.http import JsonResponse
+from django.contrib import admin
+from django.urls import include, path
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny
+from rest_framework.response import Response
 
+
+@api_view(["GET"])
+@permission_classes([AllowAny])
 def health(request):
-    return JsonResponse({'status': 'ok'})
+    return Response({"status": "ok"})
+
 
 urlpatterns = [
-    path('health/', health, name='health'),
-    path('admin/', admin.site.urls),
-    path('api/', include('api.urls')),
-    path('api/auth/', include('rest_framework.urls')),
-    path('accounts/', include('allauth.urls')),
+    path("health/", health, name="health"),
+    path("admin/", admin.site.urls),
+    path("api/", include("api.urls")),
+    path("api/auth/", include("rest_framework.urls")),
+    path("accounts/", include("allauth.urls")),
 ]
 
 if settings.DEBUG:

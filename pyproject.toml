@@ -1,0 +1,33 @@
+[tool.black]
+line-length = 88
+target-version = ['py310']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  migrations
+  | venv
+  | .venv
+  | staticfiles
+)/
+'''
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+line_length = 88
+skip = ["migrations", "venv", ".venv", "staticfiles"]
+
+[tool.flake8]
+max-line-length = 88
+extend-ignore = ["E203", "W503"]
+exclude = [
+    "migrations",
+    "venv",
+    ".venv",
+    "staticfiles",
+    "__pycache__"
+]
+
+[tool.bandit]
+exclude_dirs = ["tests", "migrations", "venv", ".venv"]
+skips = ["B101"]

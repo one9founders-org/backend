@@ -1,13 +1,16 @@
 #!/usr/bin/env python
 """Seed database with sample tools and data"""
 import os
+
 import django
 
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
 django.setup()
 
-from api.models import Tool, Deal, News, Category
 from datetime import datetime, timedelta
+
+from api.models import Category, Deal, News, Tool
+
 
 def seed_tools():
     """Seed sample tools"""
@@ -27,7 +30,7 @@ def seed_tools():
             "review_count": 2847,
             "verified": True,
             "featured": True,
-            "is_featured": True
+            "is_featured": True,
         },
         {
             "name": "Midjourney",
@@ -44,7 +47,7 @@ def seed_tools():
             "review_count": 1923,
             "verified": True,
             "featured": True,
-            "is_featured": True
+            "is_featured": True,
         },
         {
             "name": "Notion AI",
@@ -59,7 +62,7 @@ def seed_tools():
             "use_cases": ["team collaboration", "documentation", "task management"],
             "rating": 4.6,
             "review_count": 3421,
-            "verified": True
+            "verified": True,
         },
         {
             "name": "GitHub Copilot",
@@ -74,7 +77,7 @@ def seed_tools():
             "use_cases": ["code generation", "debugging", "learning programming"],
             "rating": 4.5,
             "review_count": 8934,
-            "verified": True
+            "verified": True,
         },
         {
             "name": "Grammarly",
@@ -91,21 +94,21 @@ def seed_tools():
             "review_count": 12847,
             "verified": True,
             "featured": True,
-            "is_featured": True
+            "is_featured": True,
         },
     ]
-    
+
     for tool_data in tools_data:
         tool, created = Tool.objects.get_or_create(
-            name=tool_data['name'],
-            defaults=tool_data
+            name=tool_data["name"], defaults=tool_data
         )
         if created:
             print(f"✓ Created tool: {tool.name}")
         else:
             print(f"- Tool already exists: {tool.name}")
-    
+
     print(f"\nTotal tools: {Tool.objects.count()}")
+
 
 def seed_deals():
     """Seed sample deals"""
@@ -122,7 +125,7 @@ def seed_deals():
             "claims_count": 1234,
             "offer_tag": "50% OFF",
             "featured_deal": True,
-            "deal_url": "https://chat.openai.com/"
+            "deal_url": "https://chat.openai.com/",
         },
         {
             "tool_name": "Midjourney",
@@ -136,21 +139,21 @@ def seed_deals():
             "claims_count": 567,
             "offer_tag": "20% OFF",
             "featured_deal": False,
-            "deal_url": "https://midjourney.com/"
+            "deal_url": "https://midjourney.com/",
         },
     ]
-    
+
     for deal_data in deals_data:
         deal, created = Deal.objects.get_or_create(
-            tool_name=deal_data['tool_name'],
-            defaults=deal_data
+            tool_name=deal_data["tool_name"], defaults=deal_data
         )
         if created:
             print(f"✓ Created deal: {deal.tool_name}")
         else:
             print(f"- Deal already exists: {deal.tool_name}")
-    
+
     print(f"\nTotal deals: {Deal.objects.count()}")
+
 
 def seed_news():
     """Seed sample news articles"""
@@ -162,7 +165,7 @@ def seed_news():
             "image_url": "https://images.unsplash.com/photo-1677442136019-21780ecad995?w=800&h=400&fit=crop",
             "author": "John Doe",
             "category": "AI Trends",
-            "tags": ["AI", "trends", "2024"]
+            "tags": ["AI", "trends", "2024"],
         },
         {
             "title": "Top 10 Productivity Tools for Developers",
@@ -171,23 +174,23 @@ def seed_news():
             "image_url": "https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=800&h=400&fit=crop",
             "author": "Jane Smith",
             "category": "Development",
-            "tags": ["productivity", "development", "tools"]
+            "tags": ["productivity", "development", "tools"],
         },
     ]
-    
+
     for news_item in news_data:
         article, created = News.objects.get_or_create(
-            title=news_item['title'],
-            defaults=news_item
+            title=news_item["title"], defaults=news_item
         )
         if created:
             print(f"✓ Created news: {article.title}")
         else:
             print(f"- News already exists: {article.title}")
-    
+
     print(f"\nTotal news articles: {News.objects.count()}")
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     print("🌱 Seeding database...\n")
     print("=" * 50)
     print("TOOLS")

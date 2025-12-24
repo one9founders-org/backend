@@ -1,14 +1,17 @@
-import google.generativeai as genai
-from django.conf import settings
 import json
 import re
 
+import google.generativeai as genai
+from django.conf import settings
+
 genai.configure(api_key=settings.GEMINI_API_KEY)
+
 
 def enrich_tool_data(name, description, url=None):
     """Use AI with Google Search to populate all tool fields from basic info"""
-    
-    prompt = f"""Search the web for information about {name} ({url or ''}) and provide accurate, up-to-date data.
+
+    prompt = f"""Search the web for information about {name} ({url or ''})
+      and provide accurate, up-to-date data.
 
 Tool: {name}
 Description: {description}
@@ -31,17 +34,16 @@ Return JSON with:
 
 Only return valid JSON.
 """
-    
+
     try:
         model = genai.GenerativeModel(
-            'gemini-2.0-flash-exp',
-            tools='google_search_retrieval'
+            "gemini-2.0-flash-exp", tools="google_search_retrieval"
         )
         response = model.generate_content(prompt)
-        
+
         # Extract JSON from response
         text = response.text.strip()
-        json_match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', text, re.DOTALL)
+        json_match = re.search(r"\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}", text, re.DOTALL)
         if json_match:
             data = json.loads(json_match.group())
             return data
