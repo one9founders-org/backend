@@ -12,7 +12,6 @@ ENV DJANGO_SETTINGS_MODULE=config.settings
 # I'm setting my Django module to run from `settings.py` in my project directory
 ENV DEBUG=False
 ENV ALLOWED_HOSTS=*
-ENV SECRET_KEY=production-secret-key-change-this
 
 WORKDIR /app/backend
 # sets the working directory for any Dockerfile commands that follow it
