@@ -94,6 +94,7 @@ jobs:
         echo "DATABASE_PORT=5432" >> $GITHUB_ENV
         echo "GEMINI_API_KEY=test-key" >> $GITHUB_ENV
         echo "FRONTEND_URL=http://localhost:3000" >> $GITHUB_ENV
+        echo "DJANGO_SETTINGS_MODULE=config.settings" >> $GITHUB_ENV
 
     - name: Run migrations
       run: |
