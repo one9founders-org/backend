@@ -24,16 +24,11 @@ RUN pip install --upgrade pip && pip install -r requirements.txt
 # installs dependencies in requirements.txt
 
 # Install curl for health checks
-RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
-
 COPY . .
 # copies application code to the working directory
 
 RUN python manage.py collectstatic --noinput
 # collects static files for production
 
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:8000/health/ || exit 1
-
 CMD ["gunicorn", "--bind", "0.0.0.0:8000", "config.wsgi:application"]
- # Command to run the Django application in our Docker container
+# Command to run the Django application in our Docker container
