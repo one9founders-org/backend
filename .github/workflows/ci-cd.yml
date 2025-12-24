@@ -51,7 +51,8 @@ jobs:
       postgres:
         image: postgres:17
         env:
-          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: one9testuser
+          POSTGRES_PASSWORD: one9testpass
           POSTGRES_DB: test_one9founders
         options: >-
           --health-cmd pg_isready
@@ -87,8 +88,8 @@ jobs:
         echo "SECRET_KEY=test-secret-key-for-ci" >> $GITHUB_ENV
         echo "DEBUG=True" >> $GITHUB_ENV
         echo "DATABASE_NAME=test_one9founders" >> $GITHUB_ENV
-        echo "DATABASE_USER=postgres" >> $GITHUB_ENV
-        echo "DATABASE_PASSWORD=postgres" >> $GITHUB_ENV
+        echo "DATABASE_USER=one9testuser" >> $GITHUB_ENV
+        echo "DATABASE_PASSWORD=one9testpass" >> $GITHUB_ENV
         echo "DATABASE_HOST=localhost" >> $GITHUB_ENV
         echo "DATABASE_PORT=5432" >> $GITHUB_ENV
         echo "GEMINI_API_KEY=test-key" >> $GITHUB_ENV
