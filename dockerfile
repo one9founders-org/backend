@@ -10,6 +10,9 @@ ENV PYTHONUNBUFFERED=1
 # writes Python output directly to the terminal; useful to monitor application logs
 ENV DJANGO_SETTINGS_MODULE=config.settings
 # I'm setting my Django module to run from `settings.py` in my project directory
+ENV DEBUG=False
+ENV ALLOWED_HOSTS=*
+ENV SECRET_KEY=production-secret-key-change-this
 
 WORKDIR /app/backend
 # sets the working directory for any Dockerfile commands that follow it
@@ -30,7 +33,7 @@ RUN python manage.py collectstatic --noinput
 # collects static files for production
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:8000/api/health/ || exit 1
+    CMD curl -f http://localhost:8000/health/ || exit 1
 
 CMD ["gunicorn", "--bind", "0.0.0.0:8000", "config.wsgi:application"]
  # Command to run the Django application in our Docker container
