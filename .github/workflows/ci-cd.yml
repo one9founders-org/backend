@@ -49,7 +49,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:17
+        image: pgvector/pgvector:pg17
         env:
           POSTGRES_USER: one9testuser
           POSTGRES_PASSWORD: one9testpass
