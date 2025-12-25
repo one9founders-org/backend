@@ -8,8 +8,11 @@ load_dotenv()
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = os.getenv("SECRET_KEY")
-DEBUG = os.getenv("DEBUG", "True") == "True"
+
+DEBUG = os.getenv("DEBUG", "False") == "True"
+
 ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
+
 CSRF_TRUSTED_ORIGINS = [
     "https://api.one9founders.com",
     "http://localhost:3000",
@@ -29,6 +32,7 @@ INSTALLED_APPS = [
     "import_export",
     "ckeditor",
     "ckeditor_uploader",
+    "storages",
     "allauth",
     "allauth.account",
     "allauth.socialaccount",
@@ -72,12 +76,10 @@ WSGI_APPLICATION = "config.wsgi.application"
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
-        "NAME": os.getenv("DATABASE_NAME", "one9data"),
-        "USER": os.getenv("DATABASE_USER", "one9user"),
-        "PASSWORD": os.getenv("DATABASE_PASSWORD", "rNAVxlOtgOjJCpIDxpFC"),
-        "HOST": os.getenv(
-            "DATABASE_HOST", "one9data.cp24a6auwj7h.ap-south-1.rds.amazonaws.com"
-        ),
+        "NAME": os.getenv("DATABASE_NAME"),
+        "USER": os.getenv("DATABASE_USER"),
+        "PASSWORD": os.getenv("DATABASE_PASSWORD"),
+        "HOST": os.getenv("DATABASE_HOST"),
         "PORT": os.getenv("DATABASE_PORT", "5432"),
     }
 }
@@ -92,15 +94,34 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 LANGUAGE_CODE = "en-us"
-TIME_ZONE = "UTC"
+TIME_ZONE = "Asia/Kolkata"
 USE_I18N = True
 USE_TZ = True
 
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
-MEDIA_URL = "media/"
-MEDIA_ROOT = BASE_DIR / "media"
+# AWS S3 Configuration
+AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
+AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
+AWS_STORAGE_BUCKET_NAME = "files.one9founders.com"
+AWS_S3_REGION_NAME = os.getenv("AWS_S3_REGION_NAME", "ap-south-1")
+AWS_S3_CUSTOM_DOMAIN = "files.one9founders.com"
+AWS_DEFAULT_ACL = None
+AWS_S3_OBJECT_PARAMETERS = {
+    "CacheControl": "max-age=86400",
+}
+
+# Always use S3 for media files
+DEFAULT_FILE_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
+MEDIA_URL = "https://files.one9founders.com/"
+
+# AWS SES Configuration
+EMAIL_BACKEND = "django_ses.SESBackend"
+AWS_SES_REGION_NAME = os.getenv("AWS_SES_REGION_NAME", "ap-south-1")
+AWS_SES_REGION_ENDPOINT = f"email.{AWS_SES_REGION_NAME}.amazonaws.com"
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "noreply@one9founders.com")
+SERVER_EMAIL = DEFAULT_FROM_EMAIL
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
@@ -172,5 +193,50 @@ CKEDITOR_CONFIGS = {
     "default": {
         "toolbar": "full",
         "height": 300,
+    },
+}
+
+# Logging Configuration
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "verbose": {
+            "format": "{levelname} {asctime} {module} {process:d} {thread:d} {message}",
+            "style": "{",
+        },
+        "simple": {
+            "format": "{levelname} {message}",
+            "style": "{",
+        },
+    },
+    "handlers": {
+        "file": {
+            "level": "INFO",
+            "class": "logging.FileHandler",
+            "filename": BASE_DIR / "logs" / "django.log",
+            "formatter": "verbose",
+        },
+        "console": {
+            "level": "DEBUG" if DEBUG else "INFO",
+            "class": "logging.StreamHandler",
+            "formatter": "simple",
+        },
+    },
+    "root": {
+        "handlers": ["console", "file"],
+        "level": "INFO",
+    },
+    "loggers": {
+        "django": {
+            "handlers": ["console", "file"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "api": {
+            "handlers": ["console", "file"],
+            "level": "DEBUG" if DEBUG else "INFO",
+            "propagate": False,
+        },
     },
 }

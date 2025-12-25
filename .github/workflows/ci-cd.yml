@@ -19,17 +19,19 @@ jobs:
         python-version: '3.11'
 
     - name: Cache pip dependencies
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
-        path: ~/.cache/pip
-        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        path: |
+          ~/.cache/pip
+          ~/.local/lib/python3.11/site-packages
+        key: ${{ runner.os }}-lint-${{ hashFiles('**/requirements.txt') }}
         restore-keys: |
-          ${{ runner.os }}-pip-
+          ${{ runner.os }}-lint-
 
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install black isort flake8 bandit
+        pip install --cache-dir ~/.cache/pip black isort flake8 bandit
 
     - name: Check code formatting with Black
       run: black --check --diff api/ config/ tests/
@@ -71,17 +73,19 @@ jobs:
         python-version: '3.11'
 
     - name: Cache pip dependencies
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
-        path: ~/.cache/pip
-        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        path: |
+          ~/.cache/pip
+          ~/.local/lib/python3.11/site-packages
+        key: ${{ runner.os }}-test-${{ hashFiles('**/requirements.txt') }}
         restore-keys: |
-          ${{ runner.os }}-pip-
+          ${{ runner.os }}-test-
 
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install -r requirements.txt
+        pip install --cache-dir ~/.cache/pip -r requirements.txt
 
     - name: Set up environment variables
       run: |
@@ -119,6 +123,9 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
     - name: Deploy to EC2
       uses: appleboy/ssh-action@v1.0.3
       with:
@@ -132,6 +139,6 @@ jobs:
           git pull origin main
           cd backend
           docker compose down
-          docker compose build --no-cache
+          DOCKER_BUILDKIT=1 docker compose build --build-arg BUILDKIT_INLINE_CACHE=1
           docker compose up -d
           docker compose exec web python manage.py collectstatic --noinput
