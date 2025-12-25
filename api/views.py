@@ -153,7 +153,7 @@ def subscribe_newsletter(request):
     serializer = NewsletterSubscriptionSerializer(data=request.data)
     if serializer.is_valid():
         try:
-            # subscription = serializer.save()
+            serializer.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         except Exception as e:
             if "unique" in str(e).lower():

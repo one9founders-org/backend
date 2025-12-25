@@ -2,7 +2,7 @@ from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
 from . import views
-from .auth_views import google_auth, login_user, register_user
+from .auth_views import get_current_user, google_auth, login_user, register_user
 
 router = DefaultRouter()
 router.register(r"tools", views.ToolViewSet, basename="tool")
@@ -19,10 +19,11 @@ urlpatterns = [
     path(
         "newsletter/subscribe/", views.subscribe_newsletter, name="newsletter-subscribe"
     ),
-    # Authentication (will be deprecated - use JWT endpoints)
+    # Authentication
     path("auth/register/", register_user, name="register_user"),
     path("auth/login/", login_user, name="login_user"),
     path("auth/google/", google_auth, name="google_auth"),
+    path("auth/me/", get_current_user, name="current_user"),
     # REST API
     path("", include(router.urls)),
 ]
