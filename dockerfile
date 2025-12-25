@@ -10,8 +10,6 @@ ENV PYTHONUNBUFFERED=1
 # writes Python output directly to the terminal; useful to monitor application logs
 ENV DJANGO_SETTINGS_MODULE=config.settings
 # I'm setting my Django module to run from `settings.py` in my project directory
-ENV DEBUG=False
-ENV ALLOWED_HOSTS=api.one9founders.com,localhost,127.0.0.1
 
 WORKDIR /app/backend
 # sets the working directory for any Dockerfile commands that follow it
