@@ -28,10 +28,9 @@ RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 COPY . .
 # copies application code to the working directory
 
-# Create staticfiles directory and collect static files
+# Create staticfiles directory
 RUN mkdir -p /app/backend/staticfiles
-RUN python manage.py collectstatic --noinput --clear
 # collects static files for production
 
-CMD ["gunicorn", "--bind", "0.0.0.0:8000", "config.wsgi:application"]
+CMD ["gunicorn", "--config", "gunicorn.conf.py", "config.wsgi:application"]
 # Command to run the Django application in our Docker container
