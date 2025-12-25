@@ -7,26 +7,12 @@ load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = os.getenv("SECRET_KEY", "django-insecure-change-this")
+SECRET_KEY = os.getenv("SECRET_KEY")
 DEBUG = os.getenv("DEBUG", "True") == "True"
 ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
-
-# Add ECS subnet range for dynamic IPs
-if not DEBUG:
-    import socket
-
-    try:
-        # Get current instance IP
-        hostname = socket.gethostname()
-        local_ip = socket.gethostbyname(hostname)
-        if local_ip.startswith("172.31."):
-            ALLOWED_HOSTS.append(local_ip)
-    except Exception:
-        pass
-    # Allow common ECS/EC2 private IP ranges
-    ALLOWED_HOSTS.extend(["172.31.*", "10.0.*", "192.168.*"])
-else:
-    ALLOWED_HOSTS.append("*")  # Allow all in debug mode
+CSRF_TRUSTED_ORIGINS = os.getenv(
+    "CSRF_TRUSTED_ORIGINS", "https://api.one9founders.com"
+).split(",")
 
 INSTALLED_APPS = [
     "django.contrib.admin",
