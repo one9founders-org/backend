@@ -1,8 +1,8 @@
 import math
 
-from ckeditor.fields import RichTextField
 from django.contrib.auth.models import AbstractUser
 from django.db import models
+from django_summernote.fields import SummernoteTextField
 from pgvector.django import VectorField
 
 
@@ -404,7 +404,7 @@ class News(models.Model):
     title = models.CharField(max_length=255)
     slug = models.SlugField(max_length=255, unique=True, blank=True)
     excerpt = models.TextField(max_length=300, help_text="Short preview")
-    content = RichTextField()
+    content = SummernoteTextField()
 
     # Media
     featured_image = models.URLField(blank=True)

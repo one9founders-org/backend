@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django_summernote.admin import SummernoteModelAdmin
 from import_export import resources
 from import_export.admin import ImportExportModelAdmin
 
@@ -96,7 +97,8 @@ class DealAdmin(ImportExportModelAdmin):
 
 
 @admin.register(News)
-class NewsAdmin(admin.ModelAdmin):
+class NewsAdmin(SummernoteModelAdmin):
+    summernote_fields = ("content",)
     list_display = [
         "title",
         "author",

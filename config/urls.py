@@ -2,23 +2,48 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
+from drf_spectacular.views import (
+    SpectacularAPIView,
+    SpectacularRedocView,
+    SpectacularSwaggerView,
+)
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 
 @api_view(["GET"])
 @permission_classes([AllowAny])
 def health(request):
-    return Response({"status": "ok"})
+    return Response(
+        {
+            "status": "ok",
+            "version": "1.0.0",
+            "environment": "development" if settings.DEBUG else "production",
+        }
+    )
 
 
 urlpatterns = [
+    # Health and Admin
     path("health/", health, name="health"),
     path("admin/", admin.site.urls),
-    path("api/", include("api.urls")),
-    path("api/auth/", include("rest_framework.urls")),
-    path("accounts/", include("allauth.urls")),
+    # API Documentation
+    path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
+    path(
+        "api/docs/",
+        SpectacularSwaggerView.as_view(url_name="schema"),
+        name="swagger-ui",
+    ),
+    path("api/redoc/", SpectacularRedocView.as_view(url_name="schema"), name="redoc"),
+    # Authentication
+    path("auth/token/", TokenObtainPairView.as_view(), name="token_obtain_pair"),
+    path("auth/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
+    # Rich Text Editor
+    path("summernote/", include("django_summernote.urls")),
+    # API
+    path("", include("api.urls")),
 ]
 
 if settings.DEBUG:

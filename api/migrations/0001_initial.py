@@ -18,11 +18,6 @@ class Migration(migrations.Migration):
         ("api", "0000_enable_pgvector"),
     ]
 
-    run_before = [
-        ("account", "0001_initial"),
-        ("socialaccount", "0001_initial"),
-    ]
-
     operations = [
         migrations.CreateModel(
             name="Category",
