@@ -125,6 +125,8 @@ jobs:
         host: ${{ secrets.EC2_HOST }}
         username: ${{ secrets.EC2_USER }}
         key: ${{ secrets.EC2_SSH_KEY }}
+        port: 22
+        timeout: 60s
         script: |
           cd /var/www/one9founders
           git pull origin main
