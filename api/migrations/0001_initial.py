@@ -7,6 +7,7 @@ import django.utils.timezone
 import django_summernote.fields
 import pgvector.django.vector
 from django.conf import settings
+from django.contrib.postgres.operations import CreateExtension
 from django.db import migrations, models
 
 
@@ -18,6 +19,7 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
+        CreateExtension("vector"),
         migrations.CreateModel(
             name="Category",
             fields=[
