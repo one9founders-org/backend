@@ -129,7 +129,7 @@ jobs:
           cd /var/www/one9founders
           git pull origin main
           cd backend
-          docker-compose down
-          docker-compose build --no-cache
-          docker-compose up -d
-          docker-compose exec web python manage.py collectstatic --noinput
+          docker compose down
+          docker compose build --no-cache
+          docker compose up -d
+          docker compose exec web python manage.py collectstatic --noinput
