@@ -68,7 +68,6 @@ class Tool(models.Model):
     pricing_from = models.DecimalField(
         max_digits=10, decimal_places=2, blank=True, null=True
     )
-    free_tier_available = models.BooleanField(default=False)
     free_trial_days = models.IntegerField(blank=True, null=True)
 
     # Content
