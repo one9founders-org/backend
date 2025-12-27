@@ -137,18 +137,16 @@ class Command(BaseCommand):
                     except Exception as e:
                         error_count += 1
                         self.stdout.write(
-                            self.style.ERROR(
-                                f"Error processing row {row.get('name', 'Unknown')}: {str(e)}"
-                            )
+                            self.style.ERROR(f"Error processing row {row.get('name', 'Unknown')}: {str(e)}")
                         )
                         continue
-
+                
                 self.stdout.write(
                     self.style.SUCCESS(
                         f"Import completed: {created_count} created, {updated_count} updated, {error_count} errors"
                     )
                 )
-
+                
         except FileNotFoundError:
             self.stdout.write(self.style.ERROR(f"File not found: {csv_file}"))
         except Exception as e:
