@@ -144,7 +144,7 @@ class Tool(models.Model):
                 pass
 
         # Generate embedding
-        if not self.embedding and self.name and self.description:
+        if self.embedding is None and self.name and self.description:
             try:
                 import google.generativeai as genai
                 from django.conf import settings
@@ -186,7 +186,7 @@ class Review(models.Model):
     tool = models.ForeignKey(Tool, on_delete=models.CASCADE, related_name="reviews")
     user_name = models.CharField(max_length=255)
     rating = models.IntegerField(choices=RATING_CHOICES)
-    comment = models.TextField()
+    comment = models.TextField(blank=True)
 
     # Optional
     user_email = models.EmailField(blank=True)
