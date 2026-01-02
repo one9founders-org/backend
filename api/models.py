@@ -184,7 +184,7 @@ class Review(models.Model):
 
     # Required
     tool = models.ForeignKey(Tool, on_delete=models.CASCADE, related_name="reviews")
-    user_name = models.CharField(max_length=255)
+    user_name = models.CharField(max_length=255, blank=True)
     rating = models.IntegerField(choices=RATING_CHOICES)
     comment = models.TextField(blank=True)
 

@@ -5,6 +5,7 @@ from django.db.models import F, Q
 from django.http import JsonResponse
 from rest_framework import status, viewsets
 from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny, IsAdminUser
 from rest_framework.response import Response
 
@@ -24,10 +25,16 @@ from .serializers import (
 genai.configure(api_key=settings.GEMINI_API_KEY)
 
 
+class CustomPageNumberPagination(PageNumberPagination):
+    page_size_query_param = "page_size"
+    max_page_size = 100
+
+
 class ToolViewSet(viewsets.ModelViewSet):
     queryset = Tool.objects.filter(is_active=True).prefetch_related("categories")
     permission_classes = [AllowAny]
     lookup_field = "slug"
+    pagination_class = CustomPageNumberPagination
 
     def get_serializer_class(self):
         if self.action == "retrieve":
