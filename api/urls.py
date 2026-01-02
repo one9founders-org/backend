@@ -16,6 +16,7 @@ urlpatterns = [
     # Search and Actions
     path("tools/search/", views.search_tools, name="tool-search"),
     path("tools/add/", views.add_tool, name="tool-add"),
+    path("internal/sync-lacreme/", views.sync_lacreme, name="sync-lacreme"),
     path(
         "newsletter/subscribe/", views.subscribe_newsletter, name="newsletter-subscribe"
     ),

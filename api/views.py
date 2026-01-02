@@ -1,9 +1,11 @@
 import google.generativeai as genai
 from django.conf import settings
+from django.db import IntegrityError
 from django.db.models import F, Q
+from django.http import JsonResponse
 from rest_framework import status, viewsets
 from rest_framework.decorators import action, api_view, permission_classes
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAdminUser
 from rest_framework.response import Response
 
 from .models import Category, Deal, News, Review, Tool, ToolSubmission
@@ -234,3 +236,53 @@ def add_tool(request):
         tool = serializer.save()
         return Response(ToolDetailSerializer(tool).data, status=status.HTTP_201_CREATED)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(["POST"])
+@permission_classes([IsAdminUser])
+def sync_lacreme(request):
+    from .lacreme_scraper import run
+
+    scraped_tools = run()
+
+    # Existing tool names (case-insensitive safe compare)
+    existing_names = set(Tool.objects.values_list("name", flat=True))
+
+    added = 0
+    skipped = 0
+
+    for t in scraped_tools:
+        name = t.get("name")
+
+        if not name:
+            skipped += 1
+            continue
+
+        if name in existing_names:
+            skipped += 1
+            continue
+
+        try:
+            Tool.objects.create(
+                name=name,
+                short_description=t.get("short_description", ""),
+                logo_url=t.get("logo_url", ""),
+                website=t.get("website", ""),
+                rating=0,
+                review_count=0,
+                verified=False,
+            )
+            added += 1
+            existing_names.add(name)
+
+        except IntegrityError:
+            skipped += 1
+
+    return JsonResponse(
+        {
+            "status": "success",
+            "scraped": len(scraped_tools),
+            "added": added,
+            "skipped": skipped,
+        }
+    )

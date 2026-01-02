@@ -19,6 +19,9 @@ gunicorn==23.0.0
 PyJWT==2.9.0
 cryptography==43.0.3
 whitenoise==6.8.2
+beautifulsoup4==4.12.3
+selenium==4.27.1
+webdriver-manager==4.0.2
 
 # Testing dependencies
 pytest==7.4.3
