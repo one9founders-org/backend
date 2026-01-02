@@ -7,8 +7,12 @@ import django.utils.timezone
 import django_summernote.fields
 import pgvector.django.vector
 from django.conf import settings
-from django.contrib.postgres.operations import CreateExtension
 from django.db import migrations, models
+
+
+def create_vector_extension(apps, schema_editor):
+    with schema_editor.connection.cursor() as cursor:
+        cursor.execute("CREATE EXTENSION IF NOT EXISTS vector;")
 
 
 class Migration(migrations.Migration):
@@ -19,7 +23,7 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        CreateExtension("vector"),
+        migrations.RunPython(create_vector_extension),
         migrations.CreateModel(
             name="Category",
             fields=[
