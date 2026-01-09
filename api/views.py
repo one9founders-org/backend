@@ -26,8 +26,15 @@ genai.configure(api_key=settings.GEMINI_API_KEY)
 
 
 class CustomPageNumberPagination(PageNumberPagination):
+    page_size = 20
     page_size_query_param = "page_size"
     max_page_size = 100
+
+    def get_page_size(self, request):
+        page_size = super().get_page_size(request)
+        req_size = request.query_params.get("page_size")
+        print(f"DEBUG: Requested page_size: {req_size}, Final: {page_size}")
+        return page_size
 
 
 class ToolViewSet(viewsets.ModelViewSet):
