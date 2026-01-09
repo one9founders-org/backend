@@ -4,14 +4,13 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('api', '0002_alter_review_comment'),
+        ("api", "0002_alter_review_comment"),
     ]
 
     operations = [
         migrations.RemoveField(
-            model_name='tool',
-            name='free_tier_available',
+            model_name="tool",
+            name="free_tier_available",
         ),
     ]

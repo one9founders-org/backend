@@ -276,9 +276,11 @@ def run():
                     "short_description": short_desc,
                     "logo_url": logo,
                     "categories": categories,
-                    "detail_url": BASE_URL + detail_path
-                    if detail_path.startswith("/")
-                    else detail_path,
+                    "detail_url": (
+                        BASE_URL + detail_path
+                        if detail_path.startswith("/")
+                        else detail_path
+                    ),
                 }
             )
         except Exception:

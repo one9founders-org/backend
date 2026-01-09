@@ -1,0 +1,3 @@
+pre-commit clean
+
+rm -rf ~/.cache/pre-commit

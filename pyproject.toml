@@ -10,12 +10,13 @@ extend-exclude = '''
   | staticfiles
 )/
 '''
+exclude = "generate_embeddings.py"
 
 [tool.isort]
 profile = "black"
 multi_line_output = 3
 line_length = 88
-skip = ["migrations", "venv", ".venv", "staticfiles"]
+skip = ["migrations", "venv", ".venv", "staticfiles", "generate_embeddings.py"]
 
 [tool.flake8]
 max-line-length = 88
