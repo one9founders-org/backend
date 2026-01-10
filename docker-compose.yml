@@ -1,6 +1,7 @@
 services:
   web:
     build: .
+    container_name: web
     volumes:
       - static_volume:/app/backend/staticfiles
       - media_volume:/app/backend/media
@@ -9,8 +10,18 @@ services:
     env_file:
       - .env
 
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: n8n
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    volumes:
+      - n8n_data:/home/node/.n8n
+
   nginx:
     image: nginx:alpine
+    container_name: nginx
     ports:
       - "80:80"
     volumes:
@@ -19,7 +30,9 @@ services:
       - media_volume:/app/backend/media
     depends_on:
       - web
+      - n8n
 
 volumes:
   static_volume:
   media_volume:
+  n8n_data:
