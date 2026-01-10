@@ -16,6 +16,16 @@ services:
     restart: unless-stopped
     ports:
       - "5678:5678"
+    environment:
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=one9founders
+      - N8N_BASIC_AUTH_PASSWORD=M@rch15Deadline
+      - N8N_HOST=n8n.one9founders.com
+      - N8N_PORT=5678
+      - WEBHOOK_URL=http://n8n.one9founders.com
+      - N8N_PROTOCOL=http
+      - TZ=Asia/Kolkata
+
     volumes:
       - n8n_data:/home/node/.n8n
 
