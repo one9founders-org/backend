@@ -36,6 +36,11 @@ class CustomPageNumberPagination(PageNumberPagination):
         print(f"DEBUG: Requested page_size: {req_size}, Final: {page_size}")
         return page_size
 
+    def get_paginated_response(self, data):
+        response = super().get_paginated_response(data)
+        response["X-Page-Size-Used"] = str(self.page_size)
+        return response
+
 
 class ToolViewSet(viewsets.ModelViewSet):
     queryset = Tool.objects.filter(is_active=True).prefetch_related("categories")
