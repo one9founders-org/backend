@@ -192,7 +192,7 @@ AUTHENTICATION_BACKENDS = [
 ]
 
 
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 
 
 # Logging Configuration

@@ -17,7 +17,7 @@ def use_test_settings():
     Override settings for testing.
     """
     with override_settings(
-        GEMINI_API_KEY="test-key",
+        OPENAI_API_KEY="test-key",
         EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
         CELERY_TASK_ALWAYS_EAGER=True,
         CACHES={

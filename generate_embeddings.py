@@ -1,47 +1,124 @@
 import os
+import sys
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-import django
+# Prevent multiple instances
+lock_file = "/tmp/generate_embeddings.lock"
+if os.path.exists(lock_file):
+    print("Script already running! Delete /tmp/generate_embeddings.lock if stuck.")
+    sys.exit(1)
 
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
-django.setup()
+# Create lock file
+with open(lock_file, "w") as f:
+    f.write(str(os.getpid()))
 
-import google.generativeai as genai
-from django.conf import settings
+print("Starting embedding generation script...")
+start_time = time.time()
 
-from api.models import Tool
+try:
+    import django
 
-genai.configure(api_key=settings.GEMINI_API_KEY)
+    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
+    django.setup()
+
+    import openai
+    from django.conf import settings
+
+    from api.models import Tool
+
+    print("All imports successful")
+except Exception as e:
+    print(f"Setup failed: {e}")
+    sys.exit(1)
+
+openai.api_key = settings.OPENAI_API_KEY
 
 
 def generate_embedding(tool_data):
     tool_id, text = tool_data
     try:
-        result = genai.embed_content(model="models/text-embedding-004", content=text)
-        return tool_id, result["embedding"], None
+        response = openai.Embedding.create(model="text-embedding-ada-002", input=text)
+        return tool_id, response["data"][0]["embedding"], None
     except Exception as e:
         return tool_id, None, str(e)
 
 
-tools = Tool.objects.filter(embedding__isnull=True)
-print(f"Generating embeddings for {tools.count()} tools...")
+def process_batch(batch_data, batch_num, total_batches):
+    """Process a batch of tools"""
+    batch_start = time.time()
+    updates = []
 
-tool_data = [(tool.id, f"{tool.name} - {tool.description}") for tool in tools]
-updates = []
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        futures = {
+            executor.submit(generate_embedding, data): data for data in batch_data
+        }
 
-with ThreadPoolExecutor(max_workers=5) as executor:
-    futures = {executor.submit(generate_embedding, data): data for data in tool_data}
+        for future in as_completed(futures):
+            tool_id, embedding, error = future.result()
+            if embedding:
+                updates.append(Tool(id=tool_id, embedding=embedding))
+                print(f"✓ Tool {tool_id}")
+            else:
+                print(f"✗ Tool {tool_id}: {error}")
 
-    for future in as_completed(futures):
-        tool_id, embedding, error = future.result()
-        if embedding:
-            updates.append(Tool(id=tool_id, embedding=embedding))
-            print(f"✓ Tool {tool_id}")
-        else:
-            print(f"✗ Tool {tool_id}: {error}")
+    # Bulk update this batch
+    if updates:
+        Tool.objects.bulk_update(updates, ["embedding"])
 
-if updates:
-    Tool.objects.bulk_update(updates, ["embedding"])
-    print(f"Updated {len(updates)} tools in bulk")
+    batch_time = time.time() - batch_start
+    total_elapsed = time.time() - start_time
 
-print("Done!")
+    # Progress and ETA calculation
+    processed = batch_num * len(batch_data) + len(updates)
+    rate = processed / total_elapsed * 60  # per minute
+    remaining = total_tools_needed - processed
+    eta_minutes = remaining / rate if rate > 0 else 0
+
+    print(
+        f"Batch {batch_num}/{total_batches} complete: {len(updates)} tools in {batch_time:.1f}s"
+    )
+    print(
+        f"Progress: {processed}/{total_tools_needed} | Rate: {rate:.0f}/min | ETA: {eta_minutes:.1f}min"
+    )
+    print("-" * 60)
+
+
+# Get tools needing embeddings
+tools_without_embeddings = Tool.objects.filter(embedding__isnull=True)
+total_tools = Tool.objects.count()
+tools_with_embeddings = Tool.objects.filter(embedding__isnull=False).count()
+total_tools_needed = tools_without_embeddings.count()
+
+print(f"Total tools in database: {total_tools}")
+print(f"Tools with embeddings: {tools_with_embeddings}")
+print(f"Tools needing embeddings: {total_tools_needed}")
+
+if total_tools_needed == 0:
+    print("All tools already have embeddings!")
+    sys.exit(0)
+
+# Estimate time
+estimated_minutes = total_tools_needed / 300  # Conservative rate
+print(
+    f"Estimated time: {estimated_minutes:.1f} minutes ({estimated_minutes/60:.1f} hours)"
+)
+print("=" * 60)
+
+# Process in batches of 500 to avoid memory issues
+batch_size = 500
+tool_data = [
+    (tool.id, f"{tool.name} - {tool.description}") for tool in tools_without_embeddings
+]
+total_batches = (len(tool_data) + batch_size - 1) // batch_size
+
+for i in range(0, len(tool_data), batch_size):
+    batch_num = i // batch_size + 1
+    batch = tool_data[i : i + batch_size]
+    process_batch(batch, batch_num, total_batches)
+
+total_time = time.time() - start_time
+print(f"\n🎉 Done! Processed {total_tools_needed} tools in {total_time/60:.1f} minutes")
+
+# Clean up lock file
+os.remove(lock_file)

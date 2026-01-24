@@ -107,7 +107,7 @@ class Tool(models.Model):
     )
 
     # AI
-    embedding = VectorField(dimensions=768, blank=True, null=True)
+    embedding = VectorField(dimensions=1536, blank=True, null=True)
 
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
@@ -146,10 +146,10 @@ class Tool(models.Model):
         # Generate embedding
         if self.embedding is None and self.name and self.description:
             try:
-                import google.generativeai as genai
+                import openai
                 from django.conf import settings
 
-                genai.configure(api_key=settings.GEMINI_API_KEY)
+                openai.api_key = settings.OPENAI_API_KEY
 
                 parts = [
                     self.name,
@@ -163,10 +163,10 @@ class Tool(models.Model):
                 ]
                 text = " ".join(filter(None, parts))
 
-                result = genai.embed_content(
-                    model="models/text-embedding-004", content=text
+                response = openai.Embedding.create(
+                    model="text-embedding-ada-002", input=text
                 )
-                self.embedding = result["embedding"]
+                self.embedding = response["data"][0]["embedding"]
             except Exception:
                 pass
         super().save(*args, **kwargs)
@@ -206,12 +206,11 @@ class Review(models.Model):
             try:
                 import json
 
-                import google.generativeai as genai
+                import openai
                 from django.conf import settings
 
-                genai.configure(api_key=settings.GEMINI_API_KEY)
+                openai.api_key = settings.OPENAI_API_KEY
 
-                model = genai.GenerativeModel("gemini-pro")
                 prompt = f"""Extract pros and cons from this review:
 
 "{self.comment}"
@@ -219,9 +218,16 @@ class Review(models.Model):
 Return JSON: {{"pros": ["pro1", "pro2"], "cons": ["con1", "con2"]}}
 Only return JSON."""
 
-                response = model.generate_content(prompt)
+                response = openai.ChatCompletion.create(
+                    model="gpt-3.5-turbo",
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0,
+                )
                 data = json.loads(
-                    response.text.strip().replace("```json", "").replace("```", "")
+                    response.choices[0]
+                    .message.content.strip()
+                    .replace("```json", "")
+                    .replace("```", "")
                 )
                 self.pros = data.get("pros", [])
                 self.cons = data.get("cons", [])

@@ -38,4 +38,4 @@ PASSWORD_HASHERS = [
 ]
 
 # Use API key from environment
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")

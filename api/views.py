@@ -1,4 +1,4 @@
-import google.generativeai as genai
+import openai
 from django.conf import settings
 from django.db import IntegrityError
 from django.db.models import F, Q
@@ -22,7 +22,7 @@ from .serializers import (
     ToolSubmissionSerializer,
 )
 
-genai.configure(api_key=settings.GEMINI_API_KEY)
+openai.api_key = settings.OPENAI_API_KEY
 
 
 class CustomPageNumberPagination(PageNumberPagination):
@@ -81,20 +81,36 @@ class ToolViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=["post"])
     def search(self, request):
         query = request.data.get("query", "")
+        print(f"DEBUG: Search query: {query}")
         if not query:
             return Response([])
 
         try:
-            embedding = genai.embed_content(
-                model="models/text-embedding-004", content=query
-            )["embedding"]
+            response = openai.Embedding.create(
+                model="text-embedding-ada-002", input=query
+            )
+            embedding = response["data"][0]["embedding"]
+            print(f"DEBUG: Generated embedding length: {len(embedding)}")
 
             from django.db import connection
 
             with connection.cursor() as cursor:
+                # First check if we have any tools with embeddings
+                cursor.execute(
+                    "SELECT COUNT(*) FROM tools WHERE embedding IS NOT NULL "
+                    "AND is_active = TRUE"
+                )
+                count = cursor.fetchone()[0]
+                print(f"DEBUG: Tools with embeddings: {count}")
+
+                if count == 0:
+                    print("DEBUG: No embeddings found, falling back to text search")
+                    raise Exception("No embeddings available")
+
                 cursor.execute(
                     """
-                    SELECT t.*,
+                    SELECT t.id, t.name, t.short_description, t.description,
+                           t.website, t.logo_url, t.slug,
                            1 - (t.embedding <=> %s::vector) AS similarity
                     FROM tools t
                     WHERE t.is_active = TRUE
@@ -108,14 +124,17 @@ class ToolViewSet(viewsets.ModelViewSet):
 
                 columns = [col[0] for col in cursor.description]
                 results = [dict(zip(columns, row)) for row in cursor.fetchall()]
+                print(f"DEBUG: Vector search results: {len(results)}")
 
             return Response(results)
-        except Exception:
+        except Exception as e:
+            print(f"DEBUG: Vector search failed: {e}")
             # Fallback to text search
             tools = Tool.objects.filter(
                 Q(name__icontains=query) | Q(description__icontains=query),
                 is_active=True,
             )[:20]
+            print(f"DEBUG: Text search fallback results: {tools.count()}")
             return Response(ToolListSerializer(tools, many=True).data)
 
 
@@ -209,20 +228,34 @@ def health_check(request):
 @permission_classes([AllowAny])
 def search_tools(request):
     query = request.data.get("query", "")
+    print(f"DEBUG: Standalone search query: {query}")
     if not query:
         return Response([])
 
     try:
-        embedding = genai.embed_content(
-            model="models/text-embedding-004", content=query
-        )["embedding"]
+        response = openai.Embedding.create(model="text-embedding-ada-002", input=query)
+        embedding = response["data"][0]["embedding"]
+        print(f"DEBUG: Generated embedding length: {len(embedding)}")
 
         from django.db import connection
 
         with connection.cursor() as cursor:
+            # Check if we have any tools with embeddings
+            cursor.execute(
+                "SELECT COUNT(*) FROM tools WHERE embedding IS NOT NULL "
+                "AND is_active = TRUE"
+            )
+            count = cursor.fetchone()[0]
+            print(f"DEBUG: Tools with embeddings: {count}")
+
+            if count == 0:
+                print("DEBUG: No embeddings found, falling back to text search")
+                raise Exception("No embeddings available")
+
             cursor.execute(
                 """
-                SELECT t.*,
+                SELECT t.id, t.name, t.short_description, t.description,
+                       t.website, t.logo_url, t.slug,
                        1 - (t.embedding <=> %s::vector) AS similarity
                 FROM tools t
                 WHERE t.is_active = TRUE
@@ -236,14 +269,17 @@ def search_tools(request):
 
             columns = [col[0] for col in cursor.description]
             results = [dict(zip(columns, row)) for row in cursor.fetchall()]
+            print(f"DEBUG: Vector search results: {len(results)}")
 
         return Response(results)
-    except Exception:
+    except Exception as e:
+        print(f"DEBUG: Vector search failed: {e}")
         # Fallback to text search
         tools = Tool.objects.filter(
             Q(name__icontains=query) | Q(description__icontains=query),
             is_active=True,
         )[:20]
+        print(f"DEBUG: Text search fallback results: {tools.count()}")
         return Response(ToolListSerializer(tools, many=True).data)
 
 

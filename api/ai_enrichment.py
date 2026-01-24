@@ -1,20 +1,20 @@
 import json
 import re
 
-import google.generativeai as genai
+import openai
 from django.conf import settings
 
-genai.configure(api_key=settings.GEMINI_API_KEY)
+openai.api_key = settings.OPENAI_API_KEY
 
 
 def enrich_tool_data(name, description, url=None):
-    """Use AI with Google Search to populate all tool fields from basic info"""
+    """Use AI to populate all tool fields from basic info"""
 
-    prompt = f"""Search the web for information about {name} ({url or ''})
-      and provide accurate, up-to-date data.
+    prompt = f"""Analyze this tool and provide structured data:
 
 Tool: {name}
 Description: {description}
+Website: {url or 'Not provided'}
 
 Return JSON with:
 {{
@@ -23,26 +23,33 @@ Return JSON with:
   "use_cases": ["use case 1", "use case 2"],
   "features": ["feature 1", "feature 2"],
   "categories": ["category1", "category2"],
-  "pricing_model": "free/freemium/paid/trial",
+  "pricing_models": ["free", "freemium", "paid", "trial"],
+  "pricing_tiers": [
+    {{"name": "Basic", "price": 0, "billing": "monthly"}},
+    {{"name": "Pro", "price": 20, "billing": "monthly"}}
+  ],
   "pricing_from": 20.00,
   "platforms": ["web", "ios", "android", "desktop"],
   "integrations": ["tool1", "tool2"],
   "startup_benefits": "How this helps startups/founders",
   "ideal_for": ["early-stage", "bootstrapped", "SaaS"],
-  "startup_friendly": true
+  "startup_friendly": true,
+  "free_tier_available": true,
+  "free_trial_days": 14
 }}
 
 Only return valid JSON.
 """
 
     try:
-        model = genai.GenerativeModel(
-            "gemini-2.0-flash-exp", tools="google_search_retrieval"
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3,
         )
-        response = model.generate_content(prompt)
 
         # Extract JSON from response
-        text = response.text.strip()
+        text = response.choices[0].message.content.strip()
         json_match = re.search(r"\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}", text, re.DOTALL)
         if json_match:
             data = json.loads(json_match.group())
