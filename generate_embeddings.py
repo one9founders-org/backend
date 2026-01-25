@@ -35,6 +35,21 @@ except Exception as e:
 openai.api_key = settings.OPENAI_API_KEY
 
 
+def build_embedding_text(tool):
+    """Build rich text for embedding generation - matches Tool.save() method"""
+    parts = [
+        tool.name,
+        tool.short_description or "",
+        tool.description or "",
+        " ".join(tool.tags or []),
+        " ".join(tool.use_cases or []),
+        " ".join(tool.features or []),
+        tool.startup_benefits or "",
+        " ".join(tool.ideal_for or []),
+    ]
+    return " ".join(filter(None, parts))
+
+
 def generate_embedding(tool_data):
     tool_id, text = tool_data
     try:
@@ -108,7 +123,7 @@ print("=" * 60)
 # Process in batches of 500 to avoid memory issues
 batch_size = 500
 tool_data = [
-    (tool.id, f"{tool.name} - {tool.description}") for tool in tools_without_embeddings
+    (tool.id, build_embedding_text(tool)) for tool in tools_without_embeddings
 ]
 total_batches = (len(tool_data) + batch_size - 1) // batch_size
 
