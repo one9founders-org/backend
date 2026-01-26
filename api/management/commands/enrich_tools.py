@@ -226,11 +226,17 @@ class Command(BaseCommand):
             )
 
         tools = self.get_tools(options)
-        if not tools:
+        if tools is None:
             self.stdout.write(self.style.WARNING("No tools found to process."))
             return
 
-        self.stdout.write(f"Processing {len(tools)} tools...")
+        # Get total count for progress display (separate query to avoid loading all)
+        if options["all"]:
+            total_count = Tool.objects.count()
+        else:
+            total_count = "?"
+
+        self.stdout.write(f"Processing tools (total: {total_count})...")
 
         taaft_driver = None
         if options["use_taaft"]:
@@ -246,7 +252,7 @@ class Command(BaseCommand):
 
         updated_count = 0
         for i, tool in enumerate(tools):
-            self.stdout.write(f"\n[{i + 1}/{len(tools)}] Processing: {tool.name}")
+            self.stdout.write(f"\n[{i + 1}/{total_count}] Processing: {tool.name}")
 
             changes = {}
 
@@ -317,14 +323,15 @@ class Command(BaseCommand):
     def get_tools(self, options):
         """Get tools to process based on options."""
         if options["tool_id"]:
-            return Tool.objects.filter(id=options["tool_id"])
+            return list(Tool.objects.filter(id=options["tool_id"]))
         elif options["tool_name"]:
-            return Tool.objects.filter(name__icontains=options["tool_name"])
+            return list(Tool.objects.filter(name__icontains=options["tool_name"]))
         elif options["all"]:
-            queryset = Tool.objects.all()
+            queryset = Tool.objects.all().order_by("id")
             if options["limit"]:
                 queryset = queryset[: options["limit"]]
-            return queryset
+            # Use iterator with chunk_size to avoid loading all tools into memory
+            return queryset.iterator(chunk_size=100)
         else:
             self.stdout.write(
                 self.style.ERROR("Please specify --tool-id, --tool-name, or --all")
