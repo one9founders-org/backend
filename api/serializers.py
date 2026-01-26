@@ -55,6 +55,7 @@ class ToolListSerializer(serializers.ModelSerializer):
             "logo_url",
             "website",
             "categories",
+            "pricing_type",
             "pricing_models",
             "pricing_from",
             "free_tier_available",

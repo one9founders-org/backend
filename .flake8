@@ -4,3 +4,4 @@ exclude = migrations, venv, __pycache__, .git, .tox, seed_data.py, seed_new_data
 per-file-ignores =
     config/settings.py:E501
     api/migrations/0001_initial.py:E501
+    api/management/commands/enrich_tools.py:E501

@@ -58,6 +58,7 @@ class ToolViewSet(viewsets.ModelViewSet):
         queryset = super().get_queryset()
         category = self.request.query_params.get("category")
         pricing = self.request.query_params.get("pricing")
+        pricing_type = self.request.query_params.get("pricing_type")
         featured = self.request.query_params.get("featured")
         startup_friendly = self.request.query_params.get("startup_friendly")
 
@@ -65,6 +66,8 @@ class ToolViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(categories__slug=category)
         if pricing:
             queryset = queryset.filter(pricing_models__contains=[pricing])
+        if pricing_type:
+            queryset = queryset.filter(pricing_type=pricing_type)
         if featured:
             queryset = queryset.filter(is_featured=True)
         if startup_friendly:

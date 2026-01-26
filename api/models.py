@@ -37,6 +37,11 @@ class Tool(models.Model):
         ("contact", "Contact Sales"),
         ("usage_based", "Usage Based"),
     ]
+    PRICING_TYPE_CHOICES = [
+        ("free", "Free"),
+        ("freemium", "Freemium"),
+        ("paid", "Paid"),
+    ]
     BILLING_CHOICES = [
         ("monthly", "Monthly"),
         ("yearly", "Yearly"),
@@ -70,6 +75,13 @@ class Tool(models.Model):
     )
     free_tier_available = models.BooleanField(default=False)
     free_trial_days = models.IntegerField(blank=True, null=True)
+    pricing_type = models.CharField(
+        max_length=20,
+        choices=PRICING_TYPE_CHOICES,
+        default="freemium",
+        db_index=True,
+        help_text="Primary pricing type: free, freemium, or paid",
+    )
 
     # Content
     tags = models.JSONField(default=list, blank=True)
