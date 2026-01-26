@@ -63,13 +63,13 @@ AI_TOOL_CATEGORIES = [
 
 
 def get_openai_client():
-    """Get OpenAI client."""
+    """Get OpenAI client (v1.0.0+ API)."""
     try:
-        import openai
         from django.conf import settings
+        from openai import OpenAI
 
-        openai.api_key = settings.OPENAI_API_KEY
-        return openai
+        client = OpenAI(api_key=settings.OPENAI_API_KEY)
+        return client
     except Exception as e:
         print(f"Error initializing OpenAI: {e}")
         return None
@@ -120,7 +120,7 @@ Example: ["Writing", "Marketing", "SEO"]
 JSON array:"""
 
     try:
-        response = openai_client.ChatCompletion.create(
+        response = openai_client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": prompt}],
             temperature=0,
@@ -158,7 +158,7 @@ Pricing types:
 Return ONLY one word: free, freemium, or paid"""
 
     try:
-        response = openai_client.ChatCompletion.create(
+        response = openai_client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": prompt}],
             temperature=0,
