@@ -234,7 +234,9 @@ def search_tools(request):
         return Response([])
 
     try:
-        response = openai_client.embeddings.create(model="text-embedding-ada-002", input=query)
+        response = openai_client.embeddings.create(
+            model="text-embedding-ada-002", input=query
+        )
         embedding = response.data[0].embedding
         print(f"DEBUG: Generated embedding length: {len(embedding)}")
 
