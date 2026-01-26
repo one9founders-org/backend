@@ -1,0 +1,220 @@
+{
+  "name": "One9Founders Daily Scraper Pipeline",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 6 * * *"
+            }
+          ]
+        }
+      },
+      "id": "cron-daily",
+      "name": "Daily Trigger (06:00 UTC)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const { execSync } = require('child_process');\n\nconst API_BASE = process.env.API_BASE_URL || 'http://localhost:8000/api';\nconst sources = ['producthunt', 'taaft', 'futurepedia'];\nconst results = [];\n\nfor (const source of sources) {\n  try {\n    console.log(`Running ${source} scraper...`);\n    \n    // Run scraper\n    const output = execSync(\n      `cd /app && python -m scrapers.${source}.scraper --limit 50 --days-back 1`,\n      { encoding: 'utf-8', timeout: 300000 }\n    );\n    \n    const data = JSON.parse(output);\n    \n    results.push({\n      source,\n      status: 'success',\n      items_count: data.items?.length || 0,\n      items: data.items || []\n    });\n    \n  } catch (error) {\n    results.push({\n      source,\n      status: 'failed',\n      error: error.message\n    });\n  }\n}\n\nreturn results.map(r => ({ json: r }));"
+      },
+      "id": "run-scrapers",
+      "name": "Run Daily Scrapers",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.status }}",
+              "operation": "equals",
+              "value2": "success"
+            }
+          ]
+        }
+      },
+      "id": "filter-success",
+      "name": "Filter Successful",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.API_BASE_URL }}/api/pipeline/ingest/",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "source",
+              "value": "={{ $json.source }}"
+            },
+            {
+              "name": "items",
+              "value": "={{ $json.items }}"
+            },
+            {
+              "name": "batch_id",
+              "value": "={{ $json.source }}_{{ $now.format('yyyyMMdd_HHmmss') }}"
+            }
+          ]
+        }
+      },
+      "id": "ingest-data",
+      "name": "Ingest to Pipeline",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [850, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.API_BASE_URL }}/api/pipeline/run/",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "type",
+              "value": "full"
+            },
+            {
+              "name": "limit",
+              "value": "50"
+            }
+          ]
+        }
+      },
+      "id": "run-pipeline",
+      "name": "Run Full Pipeline",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1050, 200]
+    },
+    {
+      "parameters": {
+        "errorMessage": "={{ $json.source }} scraper failed: {{ $json.error }}"
+      },
+      "id": "log-failure",
+      "name": "Log Failure",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.2,
+      "position": [850, 400]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 30
+            }
+          ]
+        }
+      },
+      "id": "retry-trigger",
+      "name": "Retry Failed (30 min)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [250, 500],
+      "disabled": true
+    }
+  ],
+  "connections": {
+    "Daily Trigger (06:00 UTC)": {
+      "main": [
+        [
+          {
+            "node": "Run Daily Scrapers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run Daily Scrapers": {
+      "main": [
+        [
+          {
+            "node": "Filter Successful",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Successful": {
+      "main": [
+        [
+          {
+            "node": "Ingest to Pipeline",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Failure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ingest to Pipeline": {
+      "main": [
+        [
+          {
+            "node": "Run Full Pipeline",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "one9founders",
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z"
+    },
+    {
+      "name": "scraper",
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z"
+    }
+  ],
+  "triggerCount": 1,
+  "updatedAt": "2024-01-01T00:00:00.000Z",
+  "versionId": "1"
+}
