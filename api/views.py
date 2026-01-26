@@ -1,8 +1,8 @@
-from openai import OpenAI
 from django.conf import settings
 from django.db import IntegrityError
 from django.db.models import F, Q
 from django.http import JsonResponse
+from openai import OpenAI
 from rest_framework import status, viewsets
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.pagination import PageNumberPagination
