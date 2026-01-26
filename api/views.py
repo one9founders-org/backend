@@ -174,6 +174,20 @@ class ReviewViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(tool_id=tool_id)
         return queryset.order_by("-created_at")
 
+    def create(self, request, *args, **kwargs):
+        from .recaptcha import verify_recaptcha
+
+        recaptcha_token = request.data.get("recaptcha_token")
+        if recaptcha_token:
+            result = verify_recaptcha(recaptcha_token, action="write_review")
+            if not result["success"]:
+                return Response(
+                    {"error": result["error"], "recaptcha_failed": True},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
+        return super().create(request, *args, **kwargs)
+
 
 class DealViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Deal.objects.filter(is_active=True).order_by(
@@ -208,6 +222,17 @@ class NewsViewSet(viewsets.ReadOnlyModelViewSet):
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def subscribe_newsletter(request):
+    from .recaptcha import verify_recaptcha
+
+    recaptcha_token = request.data.get("recaptcha_token")
+    if recaptcha_token:
+        result = verify_recaptcha(recaptcha_token, action="newsletter_subscribe")
+        if not result["success"]:
+            return Response(
+                {"error": result["error"], "recaptcha_failed": True},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
     serializer = NewsletterSubscriptionSerializer(data=request.data)
     if serializer.is_valid():
         try:
@@ -234,6 +259,20 @@ class ToolSubmissionViewSet(viewsets.ModelViewSet):
         if status_filter:
             queryset = queryset.filter(status=status_filter)
         return queryset
+
+    def create(self, request, *args, **kwargs):
+        from .recaptcha import verify_recaptcha
+
+        recaptcha_token = request.data.get("recaptcha_token")
+        if recaptcha_token:
+            result = verify_recaptcha(recaptcha_token, action="submit_tool")
+            if not result["success"]:
+                return Response(
+                    {"error": result["error"], "recaptcha_failed": True},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
+        return super().create(request, *args, **kwargs)
 
 
 @api_view(["GET"])

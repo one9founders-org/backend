@@ -196,6 +196,11 @@ AUTHENTICATION_BACKENDS = [
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 
+# Google reCAPTCHA v3 Configuration
+RECAPTCHA_SITE_KEY = os.getenv("RECAPTCHA_SITE_KEY", "")
+RECAPTCHA_SECRET_KEY = os.getenv("RECAPTCHA_SECRET_KEY", "")
+RECAPTCHA_SCORE_THRESHOLD = float(os.getenv("RECAPTCHA_SCORE_THRESHOLD", "0.5"))
+
 
 # Logging Configuration
 LOGGING = {
