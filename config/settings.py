@@ -168,7 +168,7 @@ CORS_ALLOWED_ORIGINS = [
 ]
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_ALL_ORIGINS = DEBUG
-CORS_ALLOWED_HEADERS = [
+CORS_ALLOW_HEADERS = [
     "accept",
     "accept-encoding",
     "authorization",
@@ -180,7 +180,7 @@ CORS_ALLOWED_HEADERS = [
     "x-requested-with",
     "x-session-id",
 ]
-CORS_ALLOWED_METHODS = [
+CORS_ALLOW_METHODS = [
     "DELETE",
     "GET",
     "OPTIONS",
