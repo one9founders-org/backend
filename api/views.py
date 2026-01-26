@@ -7,7 +7,12 @@ from django.http import JsonResponse
 from django.utils import timezone
 from openai import OpenAI
 from rest_framework import status, viewsets
-from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.decorators import (
+    action,
+    api_view,
+    authentication_classes,
+    permission_classes,
+)
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny, IsAdminUser
 from rest_framework.response import Response
@@ -561,6 +566,7 @@ def tool_usage_count(request, tool_id):
 
 
 @api_view(["POST"])
+@authentication_classes([])
 @permission_classes([AllowAny])
 def upvote_news(request, news_id):
     """Upvote a news article. Supports authenticated users and anonymous sessions."""
@@ -623,6 +629,7 @@ def upvote_news(request, news_id):
 
 
 @api_view(["DELETE"])
+@authentication_classes([])
 @permission_classes([AllowAny])
 def remove_upvote_news(request, news_id):
     """Remove upvote from a news article."""
