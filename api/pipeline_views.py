@@ -442,3 +442,121 @@ def news_feed(request):
             "items": NewsListSerializer(queryset[:50], many=True).data,
         }
     )
+
+
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def run_scraper(request):
+    """
+    Run a scraper and ingest the results.
+    This endpoint is designed to be called by n8n workflows.
+
+    Expected payload:
+    {
+        "source": "producthunt|taaft|futurepedia|huggingface",
+        "limit": 50,
+        "days_back": 1
+    }
+
+    Returns:
+    {
+        "status": "success|failed",
+        "source": "...",
+        "items_scraped": N,
+        "items_added": N,
+        "items_skipped": N,
+        "batch_id": "...",
+        "error": "..." (if failed)
+    }
+    """
+    import uuid
+
+    source = request.data.get("source")
+    limit = int(request.data.get("limit", 50))
+    days_back = float(request.data.get("days_back", 1))
+
+    valid_sources = ["producthunt", "taaft", "futurepedia", "huggingface"]
+    if not source or source not in valid_sources:
+        return Response(
+            {"error": f"Invalid source. Must be one of: {valid_sources}"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    batch_id = (
+        f"{source}_{timezone.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
+    )
+
+    run = PipelineRun.objects.create(
+        run_type="scrape",
+        source=source,
+        batch_id=batch_id,
+        status="running",
+    )
+
+    try:
+        items = []
+
+        if source == "producthunt":
+            from scrapers.producthunt.scraper import ProductHuntScraper
+
+            scraper = ProductHuntScraper(
+                headless=True, days_back=int(days_back), limit=limit
+            )
+            items = scraper.scrape()
+
+        elif source == "huggingface":
+            from scrapers.huggingface.scraper import HuggingFaceScraper
+
+            scraper = HuggingFaceScraper(days_back=int(days_back), limit=limit)
+            items = scraper.scrape()
+
+        elif source == "taaft":
+            from scrapers.taaft.scraper import TAAFTScraper
+
+            scraper = TAAFTScraper(headless=True, limit=limit)
+            items = scraper.scrape()
+
+        elif source == "futurepedia":
+            from scrapers.futurepedia.scraper import FuturepediaScraper
+
+            scraper = FuturepediaScraper(headless=True, limit_per_category=limit)
+            items = scraper.scrape()
+
+        added, skipped = ingest_scraper_output(source, items, batch_id)
+
+        run.items_processed = len(items)
+        run.items_succeeded = added
+        run.items_failed = skipped
+        run.complete(success=True)
+
+        logger.info(
+            f"Scraper {source} completed: {len(items)} scraped, "
+            f"{added} added, {skipped} skipped"
+        )
+
+        return Response(
+            {
+                "status": "success",
+                "source": source,
+                "items_scraped": len(items),
+                "items_added": added,
+                "items_skipped": skipped,
+                "batch_id": batch_id,
+            }
+        )
+
+    except Exception as e:
+        error_msg = str(e)
+        logger.error(f"Scraper {source} failed: {error_msg}", exc_info=True)
+
+        run.complete(success=False, error=error_msg)
+
+        return Response(
+            {
+                "status": "failed",
+                "source": source,
+                "error": error_msg,
+                "batch_id": batch_id,
+            },
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )

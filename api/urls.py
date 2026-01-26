@@ -68,6 +68,7 @@ urlpatterns = [
         "pipeline/ingest/", pipeline_views.ingest_scraped_data, name="pipeline-ingest"
     ),
     path("pipeline/run/", pipeline_views.run_pipeline, name="pipeline-run-trigger"),
+    path("pipeline/scrape/", pipeline_views.run_scraper, name="pipeline-scrape"),
     path("pipeline/stats/", pipeline_views.pipeline_stats, name="pipeline-stats"),
     path("pipeline/config/", pipeline_views.pipeline_config, name="pipeline-config"),
     path(
