@@ -516,6 +516,7 @@ class News(models.Model):
     # Meta
     reading_time = models.IntegerField(default=0, help_text="Minutes to read")
     views_count = models.IntegerField(default=0)
+    upvote_count = models.IntegerField(default=0, help_text="Number of upvotes")
     is_published = models.BooleanField(default=False, db_index=True)
     is_featured = models.BooleanField(default=False)
 
@@ -546,3 +547,44 @@ class News(models.Model):
         db_table = "news"
         verbose_name_plural = "News"
         ordering = ["-published_at"]
+
+
+class NewsUpvote(models.Model):
+    """Track upvotes on news articles."""
+
+    news = models.ForeignKey(News, on_delete=models.CASCADE, related_name="upvotes")
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="news_upvotes",
+        null=True,
+        blank=True,
+    )
+    session_id = models.CharField(
+        max_length=255, blank=True, db_index=True, help_text="For anonymous upvotes"
+    )
+    ip_address = models.GenericIPAddressField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        user_str = self.user.username if self.user else self.session_id or "Anonymous"
+        return f"{user_str} upvoted {self.news.title[:30]}"
+
+    class Meta:
+        db_table = "news_upvotes"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["news", "-created_at"]),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["news", "user"],
+                condition=models.Q(user__isnull=False),
+                name="unique_user_upvote",
+            ),
+            models.UniqueConstraint(
+                fields=["news", "session_id"],
+                condition=models.Q(session_id__gt=""),
+                name="unique_session_upvote",
+            ),
+        ]

@@ -16,6 +16,7 @@ from .models import (
     Category,
     Deal,
     News,
+    NewsUpvote,
     Review,
     SearchQuery,
     Tool,
@@ -557,3 +558,112 @@ def tool_usage_count(request, tool_id):
             "usage_count": usage_count,
         }
     )
+
+
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def upvote_news(request, news_id):
+    """Upvote a news article. Supports authenticated users and anonymous sessions."""
+    try:
+        news = News.objects.get(id=news_id, is_published=True)
+    except News.DoesNotExist:
+        return Response({"error": "News not found"}, status=status.HTTP_404_NOT_FOUND)
+
+    user = request.user if request.user.is_authenticated else None
+    session_id = request.headers.get("X-Session-ID", "") or request.data.get(
+        "session_id", ""
+    )
+    ip_address = get_client_ip(request)
+
+    if not user and not session_id:
+        return Response(
+            {"error": "Either login or provide X-Session-ID header"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    try:
+        if user:
+            upvote, created = NewsUpvote.objects.get_or_create(
+                news=news,
+                user=user,
+                defaults={"ip_address": ip_address},
+            )
+        else:
+            upvote, created = NewsUpvote.objects.get_or_create(
+                news=news,
+                session_id=session_id,
+                defaults={"ip_address": ip_address},
+            )
+
+        if created:
+            News.objects.filter(pk=news.pk).update(upvote_count=F("upvote_count") + 1)
+            news.refresh_from_db()
+            return Response(
+                {
+                    "message": "Upvoted successfully",
+                    "upvote_count": news.upvote_count,
+                    "has_upvoted": True,
+                },
+                status=status.HTTP_201_CREATED,
+            )
+        else:
+            return Response(
+                {
+                    "message": "Already upvoted",
+                    "upvote_count": news.upvote_count,
+                    "has_upvoted": True,
+                },
+                status=status.HTTP_200_OK,
+            )
+    except IntegrityError:
+        return Response(
+            {"error": "Already upvoted", "has_upvoted": True},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+
+@api_view(["DELETE"])
+@permission_classes([AllowAny])
+def remove_upvote_news(request, news_id):
+    """Remove upvote from a news article."""
+    try:
+        news = News.objects.get(id=news_id, is_published=True)
+    except News.DoesNotExist:
+        return Response({"error": "News not found"}, status=status.HTTP_404_NOT_FOUND)
+
+    user = request.user if request.user.is_authenticated else None
+    session_id = request.headers.get("X-Session-ID", "") or request.data.get(
+        "session_id", ""
+    )
+
+    if not user and not session_id:
+        return Response(
+            {"error": "Either login or provide X-Session-ID header"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if user:
+        deleted, _ = NewsUpvote.objects.filter(news=news, user=user).delete()
+    else:
+        deleted, _ = NewsUpvote.objects.filter(
+            news=news, session_id=session_id
+        ).delete()
+
+    if deleted:
+        News.objects.filter(pk=news.pk).update(upvote_count=F("upvote_count") - 1)
+        news.refresh_from_db()
+        return Response(
+            {
+                "message": "Upvote removed",
+                "upvote_count": max(0, news.upvote_count),
+                "has_upvoted": False,
+            }
+        )
+    else:
+        return Response(
+            {
+                "message": "No upvote to remove",
+                "upvote_count": news.upvote_count,
+                "has_upvoted": False,
+            }
+        )

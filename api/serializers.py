@@ -6,6 +6,7 @@ from .models import (
     Deal,
     News,
     NewsletterSubscription,
+    NewsUpvote,
     Review,
     SearchQuery,
     Tool,
@@ -121,6 +122,8 @@ class DealSerializer(serializers.ModelSerializer):
 
 
 class NewsListSerializer(serializers.ModelSerializer):
+    has_upvoted = serializers.SerializerMethodField()
+
     class Meta:
         model = News
         fields = [
@@ -134,13 +137,27 @@ class NewsListSerializer(serializers.ModelSerializer):
             "tags",
             "reading_time",
             "views_count",
+            "upvote_count",
+            "has_upvoted",
             "is_featured",
             "published_at",
         ]
 
+    def get_has_upvoted(self, obj):
+        request = self.context.get("request")
+        if not request:
+            return False
+        if request.user.is_authenticated:
+            return obj.upvotes.filter(user=request.user).exists()
+        session_id = request.headers.get("X-Session-ID", "")
+        if session_id:
+            return obj.upvotes.filter(session_id=session_id).exists()
+        return False
+
 
 class NewsDetailSerializer(serializers.ModelSerializer):
     related_tools = ToolListSerializer(many=True, read_only=True)
+    has_upvoted = serializers.SerializerMethodField()
 
     class Meta:
         model = News
@@ -150,8 +167,27 @@ class NewsDetailSerializer(serializers.ModelSerializer):
             "updated_at",
             "published_at",
             "views_count",
+            "upvote_count",
             "reading_time",
         ]
+
+    def get_has_upvoted(self, obj):
+        request = self.context.get("request")
+        if not request:
+            return False
+        if request.user.is_authenticated:
+            return obj.upvotes.filter(user=request.user).exists()
+        session_id = request.headers.get("X-Session-ID", "")
+        if session_id:
+            return obj.upvotes.filter(session_id=session_id).exists()
+        return False
+
+
+class NewsUpvoteSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = NewsUpvote
+        fields = ["id", "news", "user", "session_id", "created_at"]
+        read_only_fields = ["created_at", "user"]
 
 
 class NewsletterSubscriptionSerializer(serializers.ModelSerializer):
