@@ -1,4 +1,4 @@
-import openai
+from openai import OpenAI
 from django.conf import settings
 from django.db import IntegrityError
 from django.db.models import F, Q
@@ -22,7 +22,8 @@ from .serializers import (
     ToolSubmissionSerializer,
 )
 
-openai.api_key = settings.OPENAI_API_KEY
+# Initialize OpenAI client with new API syntax (openai>=1.0.0)
+openai_client = OpenAI(api_key=settings.OPENAI_API_KEY)
 
 
 class CustomPageNumberPagination(PageNumberPagination):
@@ -86,10 +87,10 @@ class ToolViewSet(viewsets.ModelViewSet):
             return Response([])
 
         try:
-            response = openai.Embedding.create(
+            response = openai_client.embeddings.create(
                 model="text-embedding-ada-002", input=query
             )
-            embedding = response["data"][0]["embedding"]
+            embedding = response.data[0].embedding
             print(f"DEBUG: Generated embedding length: {len(embedding)}")
 
             from django.db import connection
@@ -233,8 +234,8 @@ def search_tools(request):
         return Response([])
 
     try:
-        response = openai.Embedding.create(model="text-embedding-ada-002", input=query)
-        embedding = response["data"][0]["embedding"]
+        response = openai_client.embeddings.create(model="text-embedding-ada-002", input=query)
+        embedding = response.data[0].embedding
         print(f"DEBUG: Generated embedding length: {len(embedding)}")
 
         from django.db import connection
