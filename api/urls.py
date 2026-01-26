@@ -51,6 +51,13 @@ urlpatterns = [
         views.tool_usage_count,
         name="tool-usage-count",
     ),
+    # News upvote endpoints
+    path("news/<int:news_id>/upvote/", views.upvote_news, name="news-upvote"),
+    path(
+        "news/<int:news_id>/upvote/remove/",
+        views.remove_upvote_news,
+        name="news-upvote-remove",
+    ),
     # Authentication
     path("auth/register/", register_user, name="register_user"),
     path("auth/login/", login_user, name="login_user"),
