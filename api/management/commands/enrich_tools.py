@@ -289,10 +289,16 @@ class Command(BaseCommand):
                     if "categories" in changes:
                         for cat_name in changes["categories"]:
                             slug = slugify(cat_name)
-                            category, _ = Category.objects.get_or_create(
-                                slug=slug,
-                                defaults={"name": cat_name},
-                            )
+                            try:
+                                category = Category.objects.get(slug=slug)
+                            except Category.DoesNotExist:
+                                try:
+                                    category = Category.objects.get(name=cat_name)
+                                except Category.DoesNotExist:
+                                    category = Category.objects.create(
+                                        slug=slug,
+                                        name=cat_name,
+                                    )
                             tool.categories.add(category)
 
                     updated_count += 1
