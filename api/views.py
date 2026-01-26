@@ -1,7 +1,10 @@
+from datetime import timedelta
+
 from django.conf import settings
 from django.db import IntegrityError
-from django.db.models import F, Q
+from django.db.models import Count, F, Q
 from django.http import JsonResponse
+from django.utils import timezone
 from openai import OpenAI
 from rest_framework import status, viewsets
 from rest_framework.decorators import action, api_view, permission_classes
@@ -9,7 +12,17 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny, IsAdminUser
 from rest_framework.response import Response
 
-from .models import Category, Deal, News, Review, Tool, ToolSubmission
+from .models import (
+    Category,
+    Deal,
+    News,
+    Review,
+    SearchQuery,
+    Tool,
+    ToolClick,
+    ToolSubmission,
+    ToolUsage,
+)
 from .serializers import (
     CategorySerializer,
     DealSerializer,
@@ -20,6 +33,7 @@ from .serializers import (
     ToolDetailSerializer,
     ToolListSerializer,
     ToolSubmissionSerializer,
+    TrendingToolSerializer,
 )
 
 # Initialize OpenAI client with new API syntax (openai>=1.0.0)
@@ -345,5 +359,162 @@ def sync_lacreme(request):
             "scraped": len(scraped_tools),
             "added": added,
             "skipped": skipped,
+        }
+    )
+
+
+def get_client_ip(request):
+    x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
+    if x_forwarded_for:
+        ip = x_forwarded_for.split(",")[0]
+    else:
+        ip = request.META.get("REMOTE_ADDR")
+    return ip
+
+
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def track_tool_usage(request):
+    tool_id = request.data.get("tool_id")
+    session_id = request.data.get("session_id", "")
+
+    if not tool_id:
+        return Response(
+            {"error": "tool_id is required"}, status=status.HTTP_400_BAD_REQUEST
+        )
+
+    try:
+        tool = Tool.objects.get(id=tool_id, is_active=True)
+    except Tool.DoesNotExist:
+        return Response({"error": "Tool not found"}, status=status.HTTP_404_NOT_FOUND)
+
+    user = request.user if request.user.is_authenticated else None
+    ip_address = get_client_ip(request)
+
+    usage = ToolUsage.objects.create(
+        tool=tool,
+        user=user,
+        session_id=session_id,
+        ip_address=ip_address,
+    )
+
+    return Response(
+        {"message": "Usage tracked", "id": usage.id}, status=status.HTTP_201_CREATED
+    )
+
+
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def track_tool_click(request):
+    tool_id = request.data.get("tool_id")
+    action = request.data.get("action")
+    session_id = request.data.get("session_id", "")
+    referrer = request.data.get("referrer", "")
+
+    if not tool_id or not action:
+        return Response(
+            {"error": "tool_id and action are required"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    valid_actions = [choice[0] for choice in ToolClick.ACTION_CHOICES]
+    if action not in valid_actions:
+        return Response(
+            {"error": f"Invalid action. Must be one of: {valid_actions}"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    try:
+        tool = Tool.objects.get(id=tool_id, is_active=True)
+    except Tool.DoesNotExist:
+        return Response({"error": "Tool not found"}, status=status.HTTP_404_NOT_FOUND)
+
+    user = request.user if request.user.is_authenticated else None
+    ip_address = get_client_ip(request)
+
+    click = ToolClick.objects.create(
+        tool=tool,
+        action=action,
+        user=user,
+        session_id=session_id,
+        ip_address=ip_address,
+        referrer=referrer,
+    )
+
+    return Response(
+        {"message": "Click tracked", "id": click.id}, status=status.HTTP_201_CREATED
+    )
+
+
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def track_search_query(request):
+    query = request.data.get("query", "")
+    session_id = request.data.get("session_id", "")
+    results_count = request.data.get("results_count", 0)
+    filters = request.data.get("filters", {})
+
+    if not query:
+        return Response(
+            {"error": "query is required"}, status=status.HTTP_400_BAD_REQUEST
+        )
+
+    user = request.user if request.user.is_authenticated else None
+    ip_address = get_client_ip(request)
+
+    search = SearchQuery.objects.create(
+        query=query,
+        user=user,
+        session_id=session_id,
+        ip_address=ip_address,
+        results_count=results_count,
+        filters=filters,
+    )
+
+    return Response(
+        {"message": "Search tracked", "id": search.id}, status=status.HTTP_201_CREATED
+    )
+
+
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def trending_tools(request):
+    days = int(request.query_params.get("days", 7))
+    limit = int(request.query_params.get("limit", 10))
+
+    since = timezone.now() - timedelta(days=days)
+
+    tools = (
+        Tool.objects.filter(is_active=True)
+        .annotate(
+            usage_count=Count(
+                "usages", filter=Q(usages__created_at__gte=since), distinct=True
+            ),
+            click_count=Count(
+                "clicks", filter=Q(clicks__created_at__gte=since), distinct=True
+            ),
+        )
+        .order_by("-usage_count", "-click_count", "-views_count")[:limit]
+    )
+
+    serializer = TrendingToolSerializer(tools, many=True)
+    return Response(serializer.data)
+
+
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def tool_usage_count(request, tool_id):
+    try:
+        tool = Tool.objects.get(id=tool_id, is_active=True)
+    except Tool.DoesNotExist:
+        return Response({"error": "Tool not found"}, status=status.HTTP_404_NOT_FOUND)
+
+    usage_count = ToolUsage.objects.filter(tool=tool).count()
+
+    return Response(
+        {
+            "tool_id": tool_id,
+            "tool_name": tool.name,
+            "usage_count": usage_count,
         }
     )

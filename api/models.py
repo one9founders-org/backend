@@ -417,6 +417,82 @@ class Deal(models.Model):
         ordering = ["-featured_deal", "-created_at"]
 
 
+class ToolUsage(models.Model):
+    tool = models.ForeignKey(Tool, on_delete=models.CASCADE, related_name="usages")
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="tool_usages",
+        null=True,
+        blank=True,
+    )
+    session_id = models.CharField(max_length=255, blank=True, db_index=True)
+    ip_address = models.GenericIPAddressField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        user_str = self.user.username if self.user else self.session_id or "Anonymous"
+        return f"{user_str} uses {self.tool.name}"
+
+    class Meta:
+        db_table = "tool_usages"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["tool", "-created_at"]),
+        ]
+
+
+class SearchQuery(models.Model):
+    query = models.CharField(max_length=500, db_index=True)
+    user = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name="searches"
+    )
+    session_id = models.CharField(max_length=255, blank=True, db_index=True)
+    ip_address = models.GenericIPAddressField(blank=True, null=True)
+    results_count = models.IntegerField(default=0)
+    filters = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"'{self.query}' - {self.results_count} results"
+
+    class Meta:
+        db_table = "search_queries"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["-created_at"]),
+        ]
+
+
+class ToolClick(models.Model):
+    ACTION_CHOICES = [
+        ("view_details", "View Details"),
+        ("visit_tool", "Visit Tool"),
+        ("write_review", "Write Review"),
+        ("i_use_this", "I Use This"),
+    ]
+
+    tool = models.ForeignKey(Tool, on_delete=models.CASCADE, related_name="clicks")
+    action = models.CharField(max_length=50, choices=ACTION_CHOICES, db_index=True)
+    user = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name="clicks"
+    )
+    session_id = models.CharField(max_length=255, blank=True, db_index=True)
+    ip_address = models.GenericIPAddressField(blank=True, null=True)
+    referrer = models.URLField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.action} on {self.tool.name}"
+
+    class Meta:
+        db_table = "tool_clicks"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["tool", "action", "-created_at"]),
+        ]
+
+
 class News(models.Model):
     # Basic
     title = models.CharField(max_length=255)

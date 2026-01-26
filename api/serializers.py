@@ -7,8 +7,11 @@ from .models import (
     News,
     NewsletterSubscription,
     Review,
+    SearchQuery,
     Tool,
+    ToolClick,
     ToolSubmission,
+    ToolUsage,
     UserFavorite,
 )
 
@@ -183,3 +186,60 @@ class UserFavoriteSerializer(serializers.ModelSerializer):
         model = UserFavorite
         fields = "__all__"
         read_only_fields = ["created_at"]
+
+
+class ToolUsageSerializer(serializers.ModelSerializer):
+    tool_name = serializers.CharField(source="tool.name", read_only=True)
+
+    class Meta:
+        model = ToolUsage
+        fields = ["id", "tool", "tool_name", "session_id", "created_at"]
+        read_only_fields = ["created_at"]
+
+
+class SearchQuerySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SearchQuery
+        fields = ["id", "query", "session_id", "results_count", "filters", "created_at"]
+        read_only_fields = ["created_at"]
+
+
+class ToolClickSerializer(serializers.ModelSerializer):
+    tool_name = serializers.CharField(source="tool.name", read_only=True)
+
+    class Meta:
+        model = ToolClick
+        fields = [
+            "id",
+            "tool",
+            "tool_name",
+            "action",
+            "session_id",
+            "referrer",
+            "created_at",
+        ]
+        read_only_fields = ["created_at"]
+
+
+class TrendingToolSerializer(serializers.ModelSerializer):
+    categories = CategorySerializer(many=True, read_only=True)
+    usage_count = serializers.IntegerField(read_only=True)
+    click_count = serializers.IntegerField(read_only=True)
+
+    class Meta:
+        model = Tool
+        fields = [
+            "id",
+            "name",
+            "slug",
+            "short_description",
+            "logo_url",
+            "website",
+            "categories",
+            "rating",
+            "review_count",
+            "views_count",
+            "usage_count",
+            "click_count",
+            "is_featured",
+        ]
