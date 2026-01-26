@@ -212,6 +212,45 @@ class NewsDraftAdmin(SummernoteModelAdmin):
     prepopulated_fields = {"slug": ("title",)}
     readonly_fields = ["created_at", "updated_at", "published_at"]
     raw_id_fields = ["qualified_item"]
+    actions = ["publish_drafts"]
+
+    def publish_drafts(self, request, queryset):
+        """Publish selected drafts to the News model."""
+        from .pipeline_engine import PipelineEngine
+        from .pipeline_models import PipelineConfig
+
+        if not PipelineConfig.is_publishing_enabled():
+            self.message_user(
+                request,
+                "Publishing is disabled. Enable it in Pipeline Config first.",
+                level="error",
+            )
+            return
+
+        engine = PipelineEngine()
+        published_count = 0
+        failed_count = 0
+
+        for draft in queryset.filter(status__in=["generated", "ready", "editing"]):
+            slot, _ = engine.get_next_publish_slot()
+            result = engine.publish_draft(draft, slot)
+            if result:
+                published_count += 1
+            else:
+                failed_count += 1
+
+        if published_count > 0:
+            self.message_user(
+                request, f"Successfully published {published_count} article(s)."
+            )
+        if failed_count > 0:
+            self.message_user(
+                request,
+                f"Failed to publish {failed_count} article(s).",
+                level="warning",
+            )
+
+    publish_drafts.short_description = "Publish selected drafts to News"
 
 
 @admin.register(PublishedArticle)
