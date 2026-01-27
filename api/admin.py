@@ -130,6 +130,36 @@ class NewsAdmin(SummernoteModelAdmin):
         "created_at",
         "updated_at",
     ]
+    fieldsets = (
+        (None, {"fields": ("title", "slug", "excerpt", "content")}),
+        (
+            "Featured Image",
+            {
+                "fields": ("featured_image_upload", "featured_image"),
+                "description": "Upload an image directly OR provide a URL. "
+                "Uploaded images take priority over URLs.",
+            },
+        ),
+        ("Relations", {"fields": ("related_tools", "author")}),
+        ("Categorization", {"fields": ("category", "tags")}),
+        (
+            "Publishing",
+            {"fields": ("is_published", "is_featured", "published_at")},
+        ),
+        (
+            "Stats (Read-only)",
+            {
+                "fields": (
+                    "reading_time",
+                    "views_count",
+                    "upvote_count",
+                    "created_at",
+                    "updated_at",
+                ),
+                "classes": ("collapse",),
+            },
+        ),
+    )
 
 
 @admin.register(NewsletterSubscription)

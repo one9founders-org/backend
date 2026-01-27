@@ -212,6 +212,23 @@ class NewsViewSet(viewsets.ReadOnlyModelViewSet):
             return NewsDetailSerializer
         return NewsListSerializer
 
+    def get_object(self):
+        """Support lookup by both id and slug."""
+        queryset = self.filter_queryset(self.get_queryset())
+        lookup_value = self.kwargs.get(self.lookup_field)
+
+        # Try to look up by id first if the value is numeric
+        if lookup_value and lookup_value.isdigit():
+            try:
+                obj = queryset.get(pk=int(lookup_value))
+                self.check_object_permissions(self.request, obj)
+                return obj
+            except News.DoesNotExist:
+                pass
+
+        # Fall back to slug lookup
+        return super().get_object()
+
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
         News.objects.filter(pk=instance.pk).update(views_count=F("views_count") + 1)
