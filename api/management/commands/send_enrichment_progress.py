@@ -3,9 +3,9 @@ Management command to send enrichment progress email notifications.
 Can be run via cron job to send hourly updates.
 """
 
+from django.conf import settings
 from django.core.mail import send_mail
 from django.core.management.base import BaseCommand
-from django.conf import settings
 
 from api.models import Tool
 
