@@ -501,7 +501,13 @@ class News(models.Model):
     content = SummernoteTextField()
 
     # Media
-    featured_image = models.URLField(blank=True)
+    featured_image = models.URLField(blank=True, help_text="URL to featured image")
+    featured_image_upload = models.ImageField(
+        upload_to="news/images/",
+        blank=True,
+        null=True,
+        help_text="Upload image directly (will be used if no URL provided)",
+    )
 
     # Relations
     related_tools = models.ManyToManyField(
@@ -524,6 +530,13 @@ class News(models.Model):
     published_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    @property
+    def get_featured_image_url(self):
+        """Return the featured image URL, preferring uploaded image over URL."""
+        if self.featured_image_upload:
+            return self.featured_image_upload.url
+        return self.featured_image or ""
 
     def save(self, *args, **kwargs):
         if not self.slug:

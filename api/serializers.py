@@ -123,6 +123,7 @@ class DealSerializer(serializers.ModelSerializer):
 
 class NewsListSerializer(serializers.ModelSerializer):
     has_upvoted = serializers.SerializerMethodField()
+    featured_image = serializers.SerializerMethodField()
 
     class Meta:
         model = News
@@ -143,6 +144,9 @@ class NewsListSerializer(serializers.ModelSerializer):
             "published_at",
         ]
 
+    def get_featured_image(self, obj):
+        return obj.get_featured_image_url
+
     def get_has_upvoted(self, obj):
         request = self.context.get("request")
         if not request:
@@ -158,10 +162,11 @@ class NewsListSerializer(serializers.ModelSerializer):
 class NewsDetailSerializer(serializers.ModelSerializer):
     related_tools = ToolListSerializer(many=True, read_only=True)
     has_upvoted = serializers.SerializerMethodField()
+    featured_image = serializers.SerializerMethodField()
 
     class Meta:
         model = News
-        exclude = ["is_published"]
+        exclude = ["is_published", "featured_image_upload"]
         read_only_fields = [
             "created_at",
             "updated_at",
@@ -170,6 +175,9 @@ class NewsDetailSerializer(serializers.ModelSerializer):
             "upvote_count",
             "reading_time",
         ]
+
+    def get_featured_image(self, obj):
+        return obj.get_featured_image_url
 
     def get_has_upvoted(self, obj):
         request = self.context.get("request")
