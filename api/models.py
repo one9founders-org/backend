@@ -113,6 +113,13 @@ class Tool(models.Model):
     is_featured = models.BooleanField(default=False, db_index=True)
     is_active = models.BooleanField(default=True, db_index=True)
 
+    # Display order for homepage ranking (lower = higher priority)
+    display_order = models.IntegerField(
+        default=9999,
+        db_index=True,
+        help_text="Display order on homepage (lower = higher)",
+    )
+
     # Relations
     alternatives = models.ManyToManyField(
         "self", blank=True, symmetrical=False, related_name="alternative_to"
@@ -188,7 +195,7 @@ class Tool(models.Model):
 
     class Meta:
         db_table = "tools"
-        ordering = ["-is_featured", "-rating"]
+        ordering = ["display_order", "-is_featured", "-rating"]
 
 
 class Review(models.Model):
