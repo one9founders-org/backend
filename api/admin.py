@@ -80,7 +80,6 @@ class ToolAdmin(ImportExportModelAdmin):
     search_fields = ["name", "description", "tags"]
     filter_horizontal = ["categories"]
     raw_id_fields = ["alternatives"]
-    readonly_fields = ["embedding"]
     exclude = ["embedding"]
 
 
