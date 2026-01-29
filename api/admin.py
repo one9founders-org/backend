@@ -122,7 +122,7 @@ class NewsAdmin(SummernoteModelAdmin):
     list_filter = ["is_published", "is_featured", "category"]
     search_fields = ["title", "content", "excerpt"]
     prepopulated_fields = {"slug": ("title",)}
-    filter_horizontal = ["related_tools"]
+    raw_id_fields = ["related_tools"]
     readonly_fields = [
         "reading_time",
         "views_count",
