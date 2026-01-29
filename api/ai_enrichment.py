@@ -1,14 +1,17 @@
 import json
+import logging
 import re
 
-import openai
 from django.conf import settings
+from openai import OpenAI
 
-openai.api_key = settings.OPENAI_API_KEY
+logger = logging.getLogger(__name__)
 
 
 def enrich_tool_data(name, description, url=None):
     """Use AI to populate all tool fields from basic info"""
+
+    client = OpenAI(api_key=settings.OPENAI_API_KEY)
 
     prompt = f"""Analyze this tool and provide structured data:
 
@@ -42,7 +45,7 @@ Only return valid JSON.
 """
 
     try:
-        response = openai.ChatCompletion.create(
+        response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3,
@@ -56,5 +59,5 @@ Only return valid JSON.
             return data
         return {}
     except Exception as e:
-        print(f"AI enrichment error: {e}")
+        logger.warning("AI enrichment error: %s", e)
         return {}
