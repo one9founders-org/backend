@@ -82,7 +82,8 @@ class ToolViewSet(viewsets.ModelViewSet):
         if pricing:
             queryset = queryset.filter(pricing_models__contains=[pricing])
         if pricing_type:
-            queryset = queryset.filter(pricing_type=pricing_type)
+            pricing_types = [pt.strip().lower() for pt in pricing_type.split(",")]
+            queryset = queryset.filter(pricing_type__in=pricing_types)
         if featured:
             queryset = queryset.filter(is_featured=True)
         if startup_friendly:
