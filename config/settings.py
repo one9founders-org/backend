@@ -166,6 +166,10 @@ CORS_ALLOWED_ORIGINS = [
     "https://one9founders.com",
     "https://www.one9founders.com",
 ]
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^https://one9founders-git-.*-one9founders-projects\.vercel\.app$",
+    r"^https://one9founders-.*-one9founders-projects\.vercel\.app$",
+]
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_ALL_ORIGINS = DEBUG
 CORS_ALLOWED_HEADERS = [
