@@ -1,3 +1,4 @@
+import logging
 from datetime import timedelta
 
 from django.conf import settings
@@ -37,6 +38,8 @@ from .serializers import (
     TrendingToolSerializer,
 )
 
+logger = logging.getLogger(__name__)
+
 # Initialize OpenAI client with new API syntax (openai>=1.0.0)
 openai_client = OpenAI(api_key=settings.OPENAI_API_KEY)
 
@@ -49,7 +52,7 @@ class CustomPageNumberPagination(PageNumberPagination):
     def get_page_size(self, request):
         page_size = super().get_page_size(request)
         req_size = request.query_params.get("page_size")
-        print(f"DEBUG: Requested page_size: {req_size}, Final: {page_size}")
+        logger.debug("Requested page_size: %s, Final: %s", req_size, page_size)
         return page_size
 
     def get_paginated_response(self, data):
@@ -101,7 +104,7 @@ class ToolViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=["post"])
     def search(self, request):
         query = request.data.get("query", "")
-        print(f"DEBUG: Search query: {query}")
+        logger.debug("Search query: %s", query)
         if not query:
             return Response([])
 
@@ -110,7 +113,7 @@ class ToolViewSet(viewsets.ModelViewSet):
                 model="text-embedding-ada-002", input=query
             )
             embedding = response.data[0].embedding
-            print(f"DEBUG: Generated embedding length: {len(embedding)}")
+            logger.debug("Generated embedding length: %d", len(embedding))
 
             from django.db import connection
 
@@ -121,10 +124,10 @@ class ToolViewSet(viewsets.ModelViewSet):
                     "AND is_active = TRUE"
                 )
                 count = cursor.fetchone()[0]
-                print(f"DEBUG: Tools with embeddings: {count}")
+                logger.debug("Tools with embeddings: %d", count)
 
                 if count == 0:
-                    print("DEBUG: No embeddings found, falling back to text search")
+                    logger.debug("No embeddings found, falling back to text search")
                     raise Exception("No embeddings available")
 
                 cursor.execute(
@@ -144,17 +147,17 @@ class ToolViewSet(viewsets.ModelViewSet):
 
                 columns = [col[0] for col in cursor.description]
                 results = [dict(zip(columns, row)) for row in cursor.fetchall()]
-                print(f"DEBUG: Vector search results: {len(results)}")
+                logger.debug("Vector search results: %d", len(results))
 
             return Response(results)
         except Exception as e:
-            print(f"DEBUG: Vector search failed: {e}")
+            logger.warning("Vector search failed: %s", e)
             # Fallback to text search
             tools = Tool.objects.filter(
                 Q(name__icontains=query) | Q(description__icontains=query),
                 is_active=True,
             )[:20]
-            print(f"DEBUG: Text search fallback results: {tools.count()}")
+            logger.debug("Text search fallback results: %d", tools.count())
             return Response(ToolListSerializer(tools, many=True).data)
 
 
@@ -287,7 +290,7 @@ def health_check(request):
 @permission_classes([AllowAny])
 def search_tools(request):
     query = request.data.get("query", "")
-    print(f"DEBUG: Standalone search query: {query}")
+    logger.debug("Standalone search query: %s", query)
     if not query:
         return Response([])
 
@@ -296,7 +299,7 @@ def search_tools(request):
             model="text-embedding-ada-002", input=query
         )
         embedding = response.data[0].embedding
-        print(f"DEBUG: Generated embedding length: {len(embedding)}")
+        logger.debug("Generated embedding length: %d", len(embedding))
 
         from django.db import connection
 
@@ -307,10 +310,10 @@ def search_tools(request):
                 "AND is_active = TRUE"
             )
             count = cursor.fetchone()[0]
-            print(f"DEBUG: Tools with embeddings: {count}")
+            logger.debug("Tools with embeddings: %d", count)
 
             if count == 0:
-                print("DEBUG: No embeddings found, falling back to text search")
+                logger.debug("No embeddings found, falling back to text search")
                 raise Exception("No embeddings available")
 
             cursor.execute(
@@ -330,17 +333,17 @@ def search_tools(request):
 
             columns = [col[0] for col in cursor.description]
             results = [dict(zip(columns, row)) for row in cursor.fetchall()]
-            print(f"DEBUG: Vector search results: {len(results)}")
+            logger.debug("Vector search results: %d", len(results))
 
         return Response(results)
     except Exception as e:
-        print(f"DEBUG: Vector search failed: {e}")
+        logger.warning("Vector search failed: %s", e)
         # Fallback to text search
         tools = Tool.objects.filter(
             Q(name__icontains=query) | Q(description__icontains=query),
             is_active=True,
         )[:20]
-        print(f"DEBUG: Text search fallback results: {tools.count()}")
+        logger.debug("Text search fallback results: %d", tools.count())
         return Response(ToolListSerializer(tools, many=True).data)
 
 

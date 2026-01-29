@@ -1,9 +1,12 @@
+import logging
 import math
 
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django_summernote.fields import SummernoteTextField
 from pgvector.django import VectorField
+
+logger = logging.getLogger(__name__)
 
 
 class User(AbstractUser):
@@ -165,10 +168,10 @@ class Tool(models.Model):
         # Generate embedding
         if self.embedding is None and self.name and self.description:
             try:
-                import openai
                 from django.conf import settings
+                from openai import OpenAI
 
-                openai.api_key = settings.OPENAI_API_KEY
+                client = OpenAI(api_key=settings.OPENAI_API_KEY)
 
                 parts = [
                     self.name,
@@ -182,12 +185,14 @@ class Tool(models.Model):
                 ]
                 text = " ".join(filter(None, parts))
 
-                response = openai.Embedding.create(
+                response = client.embeddings.create(
                     model="text-embedding-ada-002", input=text
                 )
-                self.embedding = response["data"][0]["embedding"]
-            except Exception:
-                pass
+                self.embedding = response.data[0].embedding
+            except Exception as e:
+                logger.warning(
+                    "Failed to generate embedding for tool %s: %s", self.name, e
+                )
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -225,10 +230,10 @@ class Review(models.Model):
             try:
                 import json
 
-                import openai
                 from django.conf import settings
+                from openai import OpenAI
 
-                openai.api_key = settings.OPENAI_API_KEY
+                client = OpenAI(api_key=settings.OPENAI_API_KEY)
 
                 prompt = f"""Extract pros and cons from this review:
 
@@ -237,7 +242,7 @@ class Review(models.Model):
 Return JSON: {{"pros": ["pro1", "pro2"], "cons": ["con1", "con2"]}}
 Only return JSON."""
 
-                response = openai.ChatCompletion.create(
+                response = client.chat.completions.create(
                     model="gpt-3.5-turbo",
                     messages=[{"role": "user", "content": prompt}],
                     temperature=0,
@@ -250,8 +255,8 @@ Only return JSON."""
                 )
                 self.pros = data.get("pros", [])
                 self.cons = data.get("cons", [])
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("Failed to extract pros/cons from review: %s", e)
 
         super().save(*args, **kwargs)
 
