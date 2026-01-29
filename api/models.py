@@ -63,6 +63,9 @@ class Tool(models.Model):
     affiliate_url = models.URLField(blank=True, null=True)
     logo_url = models.URLField(blank=True, null=True)
     video_demo_url = models.URLField(blank=True, null=True)
+    landing_page_screenshot = models.URLField(
+        blank=True, null=True, help_text="Screenshot/preview of the tool's landing page"
+    )
 
     # Pricing
     pricing_models = models.JSONField(
