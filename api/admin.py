@@ -77,7 +77,9 @@ class ToolAdmin(ImportExportModelAdmin):
         "categories",
     ]
     search_fields = ["name", "description", "tags"]
-    filter_horizontal = ["categories", "alternatives"]
+    filter_horizontal = ["categories"]
+    raw_id_fields = ["alternatives"]
+    exclude = ["embedding"]
 
 
 @admin.register(Review)
