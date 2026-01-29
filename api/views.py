@@ -78,7 +78,10 @@ class ToolViewSet(viewsets.ModelViewSet):
         startup_friendly = self.request.query_params.get("startup_friendly")
 
         if category:
-            queryset = queryset.filter(categories__slug=category)
+            queryset = queryset.filter(
+                Q(categories__slug__iexact=category)
+                | Q(categories__name__iexact=category)
+            )
         if pricing:
             queryset = queryset.filter(pricing_models__contains=[pricing])
         if pricing_type:

@@ -68,6 +68,7 @@ class ToolAdmin(ImportExportModelAdmin):
         "is_featured",
         "startup_friendly",
         "is_active",
+        "display_order",
     ]
     list_filter = [
         "is_active",
@@ -77,7 +78,10 @@ class ToolAdmin(ImportExportModelAdmin):
         "categories",
     ]
     search_fields = ["name", "description", "tags"]
-    filter_horizontal = ["categories", "alternatives"]
+    filter_horizontal = ["categories"]
+    raw_id_fields = ["alternatives"]
+    readonly_fields = ["embedding"]
+    exclude = ["embedding"]
 
 
 @admin.register(Review)
