@@ -29,3 +29,6 @@ safety-report.json
 
 # Pre-commit
 .pre-commit-cache/
+
+# FAISS index files
+faiss_index/

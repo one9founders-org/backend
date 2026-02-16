@@ -113,50 +113,17 @@ class ToolViewSet(viewsets.ModelViewSet):
             return Response([])
 
         try:
-            response = openai_client.embeddings.create(
-                model="text-embedding-ada-002", input=query
-            )
-            embedding = response.data[0].embedding
-            logger.debug("Generated embedding length: %d", len(embedding))
+            from .faiss_search import FAISSSearchService
 
-            from django.db import connection
-
-            with connection.cursor() as cursor:
-                # First check if we have any tools with embeddings
-                cursor.execute(
-                    "SELECT COUNT(*) FROM tools WHERE embedding IS NOT NULL "
-                    "AND is_active = TRUE"
-                )
-                count = cursor.fetchone()[0]
-                logger.debug("Tools with embeddings: %d", count)
-
-                if count == 0:
-                    logger.debug("No embeddings found, falling back to text search")
-                    raise Exception("No embeddings available")
-
-                cursor.execute(
-                    """
-                    SELECT t.id, t.name, t.short_description, t.description,
-                           t.website, t.logo_url, t.slug,
-                           1 - (t.embedding <=> %s::vector) AS similarity
-                    FROM tools t
-                    WHERE t.is_active = TRUE
-                      AND t.embedding IS NOT NULL
-                      AND 1 - (t.embedding <=> %s::vector) > 0.3
-                    ORDER BY t.embedding <=> %s::vector
-                    LIMIT 20
-                """,
-                    [embedding, embedding, embedding],
-                )
-
-                columns = [col[0] for col in cursor.description]
-                results = [dict(zip(columns, row)) for row in cursor.fetchall()]
-                logger.debug("Vector search results: %d", len(results))
-
-            return Response(results)
+            service = FAISSSearchService.get_instance()
+            results = service.search(query, top_k=20, similarity_threshold=0.3)
+            if results is not None:
+                logger.debug("FAISS search results: %d", len(results))
+                return Response(results)
+            logger.debug("FAISS index not available, falling back to text search")
+            raise Exception("FAISS index not available")
         except Exception as e:
-            logger.warning("Vector search failed: %s", e)
-            # Fallback to text search
+            logger.warning("FAISS search failed: %s", e)
             tools = Tool.objects.filter(
                 Q(name__icontains=query) | Q(description__icontains=query),
                 is_active=True,
@@ -299,50 +266,17 @@ def search_tools(request):
         return Response([])
 
     try:
-        response = openai_client.embeddings.create(
-            model="text-embedding-ada-002", input=query
-        )
-        embedding = response.data[0].embedding
-        logger.debug("Generated embedding length: %d", len(embedding))
+        from .faiss_search import FAISSSearchService
 
-        from django.db import connection
-
-        with connection.cursor() as cursor:
-            # Check if we have any tools with embeddings
-            cursor.execute(
-                "SELECT COUNT(*) FROM tools WHERE embedding IS NOT NULL "
-                "AND is_active = TRUE"
-            )
-            count = cursor.fetchone()[0]
-            logger.debug("Tools with embeddings: %d", count)
-
-            if count == 0:
-                logger.debug("No embeddings found, falling back to text search")
-                raise Exception("No embeddings available")
-
-            cursor.execute(
-                """
-                SELECT t.id, t.name, t.short_description, t.description,
-                       t.website, t.logo_url, t.slug,
-                       1 - (t.embedding <=> %s::vector) AS similarity
-                FROM tools t
-                WHERE t.is_active = TRUE
-                  AND t.embedding IS NOT NULL
-                  AND 1 - (t.embedding <=> %s::vector) > 0.3
-                ORDER BY t.embedding <=> %s::vector
-                LIMIT 20
-            """,
-                [embedding, embedding, embedding],
-            )
-
-            columns = [col[0] for col in cursor.description]
-            results = [dict(zip(columns, row)) for row in cursor.fetchall()]
-            logger.debug("Vector search results: %d", len(results))
-
-        return Response(results)
+        service = FAISSSearchService.get_instance()
+        results = service.search(query, top_k=20, similarity_threshold=0.3)
+        if results is not None:
+            logger.debug("FAISS search results: %d", len(results))
+            return Response(results)
+        logger.debug("FAISS index not available, falling back to text search")
+        raise Exception("FAISS index not available")
     except Exception as e:
-        logger.warning("Vector search failed: %s", e)
-        # Fallback to text search
+        logger.warning("FAISS search failed: %s", e)
         tools = Tool.objects.filter(
             Q(name__icontains=query) | Q(description__icontains=query),
             is_active=True,
