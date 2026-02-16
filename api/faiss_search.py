@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 FAISS_INDEX_DIR = os.path.join(settings.BASE_DIR, "faiss_index")
 FAISS_INDEX_PATH = os.path.join(FAISS_INDEX_DIR, "tools.index")
 FAISS_METADATA_PATH = os.path.join(FAISS_INDEX_DIR, "tools_metadata.json")
-MODEL_NAME = "all-MiniLM-L6-v2"
+MODEL_NAME = "all-mpnet-base-v2"
 
 
 class FAISSSearchService:
@@ -37,7 +37,9 @@ class FAISSSearchService:
 
     def _ensure_model(self):
         if self.model is None:
+            logger.info("Loading SentenceTransformer model: %s", MODEL_NAME)
             self.model = SentenceTransformer(MODEL_NAME)
+            logger.info("SentenceTransformer model loaded")
 
     def load_index(self):
         if not os.path.exists(FAISS_INDEX_PATH) or not os.path.exists(
@@ -55,6 +57,9 @@ class FAISSSearchService:
             self.tool_ids = metadata["tool_ids"]
             self.tool_metadata = metadata["tools"]
             self._loaded = True
+
+            self._ensure_model()
+
             logger.info(
                 "FAISS index loaded: %d tools, dimension=%d",
                 len(self.tool_ids),
@@ -96,14 +101,26 @@ class FAISSSearchService:
 
         for tool in tools_list:
             parts = [
-                tool["name"],
+                f"Tool: {tool['name']}.",
                 tool["short_description"] or "",
                 tool["description"] or "",
-                " ".join(tool["tags"] or []),
-                " ".join(tool["use_cases"] or []),
-                " ".join(tool["features"] or []),
+                (f"Categories: {', '.join(tool['tags'])}" if tool["tags"] else ""),
+                (
+                    f"Use cases: {', '.join(tool['use_cases'])}"
+                    if tool["use_cases"]
+                    else ""
+                ),
+                (
+                    f"Features: {', '.join(tool['features'])}"
+                    if tool["features"]
+                    else ""
+                ),
                 tool["startup_benefits"] or "",
-                " ".join(tool["ideal_for"] or []),
+                (
+                    f"Ideal for: {', '.join(tool['ideal_for'])}"
+                    if tool["ideal_for"]
+                    else ""
+                ),
             ]
             text = " ".join(filter(None, parts))
             texts.append(text)
@@ -155,7 +172,7 @@ class FAISSSearchService:
         )
         return len(tool_ids)
 
-    def search(self, query, top_k=20, similarity_threshold=0.3):
+    def search(self, query, top_k=20, similarity_threshold=0.5):
         if not self._loaded:
             if not self.load_index():
                 return None

@@ -116,7 +116,7 @@ class ToolViewSet(viewsets.ModelViewSet):
             from .faiss_search import FAISSSearchService
 
             service = FAISSSearchService.get_instance()
-            results = service.search(query, top_k=20, similarity_threshold=0.3)
+            results = service.search(query, top_k=20, similarity_threshold=0.5)
             if results is not None:
                 logger.debug("FAISS search results: %d", len(results))
                 return Response(results)
@@ -269,7 +269,7 @@ def search_tools(request):
         from .faiss_search import FAISSSearchService
 
         service = FAISSSearchService.get_instance()
-        results = service.search(query, top_k=20, similarity_threshold=0.3)
+        results = service.search(query, top_k=20, similarity_threshold=0.5)
         if results is not None:
             logger.debug("FAISS search results: %d", len(results))
             return Response(results)
