@@ -169,16 +169,33 @@ class FAISSSearchService:
             query_embedding, min(top_k, len(self.tool_ids))
         )
 
-        results = []
+        # Get tool IDs that match the similarity threshold
+        matched_tool_ids = []
+        similarity_scores = {}
         for score, idx in zip(scores[0], indices[0]):
             if idx == -1:
                 continue
             similarity = float(score)
             if similarity < similarity_threshold:
                 continue
-            tool_data = self.tool_metadata[idx].copy()
-            tool_data["similarity"] = round(similarity, 4)
-            results.append(tool_data)
+            tool_id = self.tool_ids[idx]
+            matched_tool_ids.append(tool_id)
+            similarity_scores[tool_id] = round(similarity, 4)
+
+        # Fetch fresh data from database with all fields including rating
+        from api.models import Tool
+        from api.serializers import ToolListSerializer
+
+        tools = Tool.objects.filter(id__in=matched_tool_ids, is_active=True).prefetch_related('categories')
+        serializer = ToolListSerializer(tools, many=True)
+        results = serializer.data
+
+        # Add similarity scores to results
+        for result in results:
+            result['similarity'] = similarity_scores.get(result['id'], 0)
+
+        # Sort by similarity score (highest first)
+        results.sort(key=lambda x: x.get('similarity', 0), reverse=True)
 
         return results
 
