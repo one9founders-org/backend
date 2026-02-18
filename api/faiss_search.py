@@ -186,16 +186,18 @@ class FAISSSearchService:
         from api.models import Tool
         from api.serializers import ToolListSerializer
 
-        tools = Tool.objects.filter(id__in=matched_tool_ids, is_active=True).prefetch_related('categories')
+        tools = Tool.objects.filter(
+            id__in=matched_tool_ids, is_active=True
+        ).prefetch_related("categories")
         serializer = ToolListSerializer(tools, many=True)
         results = serializer.data
 
         # Add similarity scores to results
         for result in results:
-            result['similarity'] = similarity_scores.get(result['id'], 0)
+            result["similarity"] = similarity_scores.get(result["id"], 0)
 
         # Sort by similarity score (highest first)
-        results.sort(key=lambda x: x.get('similarity', 0), reverse=True)
+        results.sort(key=lambda x: x.get("similarity", 0), reverse=True)
 
         return results
 
