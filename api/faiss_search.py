@@ -3,10 +3,8 @@ import logging
 import os
 import threading
 
-import faiss
 import numpy as np
 from django.conf import settings
-from sentence_transformers import SentenceTransformer
 
 logger = logging.getLogger(__name__)
 
@@ -37,11 +35,15 @@ class FAISSSearchService:
 
     def _ensure_model(self):
         if self.model is None:
+            from sentence_transformers import SentenceTransformer
+
             logger.info("Loading SentenceTransformer model: %s", MODEL_NAME)
             self.model = SentenceTransformer(MODEL_NAME)
             logger.info("SentenceTransformer model loaded")
 
     def load_index(self):
+        import faiss
+
         if not os.path.exists(FAISS_INDEX_PATH) or not os.path.exists(
             FAISS_METADATA_PATH
         ):
@@ -58,8 +60,6 @@ class FAISSSearchService:
             self.tool_metadata = metadata["tools"]
             self._loaded = True
 
-            self._ensure_model()
-
             logger.info(
                 "FAISS index loaded: %d tools, dimension=%d",
                 len(self.tool_ids),
@@ -71,6 +71,8 @@ class FAISSSearchService:
             return False
 
     def build_index(self):
+        import faiss
+
         from api.models import Tool
 
         self._ensure_model()
