@@ -65,6 +65,9 @@ class FAISSSearchService:
                 len(self.tool_ids),
                 self.index.d,
             )
+
+            self._ensure_model()
+
             return True
         except Exception as e:
             logger.error("Failed to load FAISS index: %s", e)
