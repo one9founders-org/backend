@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 FAISS_INDEX_DIR = os.path.join(settings.BASE_DIR, "faiss_index")
 FAISS_INDEX_PATH = os.path.join(FAISS_INDEX_DIR, "tools.index")
 FAISS_METADATA_PATH = os.path.join(FAISS_INDEX_DIR, "tools_metadata.json")
-MODEL_NAME = "all-mpnet-base-v2"
+MODEL_NAME = "all-MiniLM-L6-v2"
 
 
 class FAISSSearchService:
