@@ -5,6 +5,7 @@ services:
     volumes:
       - static_volume:/app/backend/staticfiles
       - media_volume:/app/backend/media
+      - faiss_index:/app/backend/faiss_index
     expose:
       - "8000"
     env_file:
@@ -46,3 +47,4 @@ volumes:
   static_volume:
   media_volume:
   n8n_data:
+  faiss_index:
