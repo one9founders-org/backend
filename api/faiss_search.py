@@ -3,10 +3,7 @@ import logging
 import os
 import threading
 
-import faiss
-import numpy as np
 from django.conf import settings
-from sentence_transformers import SentenceTransformer
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +34,8 @@ class FAISSSearchService:
 
     def _ensure_model(self):
         if self.model is None:
+            from sentence_transformers import SentenceTransformer
+
             self.model = SentenceTransformer(MODEL_NAME)
 
     def load_index(self):
@@ -47,6 +46,8 @@ class FAISSSearchService:
             return False
 
         try:
+            import faiss
+
             self.index = faiss.read_index(FAISS_INDEX_PATH)
 
             with open(FAISS_METADATA_PATH, "r") as f:
@@ -120,6 +121,9 @@ class FAISSSearchService:
                 }
             )
 
+        import faiss
+        import numpy as np
+
         logger.info("Generating embeddings for %d tools...", len(texts))
         embeddings = self.model.encode(
             texts, show_progress_bar=True, normalize_embeddings=True
@@ -159,6 +163,8 @@ class FAISSSearchService:
         if not self._loaded:
             if not self.load_index():
                 return None
+
+        import numpy as np
 
         self._ensure_model()
 
