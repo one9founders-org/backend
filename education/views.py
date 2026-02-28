@@ -3,6 +3,7 @@ from rest_framework import mixins, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
+from rest_framework_simplejwt.authentication import JWTAuthentication
 
 from .models import (
     AudienceType,
@@ -188,15 +189,18 @@ class CourseInquiryViewSet(mixins.CreateModelMixin, viewsets.GenericViewSet):
     queryset = CourseInquiry.objects.all()
     serializer_class = CourseInquiryCreateSerializer
     permission_classes = [AllowAny]
+    authentication_classes = [JWTAuthentication]
 
 
 class OrganizationInquiryViewSet(mixins.CreateModelMixin, viewsets.GenericViewSet):
     queryset = OrganizationInquiry.objects.all()
     serializer_class = OrganizationInquiryCreateSerializer
     permission_classes = [AllowAny]
+    authentication_classes = [JWTAuthentication]
 
 
 class WorkshopRegistrationViewSet(mixins.CreateModelMixin, viewsets.GenericViewSet):
     queryset = WorkshopRegistration.objects.all()
     serializer_class = WorkshopRegistrationCreateSerializer
     permission_classes = [AllowAny]
+    authentication_classes = [JWTAuthentication]

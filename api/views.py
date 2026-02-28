@@ -8,7 +8,13 @@ from django.http import JsonResponse
 from django.utils import timezone
 from openai import OpenAI
 from rest_framework import status, viewsets
-from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.decorators import (
+    action,
+    api_view,
+    authentication_classes,
+    permission_classes,
+)
+from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny, IsAdminUser
 from rest_framework.response import Response
@@ -206,6 +212,7 @@ class NewsViewSet(viewsets.ReadOnlyModelViewSet):
 
 @api_view(["POST"])
 @permission_classes([AllowAny])
+@authentication_classes([JWTAuthentication])
 def subscribe_newsletter(request):
     from .recaptcha import verify_recaptcha
 
@@ -237,6 +244,7 @@ class ToolSubmissionViewSet(viewsets.ModelViewSet):
     queryset = ToolSubmission.objects.all().order_by("-created_at")
     serializer_class = ToolSubmissionSerializer
     permission_classes = [AllowAny]
+    authentication_classes = [JWTAuthentication]
 
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -268,6 +276,7 @@ def health_check(request):
 
 @api_view(["POST"])
 @permission_classes([AllowAny])
+@authentication_classes([JWTAuthentication])
 def search_tools(request):
     query = request.data.get("query", "")
     logger.debug("Standalone search query: %s", query)
@@ -296,6 +305,7 @@ def search_tools(request):
 
 @api_view(["POST"])
 @permission_classes([AllowAny])
+@authentication_classes([JWTAuthentication])
 def add_tool(request):
     serializer = ToolDetailSerializer(data=request.data)
     if serializer.is_valid():
@@ -365,6 +375,7 @@ def get_client_ip(request):
 
 @api_view(["POST"])
 @permission_classes([AllowAny])
+@authentication_classes([JWTAuthentication])
 def track_tool_usage(request):
     tool_id = request.data.get("tool_id")
     session_id = request.data.get("session_id", "")
@@ -396,6 +407,7 @@ def track_tool_usage(request):
 
 @api_view(["POST"])
 @permission_classes([AllowAny])
+@authentication_classes([JWTAuthentication])
 def track_tool_click(request):
     tool_id = request.data.get("tool_id")
     action = request.data.get("action")
@@ -439,6 +451,7 @@ def track_tool_click(request):
 
 @api_view(["POST"])
 @permission_classes([AllowAny])
+@authentication_classes([JWTAuthentication])
 def track_search_query(request):
     query = request.data.get("query", "")
     session_id = request.data.get("session_id", "")
@@ -513,6 +526,7 @@ def tool_usage_count(request, tool_id):
 
 @api_view(["POST"])
 @permission_classes([AllowAny])
+@authentication_classes([JWTAuthentication])
 def upvote_news(request, news_id):
     """Upvote a news article. Supports authenticated users and anonymous sessions."""
     try:
@@ -575,6 +589,7 @@ def upvote_news(request, news_id):
 
 @api_view(["DELETE"])
 @permission_classes([AllowAny])
+@authentication_classes([JWTAuthentication])
 def remove_upvote_news(request, news_id):
     """Remove upvote from a news article."""
     try:
