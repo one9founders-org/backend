@@ -1,6 +1,7 @@
 import logging
 
 from django.db.models import F
+from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.generics import CreateAPIView, RetrieveAPIView
 from rest_framework.pagination import PageNumberPagination
@@ -288,7 +289,7 @@ class WorkshopRegistrationCreateView(CreateAPIView):
     throttle_classes = [WorkshopRegisterThrottle]
 
     def perform_create(self, serializer):
-        workshop = EducationWorkshop.objects.get(slug=self.kwargs["slug"])
+        workshop = get_object_or_404(EducationWorkshop, slug=self.kwargs["slug"])
         instance = serializer.save(workshop=workshop)
         EducationWorkshop.objects.filter(pk=instance.workshop.pk).update(
             registration_count=F("registration_count") + 1
