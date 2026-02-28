@@ -1,3 +1,4 @@
+from django.db.models import F
 from rest_framework import mixins, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny
@@ -96,9 +97,10 @@ class CourseViewSet(viewsets.ReadOnlyModelViewSet):
         """Increment interest_count for a course."""
         course = self.get_object()
         Course.objects.filter(pk=course.pk).update(
-            interest_count=course.interest_count + 1
+            interest_count=F("interest_count") + 1
         )
-        return Response({"interest_count": course.interest_count + 1})
+        course.refresh_from_db()
+        return Response({"interest_count": course.interest_count})
 
 
 class EducationGuideViewSet(viewsets.ReadOnlyModelViewSet):

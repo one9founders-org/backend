@@ -16,24 +16,26 @@ from .views import (
 )
 
 router = DefaultRouter()
-router.register(r"categories", CourseCategoryViewSet, basename="category")
-router.register(r"audiences", AudienceTypeViewSet, basename="audience")
-router.register(r"instructors", InstructorViewSet, basename="instructor")
-router.register(r"courses", CourseViewSet, basename="course")
-router.register(r"guides", EducationGuideViewSet, basename="guide")
-router.register(r"workshops", EducationWorkshopViewSet, basename="workshop")
-router.register(r"learning-paths", LearningPathViewSet, basename="learning-path")
-router.register(r"landing-pages", LandingPageViewSet, basename="landing-page")
-router.register(r"inquiries/course", CourseInquiryViewSet, basename="course-inquiry")
+router.register(r"categories", CourseCategoryViewSet, basename="edu-category")
+router.register(r"audiences", AudienceTypeViewSet, basename="edu-audience")
+router.register(r"instructors", InstructorViewSet, basename="edu-instructor")
+router.register(r"courses", CourseViewSet, basename="edu-course")
+router.register(r"guides", EducationGuideViewSet, basename="edu-guide")
+router.register(r"workshops", EducationWorkshopViewSet, basename="edu-workshop")
+router.register(r"learning-paths", LearningPathViewSet, basename="edu-learning-path")
+router.register(r"landing-pages", LandingPageViewSet, basename="edu-landing-page")
+router.register(
+    r"inquiries/course", CourseInquiryViewSet, basename="edu-course-inquiry"
+)
 router.register(
     r"inquiries/organization",
     OrganizationInquiryViewSet,
-    basename="organization-inquiry",
+    basename="edu-organization-inquiry",
 )
 router.register(
     r"workshop-registrations",
     WorkshopRegistrationViewSet,
-    basename="workshop-registration",
+    basename="edu-workshop-registration",
 )
 
 urlpatterns = [
