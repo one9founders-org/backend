@@ -157,6 +157,7 @@ class ReviewViewSet(viewsets.ModelViewSet):
     queryset = Review.objects.all()
     serializer_class = ReviewSerializer
     permission_classes = [AllowAny]
+    authentication_classes = [JWTAuthentication]
 
     def get_queryset(self):
         queryset = Review.objects.all()
