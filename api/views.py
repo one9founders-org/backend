@@ -676,8 +676,7 @@ class LearningContentViewSetMixin:
                     for k, v in LearningContent.AUDIENCE_CHOICES
                 ],
                 "pricing": [
-                    {"value": k, "label": v}
-                    for k, v in LearningContent.PRICING_CHOICES
+                    {"value": k, "label": v} for k, v in LearningContent.PRICING_CHOICES
                 ],
             }
         )
