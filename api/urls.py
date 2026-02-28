@@ -11,6 +11,9 @@ router.register(r"reviews", views.ReviewViewSet, basename="review")
 router.register(r"deals", views.DealViewSet, basename="deal")
 router.register(r"news", views.NewsViewSet, basename="news")
 router.register(r"submissions", views.ToolSubmissionViewSet, basename="submission")
+router.register(r"guides", views.GuideViewSet, basename="guide")
+router.register(r"labs", views.LabViewSet, basename="lab")
+router.register(r"workshops", views.WorkshopViewSet, basename="workshop")
 
 # Pipeline routers
 router.register(

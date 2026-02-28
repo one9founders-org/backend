@@ -16,6 +16,8 @@ from rest_framework.response import Response
 from .models import (
     Category,
     Deal,
+    Guide,
+    Lab,
     News,
     NewsUpvote,
     Review,
@@ -24,10 +26,15 @@ from .models import (
     ToolClick,
     ToolSubmission,
     ToolUsage,
+    Workshop,
 )
 from .serializers import (
     CategorySerializer,
     DealSerializer,
+    GuideDetailSerializer,
+    GuideListSerializer,
+    LabDetailSerializer,
+    LabListSerializer,
     NewsDetailSerializer,
     NewsletterSubscriptionSerializer,
     NewsListSerializer,
@@ -36,6 +43,8 @@ from .serializers import (
     ToolListSerializer,
     ToolSubmissionSerializer,
     TrendingToolSerializer,
+    WorkshopDetailSerializer,
+    WorkshopListSerializer,
 )
 
 logger = logging.getLogger(__name__)
@@ -609,3 +618,93 @@ def remove_upvote_news(request, news_id):
                 "has_upvoted": False,
             }
         )
+
+
+# --- Learning Content ViewSets ---
+
+
+class LearningContentViewSetMixin:
+    """Shared filtering logic for Guide, Lab, and Workshop viewsets."""
+
+    permission_classes = [AllowAny]
+    lookup_field = "slug"
+    pagination_class = CustomPageNumberPagination
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        difficulty = self.request.query_params.get("difficulty")
+        category = self.request.query_params.get("category")
+        audience = self.request.query_params.get("audience")
+        pricing = self.request.query_params.get("pricing")
+        featured = self.request.query_params.get("featured")
+        tool = self.request.query_params.get("tool")
+
+        if difficulty:
+            queryset = queryset.filter(difficulty=difficulty)
+        if category:
+            queryset = queryset.filter(category=category)
+        if audience:
+            queryset = queryset.filter(audience=audience)
+        if pricing:
+            queryset = queryset.filter(pricing=pricing)
+        if featured:
+            queryset = queryset.filter(is_featured=True)
+        if tool:
+            queryset = queryset.filter(
+                Q(tools_used__slug=tool) | Q(tools_used__name__iexact=tool)
+            ).distinct()
+
+        return queryset
+
+    @action(detail=False, methods=["get"])
+    def filters(self, request):
+        """Return available filter options for the content type."""
+        from .models import LearningContent
+
+        return Response(
+            {
+                "difficulty": [
+                    {"value": k, "label": v}
+                    for k, v in LearningContent.DIFFICULTY_CHOICES
+                ],
+                "category": [
+                    {"value": k, "label": v}
+                    for k, v in LearningContent.CATEGORY_CHOICES
+                ],
+                "audience": [
+                    {"value": k, "label": v}
+                    for k, v in LearningContent.AUDIENCE_CHOICES
+                ],
+                "pricing": [
+                    {"value": k, "label": v}
+                    for k, v in LearningContent.PRICING_CHOICES
+                ],
+            }
+        )
+
+
+class GuideViewSet(LearningContentViewSetMixin, viewsets.ReadOnlyModelViewSet):
+    queryset = Guide.objects.filter(is_published=True).prefetch_related("tools_used")
+
+    def get_serializer_class(self):
+        if self.action == "retrieve":
+            return GuideDetailSerializer
+        return GuideListSerializer
+
+
+class LabViewSet(LearningContentViewSetMixin, viewsets.ReadOnlyModelViewSet):
+    queryset = Lab.objects.filter(is_published=True).prefetch_related("tools_used")
+
+    def get_serializer_class(self):
+        if self.action == "retrieve":
+            return LabDetailSerializer
+        return LabListSerializer
+
+
+class WorkshopViewSet(LearningContentViewSetMixin, viewsets.ReadOnlyModelViewSet):
+    queryset = Workshop.objects.filter(is_published=True).prefetch_related("tools_used")
+
+    def get_serializer_class(self):
+        if self.action == "retrieve":
+            return WorkshopDetailSerializer
+        return WorkshopListSerializer

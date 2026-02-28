@@ -564,6 +564,170 @@ class News(models.Model):
         ordering = ["-published_at"]
 
 
+class LearningContent(models.Model):
+    """Abstract base model for Guides, Labs, and Workshops."""
+
+    DIFFICULTY_CHOICES = [
+        ("beginner", "Beginner"),
+        ("intermediate", "Intermediate"),
+        ("advanced", "Advanced"),
+    ]
+
+    CATEGORY_CHOICES = [
+        ("ai-fundamentals", "AI Fundamentals"),
+        ("machine-learning", "Machine Learning"),
+        ("natural-language-processing", "Natural Language Processing"),
+        ("computer-vision", "Computer Vision"),
+        ("automation", "Automation"),
+        ("data-analytics", "Data & Analytics"),
+        ("marketing", "Marketing"),
+        ("product-development", "Product Development"),
+        ("sales", "Sales"),
+        ("operations", "Operations"),
+        ("security", "Security"),
+        ("other", "Other"),
+    ]
+
+    AUDIENCE_CHOICES = [
+        ("founders", "Founders"),
+        ("developers", "Developers"),
+        ("marketers", "Marketers"),
+        ("product-managers", "Product Managers"),
+        ("designers", "Designers"),
+        ("non-technical", "Non-Technical"),
+        ("everyone", "Everyone"),
+    ]
+
+    PRICING_CHOICES = [
+        ("free", "Free"),
+        ("paid", "Paid"),
+        ("freemium", "Freemium"),
+    ]
+
+    # Core fields
+    title = models.CharField(max_length=255, db_index=True)
+    slug = models.SlugField(max_length=255, unique=True, blank=True)
+    short_description = models.CharField(max_length=300, blank=True)
+    content = SummernoteTextField(blank=True)
+    featured_image = models.URLField(blank=True)
+    author = models.CharField(max_length=255, default="One9Founders")
+
+    # Classification fields
+    difficulty = models.CharField(
+        max_length=20,
+        choices=DIFFICULTY_CHOICES,
+        default="beginner",
+        db_index=True,
+    )
+    estimated_time = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="e.g., '30 min', '2 hours', '1-2 hours'",
+    )
+    category = models.CharField(
+        max_length=50,
+        choices=CATEGORY_CHOICES,
+        default="ai-fundamentals",
+        db_index=True,
+    )
+    audience = models.CharField(
+        max_length=30,
+        choices=AUDIENCE_CHOICES,
+        default="founders",
+        db_index=True,
+    )
+
+    # Taxonomy: tools used
+    tools_used = models.ManyToManyField(
+        Tool,
+        blank=True,
+        related_name="%(class)s_content",
+        help_text="AI tools referenced or used in this content",
+    )
+
+    # Pricing
+    pricing = models.CharField(
+        max_length=20,
+        choices=PRICING_CHOICES,
+        default="free",
+        db_index=True,
+    )
+    price_amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        blank=True,
+        null=True,
+        help_text="Price in USD (if applicable)",
+    )
+
+    # SEO fields
+    meta_title = models.CharField(
+        max_length=70,
+        blank=True,
+        help_text="SEO title (max 70 chars). Falls back to title if blank.",
+    )
+    meta_description = models.CharField(
+        max_length=160,
+        blank=True,
+        help_text="SEO description (max 160 chars). Falls back to short_description.",
+    )
+
+    # Status
+    is_published = models.BooleanField(default=False, db_index=True)
+    is_featured = models.BooleanField(default=False, db_index=True)
+
+    # Timestamps
+    last_updated = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Manually set 'last updated' date for content freshness",
+    )
+    published_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            from django.utils.text import slugify
+
+            self.slug = slugify(self.title)
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.title
+
+    class Meta:
+        abstract = True
+        ordering = ["-published_at", "-created_at"]
+
+
+class Guide(LearningContent):
+    """In-depth written guides and tutorials."""
+
+    class Meta(LearningContent.Meta):
+        db_table = "guides"
+        verbose_name = "Guide"
+        verbose_name_plural = "Guides"
+
+
+class Lab(LearningContent):
+    """Hands-on, interactive lab exercises."""
+
+    class Meta(LearningContent.Meta):
+        db_table = "labs"
+        verbose_name = "Lab"
+        verbose_name_plural = "Labs"
+
+
+class Workshop(LearningContent):
+    """Live or recorded workshop sessions."""
+
+    class Meta(LearningContent.Meta):
+        db_table = "workshops"
+        verbose_name = "Workshop"
+        verbose_name_plural = "Workshops"
+
+
 class NewsUpvote(models.Model):
     """Track upvotes on news articles."""
 
