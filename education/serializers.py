@@ -17,7 +17,23 @@ from .models import (
     WorkshopRegistration,
 )
 
-# ── Lookup / Taxonomy ──────────────────────────────────────────────────
+# -- Nested / lightweight serializers -----------------------------------------
+
+
+class CategoryNameSlugSerializer(serializers.ModelSerializer):
+    """Lightweight category serializer for nested use."""
+
+    class Meta:
+        model = CourseCategory
+        fields = ["name", "slug"]
+
+
+class AudienceNameSlugSerializer(serializers.ModelSerializer):
+    """Lightweight audience serializer for nested use."""
+
+    class Meta:
+        model = AudienceType
+        fields = ["name", "slug"]
 
 
 class CourseCategorySerializer(serializers.ModelSerializer):
@@ -69,9 +85,6 @@ class InstructorSerializer(serializers.ModelSerializer):
         ]
 
 
-# ── Course ─────────────────────────────────────────────────────────────
-
-
 class CourseModuleSerializer(serializers.ModelSerializer):
     class Meta:
         model = CourseModule
@@ -84,9 +97,39 @@ class CourseFAQSerializer(serializers.ModelSerializer):
         fields = ["id", "question", "answer", "order"]
 
 
+# -- Course serializers -------------------------------------------------------
+
+
 class CourseListSerializer(serializers.ModelSerializer):
-    category = CourseCategorySerializer(read_only=True)
-    audiences = AudienceTypeSerializer(many=True, read_only=True)
+    category = CategoryNameSlugSerializer(read_only=True)
+    audiences = AudienceNameSlugSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Course
+        fields = [
+            "id",
+            "title",
+            "slug",
+            "short_description",
+            "difficulty",
+            "format",
+            "duration_weeks",
+            "has_certificate",
+            "is_featured",
+            "next_cohort_date",
+            "featured_image",
+            "category",
+            "audiences",
+        ]
+
+
+class CourseDetailSerializer(serializers.ModelSerializer):
+    category = CategoryNameSlugSerializer(read_only=True)
+    audiences = AudienceNameSlugSerializer(many=True, read_only=True)
+    instructors = InstructorSerializer(many=True, read_only=True)
+    modules = CourseModuleSerializer(many=True, read_only=True)
+    faqs = CourseFAQSerializer(many=True, read_only=True)
+    related_guides = serializers.SerializerMethodField()
 
     class Meta:
         model = Course
@@ -95,48 +138,50 @@ class CourseListSerializer(serializers.ModelSerializer):
             "title",
             "slug",
             "subtitle",
+            "description",
             "short_description",
             "featured_image",
-            "category",
-            "audiences",
+            "intro_video_url",
             "difficulty",
             "format",
             "status",
             "duration_weeks",
             "hours_per_week",
+            "total_lessons",
+            "next_cohort_date",
+            "schedule_description",
+            "whats_included",
+            "tools_mentioned",
+            "certificate_description",
             "has_certificate",
             "language",
             "has_hindi_support",
+            "meta_title",
+            "meta_description",
             "is_featured",
-            "interest_count",
             "rating",
-        ]
-
-
-class CourseDetailSerializer(serializers.ModelSerializer):
-    category = CourseCategorySerializer(read_only=True)
-    audiences = AudienceTypeSerializer(many=True, read_only=True)
-    instructors = InstructorSerializer(many=True, read_only=True)
-    modules = CourseModuleSerializer(many=True, read_only=True)
-    faqs = CourseFAQSerializer(many=True, read_only=True)
-
-    class Meta:
-        model = Course
-        exclude = ["iitb_eo_link"]
-        read_only_fields = [
-            "interest_count",
-            "rating",
+            "category",
+            "audiences",
+            "instructors",
+            "modules",
+            "faqs",
+            "related_guides",
             "created_at",
             "updated_at",
         ]
+        read_only_fields = ["created_at", "updated_at"]
+
+    def get_related_guides(self, obj):
+        guides = obj.related_guides.filter(status="published")[:5]
+        return [{"title": g.title, "slug": g.slug} for g in guides]
 
 
-# ── Guide ──────────────────────────────────────────────────────────────
+# -- Guide serializers --------------------------------------------------------
 
 
-class EducationGuideListSerializer(serializers.ModelSerializer):
-    category = CourseCategorySerializer(read_only=True)
-    author = InstructorSerializer(read_only=True)
+class GuideListSerializer(serializers.ModelSerializer):
+    category = CategoryNameSlugSerializer(read_only=True)
+    audiences = AudienceNameSlugSerializer(many=True, read_only=True)
 
     class Meta:
         model = EducationGuide
@@ -144,25 +189,22 @@ class EducationGuideListSerializer(serializers.ModelSerializer):
             "id",
             "title",
             "slug",
-            "subtitle",
             "excerpt",
-            "featured_image",
-            "category",
-            "author",
             "difficulty",
-            "status",
             "read_time_minutes",
             "is_featured",
-            "view_count",
             "published_at",
+            "featured_image",
+            "category",
+            "audiences",
         ]
 
 
-class EducationGuideDetailSerializer(serializers.ModelSerializer):
-    category = CourseCategorySerializer(read_only=True)
+class GuideDetailSerializer(serializers.ModelSerializer):
+    category = CategoryNameSlugSerializer(read_only=True)
+    audiences = AudienceNameSlugSerializer(many=True, read_only=True)
     author = InstructorSerializer(read_only=True)
-    audiences = AudienceTypeSerializer(many=True, read_only=True)
-    related_course = CourseListSerializer(read_only=True)
+    related_course = serializers.SerializerMethodField()
 
     class Meta:
         model = EducationGuide
@@ -174,31 +216,36 @@ class EducationGuideDetailSerializer(serializers.ModelSerializer):
             "content",
             "excerpt",
             "featured_image",
-            "category",
-            "author",
-            "audiences",
             "difficulty",
-            "status",
             "read_time_minutes",
             "tools_mentioned",
-            "related_course",
             "meta_title",
             "meta_description",
             "is_featured",
-            "view_count",
             "published_at",
+            "category",
+            "audiences",
+            "author",
+            "related_course",
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ["view_count", "created_at", "updated_at"]
+        read_only_fields = ["created_at", "updated_at"]
+
+    def get_related_course(self, obj):
+        if obj.related_course:
+            return {
+                "title": obj.related_course.title,
+                "slug": obj.related_course.slug,
+            }
+        return None
 
 
-# ── Workshop ───────────────────────────────────────────────────────────
+# -- Workshop serializers -----------------------------------------------------
 
 
-class EducationWorkshopListSerializer(serializers.ModelSerializer):
-    category = CourseCategorySerializer(read_only=True)
-    instructor = InstructorSerializer(read_only=True)
+class WorkshopListSerializer(serializers.ModelSerializer):
+    instructor = serializers.SerializerMethodField()
 
     class Meta:
         model = EducationWorkshop
@@ -209,39 +256,79 @@ class EducationWorkshopListSerializer(serializers.ModelSerializer):
             "short_description",
             "date",
             "duration_minutes",
-            "timezone",
             "format",
             "status",
-            "category",
             "instructor",
-            "max_participants",
-            "registration_count",
             "is_featured",
         ]
 
+    def get_instructor(self, obj):
+        if obj.instructor:
+            return obj.instructor.name
+        return None
 
-class EducationWorkshopDetailSerializer(serializers.ModelSerializer):
-    category = CourseCategorySerializer(read_only=True)
+
+class WorkshopDetailSerializer(serializers.ModelSerializer):
+    category = CategoryNameSlugSerializer(read_only=True)
+    audiences = AudienceNameSlugSerializer(many=True, read_only=True)
     instructor = InstructorSerializer(read_only=True)
-    audiences = AudienceTypeSerializer(many=True, read_only=True)
 
     class Meta:
         model = EducationWorkshop
-        exclude = ["meeting_link"]
-        read_only_fields = [
-            "registration_count",
+        fields = [
+            "id",
+            "title",
+            "slug",
+            "description",
+            "short_description",
+            "date",
+            "duration_minutes",
+            "timezone",
+            "format",
+            "status",
+            "platform",
+            "recording_url",
+            "max_participants",
+            "learning_outcomes",
+            "prerequisites",
+            "is_featured",
+            "category",
+            "audiences",
+            "instructor",
             "created_at",
             "updated_at",
         ]
+        read_only_fields = ["created_at", "updated_at"]
 
 
-# ── Learning Path ──────────────────────────────────────────────────────
+# -- LearningPath serializers -------------------------------------------------
+
+
+class LearningPathListSerializer(serializers.ModelSerializer):
+    audience = serializers.SerializerMethodField()
+
+    class Meta:
+        model = LearningPath
+        fields = [
+            "id",
+            "title",
+            "slug",
+            "short_description",
+            "estimated_duration",
+            "audience",
+            "icon",
+        ]
+
+    def get_audience(self, obj):
+        if obj.audience:
+            return obj.audience.name
+        return None
 
 
 class LearningPathModuleSerializer(serializers.ModelSerializer):
     courses = CourseListSerializer(many=True, read_only=True)
-    guides = EducationGuideListSerializer(many=True, read_only=True)
-    workshops = EducationWorkshopListSerializer(many=True, read_only=True)
+    guides = GuideListSerializer(many=True, read_only=True)
+    workshops = WorkshopListSerializer(many=True, read_only=True)
 
     class Meta:
         model = LearningPathModule
@@ -256,25 +343,8 @@ class LearningPathModuleSerializer(serializers.ModelSerializer):
         ]
 
 
-class LearningPathListSerializer(serializers.ModelSerializer):
-    audience = AudienceTypeSerializer(read_only=True)
-
-    class Meta:
-        model = LearningPath
-        fields = [
-            "id",
-            "title",
-            "slug",
-            "short_description",
-            "icon",
-            "audience",
-            "estimated_duration",
-            "order",
-        ]
-
-
 class LearningPathDetailSerializer(serializers.ModelSerializer):
-    audience = AudienceTypeSerializer(read_only=True)
+    audience = AudienceNameSlugSerializer(read_only=True)
     modules = LearningPathModuleSerializer(many=True, read_only=True)
 
     class Meta:
@@ -286,14 +356,16 @@ class LearningPathDetailSerializer(serializers.ModelSerializer):
             "description",
             "short_description",
             "icon",
-            "audience",
             "estimated_duration",
-            "order",
+            "audience",
             "modules",
+            "created_at",
+            "updated_at",
         ]
+        read_only_fields = ["created_at", "updated_at"]
 
 
-# ── Landing Page ───────────────────────────────────────────────────────
+# -- LandingPage serializer ---------------------------------------------------
 
 
 class LandingPageSerializer(serializers.ModelSerializer):
@@ -319,34 +391,50 @@ class LandingPageSerializer(serializers.ModelSerializer):
         ]
 
 
-# ── Inquiry / Registration (write-only) ───────────────────────────────
+# -- Write-only serializers (form submissions) --------------------------------
 
 
 class CourseInquiryCreateSerializer(serializers.ModelSerializer):
+    course_slug = serializers.SlugField(required=False, write_only=True)
+
     class Meta:
         model = CourseInquiry
         fields = [
-            "id",
-            "course",
-            "workshop",
-            "learning_path",
-            "source_page",
             "name",
             "email",
             "phone",
             "city",
             "current_role",
             "message",
-            "created_at",
+            "course_slug",
+            "source_page",
         ]
-        read_only_fields = ["id", "created_at"]
+
+    def validate_course_slug(self, value):
+        if value:
+            try:
+                Course.objects.get(slug=value)
+            except Course.DoesNotExist:
+                raise serializers.ValidationError("Course not found.")
+        return value
+
+    def create(self, validated_data):
+        course_slug = validated_data.pop("course_slug", None)
+        if course_slug:
+            validated_data["course"] = Course.objects.get(slug=course_slug)
+        return super().create(validated_data)
+
+    def to_representation(self, instance):
+        return {
+            "success": True,
+            "message": "Your inquiry has been submitted successfully.",
+        }
 
 
 class OrganizationInquiryCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = OrganizationInquiry
         fields = [
-            "id",
             "inquiry_type",
             "name",
             "email",
@@ -357,21 +445,27 @@ class OrganizationInquiryCreateSerializer(serializers.ModelSerializer):
             "estimated_batch_size",
             "preferred_timeline",
             "message",
-            "created_at",
         ]
-        read_only_fields = ["id", "created_at"]
+
+    def to_representation(self, instance):
+        return {
+            "success": True,
+            "message": "Your inquiry has been submitted successfully.",
+        }
 
 
 class WorkshopRegistrationCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = WorkshopRegistration
         fields = [
-            "id",
-            "workshop",
             "name",
             "email",
             "phone",
             "organization",
-            "registered_at",
         ]
-        read_only_fields = ["id", "registered_at"]
+
+    def to_representation(self, instance):
+        return {
+            "success": True,
+            "message": "You have been registered successfully.",
+        }

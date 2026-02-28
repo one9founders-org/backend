@@ -159,6 +159,9 @@ REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_RATES": {
         "anon": "100/hour",
         "user": "1000/hour",
+        "education_course_inquiry": "5/hour",
+        "education_org_inquiry": "3/hour",
+        "education_workshop_register": "10/hour",
     },
 }
 

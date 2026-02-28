@@ -1,21 +1,22 @@
+import logging
+
 from django.db.models import F
-from rest_framework import mixins, viewsets
-from rest_framework.decorators import action
+from rest_framework import status
+from rest_framework.generics import CreateAPIView, RetrieveAPIView
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
+from rest_framework.throttling import AnonRateThrottle
+from rest_framework.viewsets import ReadOnlyModelViewSet
 
 from .models import (
     AudienceType,
     Course,
     CourseCategory,
-    CourseInquiry,
     EducationGuide,
     EducationWorkshop,
-    Instructor,
     LandingPage,
     LearningPath,
-    OrganizationInquiry,
-    WorkshopRegistration,
 )
 from .serializers import (
     AudienceTypeSerializer,
@@ -23,56 +24,89 @@ from .serializers import (
     CourseDetailSerializer,
     CourseInquiryCreateSerializer,
     CourseListSerializer,
-    EducationGuideDetailSerializer,
-    EducationGuideListSerializer,
-    EducationWorkshopDetailSerializer,
-    EducationWorkshopListSerializer,
-    InstructorSerializer,
+    GuideDetailSerializer,
+    GuideListSerializer,
     LandingPageSerializer,
     LearningPathDetailSerializer,
     LearningPathListSerializer,
     OrganizationInquiryCreateSerializer,
+    WorkshopDetailSerializer,
+    WorkshopListSerializer,
     WorkshopRegistrationCreateSerializer,
 )
 
+logger = logging.getLogger(__name__)
 
-class CourseCategoryViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = CourseCategory.objects.filter(is_active=True)
+
+# -- Pagination ---------------------------------------------------------------
+
+
+class CustomPageNumberPagination(PageNumberPagination):
+    page_size = 20
+    page_size_query_param = "page_size"
+    max_page_size = 100
+
+    def get_page_size(self, request):
+        page_size = super().get_page_size(request)
+        req_size = request.query_params.get("page_size")
+        logger.debug("Requested page_size: %s, Final: %s", req_size, page_size)
+        return page_size
+
+    def get_paginated_response(self, data):
+        response = super().get_paginated_response(data)
+        response["X-Page-Size-Used"] = str(self.page_size)
+        return response
+
+
+# -- Scoped throttles ---------------------------------------------------------
+
+
+class CourseInquiryThrottle(AnonRateThrottle):
+    scope = "education_course_inquiry"
+
+
+class OrgInquiryThrottle(AnonRateThrottle):
+    scope = "education_org_inquiry"
+
+
+class WorkshopRegisterThrottle(AnonRateThrottle):
+    scope = "education_workshop_register"
+
+
+# -- Taxonomy viewsets --------------------------------------------------------
+
+
+class CourseCategoryViewSet(ReadOnlyModelViewSet):
+    queryset = CourseCategory.objects.filter(is_active=True).order_by("order", "name")
     serializer_class = CourseCategorySerializer
     permission_classes = [AllowAny]
     lookup_field = "slug"
+    pagination_class = CustomPageNumberPagination
 
 
-class AudienceTypeViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = AudienceType.objects.filter(is_active=True)
+class AudienceTypeViewSet(ReadOnlyModelViewSet):
+    queryset = AudienceType.objects.filter(is_active=True).order_by("order", "name")
     serializer_class = AudienceTypeSerializer
     permission_classes = [AllowAny]
     lookup_field = "slug"
+    pagination_class = CustomPageNumberPagination
 
 
-class InstructorViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = Instructor.objects.filter(is_active=True)
-    serializer_class = InstructorSerializer
+# -- Course viewset -----------------------------------------------------------
+
+
+class CourseViewSet(ReadOnlyModelViewSet):
     permission_classes = [AllowAny]
     lookup_field = "slug"
-
-
-class CourseViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = (
-        Course.objects.filter(status="published")
-        .select_related("category")
-        .prefetch_related("audiences", "instructors", "modules", "faqs")
-    )
-    permission_classes = [AllowAny]
-    lookup_field = "slug"
-
-    def get_serializer_class(self):
-        if self.action == "retrieve":
-            return CourseDetailSerializer
-        return CourseListSerializer
+    pagination_class = CustomPageNumberPagination
 
     def get_queryset(self):
-        queryset = super().get_queryset()
+        queryset = (
+            Course.objects.filter(status__in=["published", "coming_soon"])
+            .select_related("category")
+            .prefetch_related("audiences", "instructors")
+        )
+
         category = self.request.query_params.get("category")
         audience = self.request.query_params.get("audience")
         difficulty = self.request.query_params.get("difficulty")
@@ -82,7 +116,7 @@ class CourseViewSet(viewsets.ReadOnlyModelViewSet):
         if category:
             queryset = queryset.filter(category__slug=category)
         if audience:
-            queryset = queryset.filter(audiences__slug=audience)
+            queryset = queryset.filter(audiences__slug=audience).distinct()
         if difficulty:
             queryset = queryset.filter(difficulty=difficulty)
         if course_format:
@@ -90,84 +124,109 @@ class CourseViewSet(viewsets.ReadOnlyModelViewSet):
         if featured and featured.lower() in ("true", "1", "yes"):
             queryset = queryset.filter(is_featured=True)
 
-        return queryset.distinct()
-
-    @action(detail=True, methods=["post"])
-    def express_interest(self, request, slug=None):
-        """Increment interest_count for a course."""
-        course = self.get_object()
-        Course.objects.filter(pk=course.pk).update(
-            interest_count=F("interest_count") + 1
-        )
-        course.refresh_from_db()
-        return Response({"interest_count": course.interest_count})
-
-
-class EducationGuideViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = (
-        EducationGuide.objects.filter(status="published")
-        .select_related("category", "author", "related_course")
-        .prefetch_related("audiences")
-    )
-    permission_classes = [AllowAny]
-    lookup_field = "slug"
+        return queryset.order_by("-is_featured", "-created_at")
 
     def get_serializer_class(self):
         if self.action == "retrieve":
-            return EducationGuideDetailSerializer
-        return EducationGuideListSerializer
+            return CourseDetailSerializer
+        return CourseListSerializer
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data)
+
+
+# -- Guide viewset ------------------------------------------------------------
+
+
+class GuideViewSet(ReadOnlyModelViewSet):
+    permission_classes = [AllowAny]
+    lookup_field = "slug"
+    pagination_class = CustomPageNumberPagination
 
     def get_queryset(self):
-        queryset = super().get_queryset()
+        queryset = (
+            EducationGuide.objects.filter(status="published")
+            .select_related("category", "author")
+            .prefetch_related("audiences")
+        )
+
         category = self.request.query_params.get("category")
         audience = self.request.query_params.get("audience")
         difficulty = self.request.query_params.get("difficulty")
+        featured = self.request.query_params.get("featured")
 
         if category:
             queryset = queryset.filter(category__slug=category)
         if audience:
-            queryset = queryset.filter(audiences__slug=audience)
+            queryset = queryset.filter(audiences__slug=audience).distinct()
         if difficulty:
             queryset = queryset.filter(difficulty=difficulty)
+        if featured and featured.lower() in ("true", "1", "yes"):
+            queryset = queryset.filter(is_featured=True)
 
-        return queryset.distinct()
-
-
-class EducationWorkshopViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = (
-        EducationWorkshop.objects.exclude(status="cancelled")
-        .select_related("category", "instructor")
-        .prefetch_related("audiences")
-    )
-    permission_classes = [AllowAny]
-    lookup_field = "slug"
+        return queryset.order_by("-is_featured", "-published_at")
 
     def get_serializer_class(self):
         if self.action == "retrieve":
-            return EducationWorkshopDetailSerializer
-        return EducationWorkshopListSerializer
+            return GuideDetailSerializer
+        return GuideListSerializer
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        EducationGuide.objects.filter(pk=instance.pk).update(
+            view_count=F("view_count") + 1
+        )
+        instance.refresh_from_db()
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data)
+
+
+# -- Workshop viewset ---------------------------------------------------------
+
+
+class WorkshopViewSet(ReadOnlyModelViewSet):
+    permission_classes = [AllowAny]
+    lookup_field = "slug"
+    pagination_class = CustomPageNumberPagination
 
     def get_queryset(self):
-        queryset = super().get_queryset()
-        workshop_status = self.request.query_params.get("status")
-        workshop_format = self.request.query_params.get("format")
+        queryset = EducationWorkshop.objects.select_related(
+            "category", "instructor"
+        ).prefetch_related("audiences")
 
-        if workshop_status:
-            queryset = queryset.filter(status=workshop_status)
+        workshop_format = self.request.query_params.get("format")
+        workshop_status = self.request.query_params.get("status")
+        category = self.request.query_params.get("category")
+
         if workshop_format:
             queryset = queryset.filter(format=workshop_format)
+        if workshop_status:
+            queryset = queryset.filter(status=workshop_status)
+        if category:
+            queryset = queryset.filter(category__slug=category)
 
-        return queryset
+        return queryset.order_by("-is_featured", "-date")
+
+    def get_serializer_class(self):
+        if self.action == "retrieve":
+            return WorkshopDetailSerializer
+        return WorkshopListSerializer
 
 
-class LearningPathViewSet(viewsets.ReadOnlyModelViewSet):
+# -- LearningPath viewset -----------------------------------------------------
+
+
+class LearningPathViewSet(ReadOnlyModelViewSet):
     queryset = (
         LearningPath.objects.filter(is_active=True)
         .select_related("audience")
-        .prefetch_related("modules__courses", "modules__guides", "modules__workshops")
+        .prefetch_related("modules")
     )
     permission_classes = [AllowAny]
     lookup_field = "slug"
+    pagination_class = CustomPageNumberPagination
 
     def get_serializer_class(self):
         if self.action == "retrieve":
@@ -175,28 +234,69 @@ class LearningPathViewSet(viewsets.ReadOnlyModelViewSet):
         return LearningPathListSerializer
 
 
-class LandingPageViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = LandingPage.objects.filter(is_active=True).prefetch_related(
-        "featured_courses"
-    )
+# -- LandingPage view ---------------------------------------------------------
+
+
+class LandingPageDetailView(RetrieveAPIView):
     serializer_class = LandingPageSerializer
     permission_classes = [AllowAny]
     lookup_field = "page_type"
 
+    def get_queryset(self):
+        return LandingPage.objects.filter(is_active=True).prefetch_related(
+            "featured_courses"
+        )
 
-class CourseInquiryViewSet(mixins.CreateModelMixin, viewsets.GenericViewSet):
-    queryset = CourseInquiry.objects.all()
+
+# -- Write-only views (form submissions) --------------------------------------
+
+
+class CourseInquiryCreateView(CreateAPIView):
     serializer_class = CourseInquiryCreateSerializer
     permission_classes = [AllowAny]
+    throttle_classes = [CourseInquiryThrottle]
+
+    def perform_create(self, serializer):
+        instance = serializer.save()
+        if instance.course:
+            Course.objects.filter(pk=instance.course.pk).update(
+                interest_count=F("interest_count") + 1
+            )
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
-class OrganizationInquiryViewSet(mixins.CreateModelMixin, viewsets.GenericViewSet):
-    queryset = OrganizationInquiry.objects.all()
+class OrganizationInquiryCreateView(CreateAPIView):
     serializer_class = OrganizationInquiryCreateSerializer
     permission_classes = [AllowAny]
+    throttle_classes = [OrgInquiryThrottle]
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
-class WorkshopRegistrationViewSet(mixins.CreateModelMixin, viewsets.GenericViewSet):
-    queryset = WorkshopRegistration.objects.all()
+class WorkshopRegistrationCreateView(CreateAPIView):
     serializer_class = WorkshopRegistrationCreateSerializer
     permission_classes = [AllowAny]
+    throttle_classes = [WorkshopRegisterThrottle]
+
+    def perform_create(self, serializer):
+        workshop = EducationWorkshop.objects.get(slug=self.kwargs["slug"])
+        instance = serializer.save(workshop=workshop)
+        EducationWorkshop.objects.filter(pk=instance.workshop.pk).update(
+            registration_count=F("registration_count") + 1
+        )
+        return instance
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
