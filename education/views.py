@@ -65,6 +65,7 @@ class CourseViewSet(viewsets.ReadOnlyModelViewSet):
         .prefetch_related("audiences", "instructors", "modules", "faqs")
     )
     permission_classes = [AllowAny]
+    authentication_classes = [JWTAuthentication]
     lookup_field = "slug"
 
     def get_serializer_class(self):
