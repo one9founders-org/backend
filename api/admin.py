@@ -6,6 +6,8 @@ from import_export.admin import ImportExportModelAdmin
 from .models import (
     Category,
     Deal,
+    Guide,
+    Lab,
     News,
     NewsletterSubscription,
     NewsUpvote,
@@ -14,6 +16,7 @@ from .models import (
     ToolSubmission,
     User,
     UserFavorite,
+    Workshop,
 )
 from .pipeline_models import (
     NewsDraft,
@@ -315,3 +318,104 @@ class NewsUpvoteAdmin(admin.ModelAdmin):
     search_fields = ["news__title", "user__username", "session_id"]
     readonly_fields = ["created_at"]
     raw_id_fields = ["news", "user"]
+
+
+# --- Learning Content Admin ---
+
+
+class LearningContentAdmin(SummernoteModelAdmin):
+    """Base admin for Guide, Lab, and Workshop models."""
+
+    summernote_fields = ("content",)
+    list_display = [
+        "title",
+        "difficulty",
+        "category",
+        "audience",
+        "pricing",
+        "is_published",
+        "is_featured",
+        "last_updated",
+        "published_at",
+    ]
+    list_filter = [
+        "is_published",
+        "is_featured",
+        "difficulty",
+        "category",
+        "audience",
+        "pricing",
+    ]
+    search_fields = ["title", "short_description", "content"]
+    prepopulated_fields = {"slug": ("title",)}
+    filter_horizontal = ["tools_used"]
+    readonly_fields = ["created_at", "updated_at"]
+    fieldsets = (
+        (
+            None,
+            {
+                "fields": (
+                    "title",
+                    "slug",
+                    "short_description",
+                    "content",
+                    "featured_image",
+                    "author",
+                )
+            },
+        ),
+        (
+            "Classification",
+            {
+                "fields": (
+                    "difficulty",
+                    "estimated_time",
+                    "category",
+                    "audience",
+                    "tools_used",
+                )
+            },
+        ),
+        (
+            "Pricing",
+            {
+                "fields": ("pricing", "price_amount"),
+                "classes": ("collapse",),
+            },
+        ),
+        (
+            "SEO",
+            {
+                "fields": ("meta_title", "meta_description"),
+                "classes": ("collapse",),
+            },
+        ),
+        (
+            "Status & Dates",
+            {
+                "fields": (
+                    "is_published",
+                    "is_featured",
+                    "last_updated",
+                    "published_at",
+                    "created_at",
+                    "updated_at",
+                )
+            },
+        ),
+    )
+
+
+@admin.register(Guide)
+class GuideAdmin(LearningContentAdmin):
+    pass
+
+
+@admin.register(Lab)
+class LabAdmin(LearningContentAdmin):
+    pass
+
+
+@admin.register(Workshop)
+class WorkshopAdmin(LearningContentAdmin):
+    pass

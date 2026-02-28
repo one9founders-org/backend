@@ -4,6 +4,8 @@ from rest_framework import serializers
 from .models import (
     Category,
     Deal,
+    Guide,
+    Lab,
     News,
     NewsletterSubscription,
     NewsUpvote,
@@ -14,6 +16,7 @@ from .models import (
     ToolSubmission,
     ToolUsage,
     UserFavorite,
+    Workshop,
 )
 
 User = get_user_model()
@@ -279,3 +282,192 @@ class TrendingToolSerializer(serializers.ModelSerializer):
             "click_count",
             "is_featured",
         ]
+
+
+# --- Learning Content Serializers ---
+
+
+class LearningContentListSerializer(serializers.Serializer):
+    """Shared list serializer for Guides, Labs, and Workshops."""
+
+    id = serializers.IntegerField(read_only=True)
+    title = serializers.CharField()
+    slug = serializers.SlugField()
+    short_description = serializers.CharField()
+    featured_image = serializers.URLField()
+    author = serializers.CharField()
+    difficulty = serializers.CharField()
+    estimated_time = serializers.CharField()
+    category = serializers.CharField()
+    audience = serializers.CharField()
+    tools_used = ToolListSerializer(many=True, read_only=True)
+    pricing = serializers.CharField()
+    price_amount = serializers.DecimalField(max_digits=10, decimal_places=2)
+    is_featured = serializers.BooleanField()
+    last_updated = serializers.DateTimeField()
+    published_at = serializers.DateTimeField()
+
+
+class GuideListSerializer(LearningContentListSerializer):
+    class Meta:
+        model = Guide
+        fields = [
+            "id",
+            "title",
+            "slug",
+            "short_description",
+            "featured_image",
+            "author",
+            "difficulty",
+            "estimated_time",
+            "category",
+            "audience",
+            "tools_used",
+            "pricing",
+            "price_amount",
+            "is_featured",
+            "last_updated",
+            "published_at",
+        ]
+
+
+class GuideDetailSerializer(serializers.ModelSerializer):
+    tools_used = ToolListSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Guide
+        fields = [
+            "id",
+            "title",
+            "slug",
+            "short_description",
+            "content",
+            "featured_image",
+            "author",
+            "difficulty",
+            "estimated_time",
+            "category",
+            "audience",
+            "tools_used",
+            "pricing",
+            "price_amount",
+            "meta_title",
+            "meta_description",
+            "is_published",
+            "is_featured",
+            "last_updated",
+            "published_at",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["created_at", "updated_at"]
+
+
+class LabListSerializer(LearningContentListSerializer):
+    class Meta:
+        model = Lab
+        fields = [
+            "id",
+            "title",
+            "slug",
+            "short_description",
+            "featured_image",
+            "author",
+            "difficulty",
+            "estimated_time",
+            "category",
+            "audience",
+            "tools_used",
+            "pricing",
+            "price_amount",
+            "is_featured",
+            "last_updated",
+            "published_at",
+        ]
+
+
+class LabDetailSerializer(serializers.ModelSerializer):
+    tools_used = ToolListSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Lab
+        fields = [
+            "id",
+            "title",
+            "slug",
+            "short_description",
+            "content",
+            "featured_image",
+            "author",
+            "difficulty",
+            "estimated_time",
+            "category",
+            "audience",
+            "tools_used",
+            "pricing",
+            "price_amount",
+            "meta_title",
+            "meta_description",
+            "is_published",
+            "is_featured",
+            "last_updated",
+            "published_at",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["created_at", "updated_at"]
+
+
+class WorkshopListSerializer(LearningContentListSerializer):
+    class Meta:
+        model = Workshop
+        fields = [
+            "id",
+            "title",
+            "slug",
+            "short_description",
+            "featured_image",
+            "author",
+            "difficulty",
+            "estimated_time",
+            "category",
+            "audience",
+            "tools_used",
+            "pricing",
+            "price_amount",
+            "is_featured",
+            "last_updated",
+            "published_at",
+        ]
+
+
+class WorkshopDetailSerializer(serializers.ModelSerializer):
+    tools_used = ToolListSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Workshop
+        fields = [
+            "id",
+            "title",
+            "slug",
+            "short_description",
+            "content",
+            "featured_image",
+            "author",
+            "difficulty",
+            "estimated_time",
+            "category",
+            "audience",
+            "tools_used",
+            "pricing",
+            "price_amount",
+            "meta_title",
+            "meta_description",
+            "is_published",
+            "is_featured",
+            "last_updated",
+            "published_at",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["created_at", "updated_at"]
