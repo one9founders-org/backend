@@ -14,10 +14,10 @@ from rest_framework.decorators import (
     authentication_classes,
     permission_classes,
 )
-from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny, IsAdminUser
 from rest_framework.response import Response
+from rest_framework_simplejwt.authentication import JWTAuthentication
 
 from .models import (
     Category,
