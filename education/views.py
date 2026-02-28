@@ -87,7 +87,7 @@ class CourseViewSet(viewsets.ReadOnlyModelViewSet):
             queryset = queryset.filter(difficulty=difficulty)
         if course_format:
             queryset = queryset.filter(format=course_format)
-        if featured:
+        if featured and featured.lower() in ("true", "1", "yes"):
             queryset = queryset.filter(is_featured=True)
 
         return queryset.distinct()
