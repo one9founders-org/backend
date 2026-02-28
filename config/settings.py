@@ -38,7 +38,9 @@ INSTALLED_APPS = [
     "import_export",
     "django_summernote",
     "storages",
+    "django_filters",
     "api",
+    "education",
 ]
 
 MIDDLEWARE = [

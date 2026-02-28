@@ -1,6 +1,6 @@
 [flake8]
 max-line-length = 88
-exclude = migrations, venv, __pycache__, .git, .tox, seed_data.py, seed_new_data.py, generate_embeddings.py, import_tools.py
+exclude = migrations, venv, __pycache__, .git, .tox, seed_data.py, seed_new_data.py, seed_education.py, generate_embeddings.py, import_tools.py
 per-file-ignores =
     config/settings.py:E501
     api/migrations/0001_initial.py:E501
