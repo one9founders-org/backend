@@ -11,6 +11,9 @@ logger = logging.getLogger(__name__)
 
 class User(AbstractUser):
     avatar_url = models.URLField(blank=True, null=True)
+    is_startup = models.BooleanField(
+        default=False, help_text="Whether the user is a startup founder"
+    )
 
     class Meta:
         db_table = "users"

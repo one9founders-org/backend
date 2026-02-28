@@ -35,6 +35,7 @@ def register_user(request):
     email = request.data.get("email")
     password = request.data.get("password")
     name = request.data.get("name", "")
+    is_startup = request.data.get("is_startup", False)
     turnstile_token = request.data.get("turnstile_token")
 
     if not verify_turnstile(turnstile_token):
@@ -64,6 +65,7 @@ def register_user(request):
             first_name=first_name,
             last_name=last_name,
             password=make_password(password),
+            is_startup=bool(is_startup),
         )
 
         refresh = RefreshToken.for_user(user)
@@ -76,6 +78,7 @@ def register_user(request):
                     "id": user.id,
                     "email": user.email,
                     "name": user.get_full_name() or user.first_name,
+                    "is_startup": user.is_startup,
                 },
             },
             status=status.HTTP_201_CREATED,
