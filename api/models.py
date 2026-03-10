@@ -134,6 +134,18 @@ class Tool(models.Model):
         "self", blank=True, symmetrical=False, related_name="alternative_to"
     )
 
+    # Security
+    security_score = models.IntegerField(
+        blank=True,
+        null=True,
+        help_text="Security score from 0-100 based on 10-point assessment",
+    )
+    security_assessed_at = models.DateTimeField(
+        blank=True,
+        null=True,
+        help_text="When the security assessment was last performed",
+    )
+
     # AI
     embedding = VectorField(dimensions=1536, blank=True, null=True)
 

@@ -75,6 +75,8 @@ class ToolListSerializer(serializers.ModelSerializer):
             "verified",
             "is_featured",
             "startup_friendly",
+            "security_score",
+            "security_assessed_at",
             "similarity",
         ]
 
