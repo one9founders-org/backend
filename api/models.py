@@ -2,6 +2,7 @@ import logging
 import math
 
 from django.contrib.auth.models import AbstractUser
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django_summernote.fields import SummernoteTextField
 from pgvector.django import VectorField
@@ -132,6 +133,19 @@ class Tool(models.Model):
     # Relations
     alternatives = models.ManyToManyField(
         "self", blank=True, symmetrical=False, related_name="alternative_to"
+    )
+
+    # Security
+    security_score = models.IntegerField(
+        blank=True,
+        null=True,
+        validators=[MinValueValidator(0), MaxValueValidator(100)],
+        help_text="Security score from 0-100 based on 10-point assessment",
+    )
+    security_assessed_at = models.DateTimeField(
+        blank=True,
+        null=True,
+        help_text="When the security assessment was last performed",
     )
 
     # AI

@@ -51,7 +51,14 @@ class NewsletterResource(resources.ModelResource):
 
 @admin.register(User)
 class UserAdmin(admin.ModelAdmin):
-    list_display = ["email", "username", "first_name", "last_name", "is_startup", "is_active"]
+    list_display = [
+        "email",
+        "username",
+        "first_name",
+        "last_name",
+        "is_startup",
+        "is_active",
+    ]
     search_fields = ["email", "username"]
     list_filter = ["is_startup", "is_active"]
 

@@ -75,7 +75,13 @@ class ToolListSerializer(serializers.ModelSerializer):
             "verified",
             "is_featured",
             "startup_friendly",
+            "security_score",
+            "security_assessed_at",
             "similarity",
+        ]
+        read_only_fields = [
+            "security_score",
+            "security_assessed_at",
         ]
 
 
@@ -94,6 +100,8 @@ class ToolDetailSerializer(serializers.ModelSerializer):
             "rating",
             "review_count",
             "views_count",
+            "security_score",
+            "security_assessed_at",
         ]
 
     def to_representation(self, instance):
