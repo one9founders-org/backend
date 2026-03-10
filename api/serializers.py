@@ -79,6 +79,10 @@ class ToolListSerializer(serializers.ModelSerializer):
             "security_assessed_at",
             "similarity",
         ]
+        read_only_fields = [
+            "security_score",
+            "security_assessed_at",
+        ]
 
 
 class ToolDetailSerializer(serializers.ModelSerializer):

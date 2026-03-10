@@ -2,6 +2,7 @@ import logging
 import math
 
 from django.contrib.auth.models import AbstractUser
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django_summernote.fields import SummernoteTextField
 from pgvector.django import VectorField
@@ -138,6 +139,7 @@ class Tool(models.Model):
     security_score = models.IntegerField(
         blank=True,
         null=True,
+        validators=[MinValueValidator(0), MaxValueValidator(100)],
         help_text="Security score from 0-100 based on 10-point assessment",
     )
     security_assessed_at = models.DateTimeField(
