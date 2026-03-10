@@ -96,6 +96,8 @@ class ToolDetailSerializer(serializers.ModelSerializer):
             "rating",
             "review_count",
             "views_count",
+            "security_score",
+            "security_assessed_at",
         ]
 
     def to_representation(self, instance):
