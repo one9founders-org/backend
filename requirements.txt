@@ -21,7 +21,7 @@ gunicorn==23.0.0
 PyJWT==2.9.0
 cryptography==43.0.3
 whitenoise==6.8.2
-faiss-cpu==1.7.4
+faiss-cpu>=1.7.4
 sentence-transformers==2.2.2
 beautifulsoup4==4.12.3
 selenium==4.27.1

@@ -316,6 +316,75 @@ def add_tool(request):
 
 
 @api_view(["POST"])
+@permission_classes([AllowAny])
+@authentication_classes([JWTAuthentication])
+def smart_search(request):
+    """AI-powered smart search with intent parsing, hybrid filtering, and task decomposition."""
+    query = request.data.get("query", "").strip()
+    if not query:
+        return Response(
+            {"error": "query is required"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if len(query) > 500:
+        return Response(
+            {"error": "Query too long (max 500 characters)"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    try:
+        from .smart_search import smart_search_orchestrator
+
+        top_k = min(int(request.data.get("top_k", 20)), 50)
+        result = smart_search_orchestrator(query, top_k=top_k)
+        return Response(result)
+    except Exception as e:
+        logger.error("Smart search failed for '%s': %s", query, e, exc_info=True)
+        # Graceful fallback to basic FAISS search
+        try:
+            from .faiss_search import FAISSSearchService
+
+            service = FAISSSearchService.get_instance()
+            results = service.search(query, top_k=20, similarity_threshold=0.3)
+            if results is not None:
+                return Response(
+                    {
+                        "mode": "search",
+                        "parsed_intent": {
+                            "semantic_query": query,
+                            "filters": {},
+                            "explanation": "Fallback to basic semantic search",
+                        },
+                        "results": results,
+                        "total_results": len(results),
+                        "suggestions": [],
+                    }
+                )
+        except Exception:
+            pass
+
+        # Last resort: text search
+        tools = Tool.objects.filter(
+            Q(name__icontains=query) | Q(description__icontains=query),
+            is_active=True,
+        )[:20]
+        return Response(
+            {
+                "mode": "search",
+                "parsed_intent": {
+                    "semantic_query": query,
+                    "filters": {},
+                    "explanation": "Basic text search fallback",
+                },
+                "results": ToolListSerializer(tools, many=True).data,
+                "total_results": tools.count(),
+                "suggestions": ["Try a more specific search query"],
+            }
+        )
+
+
+@api_view(["POST"])
 @permission_classes([IsAdminUser])
 def sync_lacreme(request):
     from .lacreme_scraper import run
