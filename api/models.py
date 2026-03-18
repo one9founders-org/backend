@@ -801,7 +801,10 @@ class ToolSentimentLog(models.Model):
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
 
     def _str_(self):
-        return f"{self.tool.name} Sentiment: {self.weighted_score} ({self.created_at.date()})"
+        return (
+            f"{self.tool.name} Sentiment: "
+            f"{self.weighted_score} ({self.created_at.date()})"
+        )
 
     class Meta:
         db_table = "tool_sentiment_logs"
