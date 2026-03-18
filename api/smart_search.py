@@ -116,8 +116,8 @@ def parse_search_intent(query):
         return fallback_intent
 
 
-
 # 2. Hybrid Search (ORM Filters + FAISS Ranking)
+
 
 def _apply_orm_filters(queryset, filters):
     """Apply structured filters to a Tool queryset before FAISS ranking."""
@@ -213,17 +213,12 @@ def hybrid_search(semantic_query, filters=None, top_k=20, sort_by="relevance"):
             key=lambda x: float(x.get("pricing_from") or 0), reverse=True
         )
     elif sort_by == "rating":
-        ranked_results.sort(
-            key=lambda x: float(x.get("rating") or 0), reverse=True
-        )
+        ranked_results.sort(key=lambda x: float(x.get("rating") or 0), reverse=True)
     elif sort_by == "popularity":
-        ranked_results.sort(
-            key=lambda x: int(x.get("views_count") or 0), reverse=True
-        )
+        ranked_results.sort(key=lambda x: int(x.get("views_count") or 0), reverse=True)
     # else: keep FAISS relevance order (default)
 
     return ranked_results
-
 
 
 # 3. Smart Search Orchestrator
@@ -291,6 +286,7 @@ def smart_search_orchestrator(query, top_k=20):
 
 # 4. Result Enrichment Helpers
 
+
 def _enrich_with_match_reasons(results, semantic_query, filters):
     """Add a human-readable match_reason to each result based on why it ranked."""
     for result in results:
@@ -330,7 +326,9 @@ def _enrich_with_match_reasons(results, semantic_query, filters):
         if result.get("verified"):
             reasons.append("Verified tool")
 
-        result["match_reason"] = " · ".join(reasons) if reasons else "Relevant to your search"
+        result["match_reason"] = (
+            " · ".join(reasons) if reasons else "Relevant to your search"
+        )
         result["relevance_score"] = round(sim, 3) if sim else None
 
     return results
@@ -347,7 +345,17 @@ def _generate_search_suggestions(query, results):
         suggestions.append("Try a broader search term for more options")
 
     # Suggest task decomposition if the query looks like a goal
-    goal_words = ["want to", "need to", "how to", "launch", "build", "create", "start", "automate", "grow"]
+    goal_words = [
+        "want to",
+        "need to",
+        "how to",
+        "launch",
+        "build",
+        "create",
+        "start",
+        "automate",
+        "grow",
+    ]
     if any(w in query.lower() for w in goal_words) and len(results) > 0:
         suggestions.append(
             "💡 Tip: Try phrasing as a goal (e.g., 'I want to automate my email marketing') "

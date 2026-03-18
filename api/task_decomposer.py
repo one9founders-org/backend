@@ -186,11 +186,17 @@ def build_tech_stack_recipe(original_query, micro_tasks, filters=None, intent=No
         "mode": "task_decomposition",
         "goal": decomposed.get("goal_summary", original_query),
         "parsed_intent": {
-            "semantic_query": intent.get("semantic_query", original_query) if intent else original_query,
+            "semantic_query": (
+                intent.get("semantic_query", original_query)
+                if intent
+                else original_query
+            ),
             "filters": {k: v for k, v in (filters or {}).items() if v},
             "explanation": intent.get("result_explanation", "") if intent else "",
         },
-        "estimated_monthly_budget": decomposed.get("estimated_monthly_budget", "Varies"),
+        "estimated_monthly_budget": decomposed.get(
+            "estimated_monthly_budget", "Varies"
+        ),
         "time_to_setup": decomposed.get("time_to_setup", "Varies"),
         "steps": recipe_steps,
         "total_steps": len(recipe_steps),
