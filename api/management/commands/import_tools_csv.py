@@ -143,7 +143,8 @@ class Command(BaseCommand):
 
             self.stdout.write(
                 self.style.SUCCESS(
-                    f"Successfully processed CSV. Created: {created_count}, Updated: {updated_count}"
+                    f"Successfully processed CSV."
+                    f" Created: {created_count}, Updated: {updated_count}"
                 )
             )
 

@@ -19,31 +19,35 @@ logger = logging.getLogger(__name__)
 
 DECOMPOSER_CACHE_TTL = 3600  # 1 hour
 
-DECOMPOSE_SYSTEM_PROMPT = """You are an expert startup advisor and AI tools specialist.
-
-Given a user's goal, break it into 3-6 specific, actionable micro-tasks that an AI tool could help accomplish.
-
-Return valid JSON:
-{
-  "goal_summary": "A clean 1-sentence summary of the user's goal",
-  "steps": [
-    {
-      "step": 1,
-      "task": "Short task name (e.g., 'Audio Recording & Editing')",
-      "description": "1-2 sentence explanation of this step",
-      "search_query": "Optimized search query to find the best AI tool for this task"
-    }
-  ],
-  "estimated_monthly_budget": "A rough estimate like '$0-50/mo' or 'Mostly free'",
-  "time_to_setup": "Rough estimate like '1-2 hours' or '1 weekend'"
-}
-
-Rules:
-- Each step should be a task an AI TOOL can help with, not a general business step.
-- search_query should be specific enough to find AI tools (e.g., "AI podcast transcription tool" not just "transcription").
-- Order steps logically (start to finish of the workflow).
-- Focus on practical, actionable tasks that founders would actually need.
-- Return ONLY valid JSON."""
+DECOMPOSE_SYSTEM_PROMPT = (
+    "You are an expert startup advisor and AI tools specialist.\n\n"
+    "Given a user's goal, break it into 3-6 specific, actionable micro-tasks"
+    " that an AI tool could help accomplish.\n\n"
+    "Return valid JSON:\n"
+    "{\n"
+    '  "goal_summary": "A clean 1-sentence summary of the user\'s goal",\n'
+    '  "steps": [\n'
+    "    {\n"
+    '      "step": 1,\n'
+    '      "task": "Short task name (e.g., \'Audio Recording & Editing\')",\n'
+    '      "description": "1-2 sentence explanation of this step",\n'
+    '      "search_query": "Optimized search query to find'
+    ' the best AI tool for this task"\n'
+    "    }\n"
+    "  ],\n"
+    '  "estimated_monthly_budget": "A rough estimate like'
+    ' \'$0-50/mo\' or \'Mostly free\'",\n'
+    '  "time_to_setup": "Rough estimate like \'1-2 hours\' or \'1 weekend\'"\n'
+    "}\n\n"
+    "Rules:\n"
+    "- Each step should be a task an AI TOOL can help with,"
+    " not a general business step.\n"
+    "- search_query should be specific enough to find AI tools"
+    ' (e.g., "AI podcast transcription tool" not just "transcription").\n'
+    "- Order steps logically (start to finish of the workflow).\n"
+    "- Focus on practical, actionable tasks that founders would actually need.\n"
+    "- Return ONLY valid JSON."
+)
 
 
 def decompose_task(macro_goal):

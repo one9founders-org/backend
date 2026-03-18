@@ -8,7 +8,6 @@ filter-aware, intent-understanding search engine.
 import hashlib
 import json
 import logging
-import re
 
 from django.conf import settings
 from django.core.cache import cache
@@ -22,36 +21,43 @@ SEARCH_CACHE_TTL = 1800  # 30 minutes
 
 
 # 1. AI Intent Parser
-INTENT_SYSTEM_PROMPT = """You are a search-intent parser for an AI tool discovery platform used by founders and entrepreneurs.
-
-Given a user's natural-language query, extract structured search intent.
-
-You MUST return valid JSON with these exact keys:
-{
-  "semantic_query": "a clean, rephrased search string optimized for semantic similarity matching",
-  "filters": {
-    "max_price": null or number (e.g. 20),
-    "min_price": null or number,
-    "pricing_type": [] (subset of ["free", "freemium", "paid"]),
-    "categories": [] (category slugs relevant to the query),
-    "startup_friendly": null or true,
-    "min_rating": null or number (1-5),
-    "platforms": [] (subset of ["web", "ios", "android", "desktop", "api"]),
-    "has_free_trial": null or true
-  },
-  "mode": "search" or "task_decomposition",
-  "micro_tasks": [],
-  "sort_by": "relevance" or "price_low" or "price_high" or "rating" or "popularity",
-  "result_explanation": "a one-line summary of what was understood from the query"
-}
-
-Rules:
-- If the query describes a specific GOAL or WORKFLOW (e.g. "launch a podcast", "automate my marketing", "build a SaaS"), set mode to "task_decomposition" and populate micro_tasks with 3-6 actionable sub-tasks.
-- If the query is a direct tool search (e.g. "best SEO tool", "cheap writing assistant"), set mode to "search" and leave micro_tasks empty.
-- Always populate semantic_query with a clear, descriptive search phrase.
-- Only set filter values when the user EXPLICITLY mentions them. Do not guess.
-- For pricing_type: "free" = completely free, "freemium" = has free tier + paid plans, "paid" = paid only.
-- Return ONLY valid JSON, no markdown, no explanation."""
+INTENT_SYSTEM_PROMPT = (
+    "You are a search-intent parser for an AI tool discovery platform"
+    " used by founders and entrepreneurs.\n\n"
+    "Given a user's natural-language query, extract structured search intent.\n\n"
+    "You MUST return valid JSON with these exact keys:\n"
+    "{\n"
+    '  "semantic_query": "a clean, rephrased search string optimized'
+    ' for semantic similarity matching",\n'
+    '  "filters": {\n'
+    '    "max_price": null or number (e.g. 20),\n'
+    '    "min_price": null or number,\n'
+    '    "pricing_type": [] (subset of ["free", "freemium", "paid"]),\n'
+    '    "categories": [] (category slugs relevant to the query),\n'
+    '    "startup_friendly": null or true,\n'
+    '    "min_rating": null or number (1-5),\n'
+    '    "platforms": [] (subset of ["web", "ios", "android", "desktop", "api"]),\n'
+    '    "has_free_trial": null or true\n'
+    "  },\n"
+    '  "mode": "search" or "task_decomposition",\n'
+    '  "micro_tasks": [],\n'
+    '  "sort_by": "relevance" or "price_low" or "price_high"'
+    ' or "rating" or "popularity",\n'
+    '  "result_explanation": "a one-line summary of'
+    ' what was understood from the query"\n'
+    "}\n\n"
+    "Rules:\n"
+    '- If the query describes a specific GOAL or WORKFLOW (e.g. "launch a podcast",'
+    ' "automate my marketing", "build a SaaS"), set mode to "task_decomposition"'
+    " and populate micro_tasks with 3-6 actionable sub-tasks.\n"
+    '- If the query is a direct tool search (e.g. "best SEO tool",'
+    ' "cheap writing assistant"), set mode to "search" and leave micro_tasks empty.\n'
+    "- Always populate semantic_query with a clear, descriptive search phrase.\n"
+    "- Only set filter values when the user EXPLICITLY mentions them. Do not guess.\n"
+    '- For pricing_type: "free" = completely free,'
+    ' "freemium" = has free tier + paid plans, "paid" = paid only.\n'
+    "- Return ONLY valid JSON, no markdown, no explanation."
+)
 
 
 def _cache_key(prefix, query):
@@ -358,8 +364,9 @@ def _generate_search_suggestions(query, results):
     ]
     if any(w in query.lower() for w in goal_words) and len(results) > 0:
         suggestions.append(
-            "💡 Tip: Try phrasing as a goal (e.g., 'I want to automate my email marketing') "
-            "for a step-by-step tool recommendation"
+            "Tip: Try phrasing as a goal"
+            " (e.g., 'I want to automate my email marketing')"
+            " for a step-by-step tool recommendation"
         )
 
     return suggestions

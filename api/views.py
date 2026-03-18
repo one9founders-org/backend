@@ -319,7 +319,8 @@ def add_tool(request):
 @permission_classes([AllowAny])
 @authentication_classes([JWTAuthentication])
 def smart_search(request):
-    """AI-powered smart search with intent parsing, hybrid filtering, and task decomposition."""
+    """AI-powered smart search with intent parsing,
+    hybrid filtering, and task decomposition."""
     query = request.data.get("query", "").strip()
     if not query:
         return Response(
