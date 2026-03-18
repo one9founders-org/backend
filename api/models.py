@@ -784,15 +784,21 @@ class NewsUpvote(models.Model):
                 name="unique_session_upvote",
             ),
         ]
+
+
 class ToolSentimentLog(models.Model):
     # Link directly to the existing Tool model!
-    tool = models.ForeignKey(Tool, on_delete=models.CASCADE, related_name="sentiment_logs")
-    source = models.CharField(max_length=50, default="Unknown", help_text="e.g., G2, Reddit, X")
-    
+    tool = models.ForeignKey(
+        Tool, on_delete=models.CASCADE, related_name="sentiment_logs"
+    )
+    source = models.CharField(
+        max_length=50, default="Unknown", help_text="e.g., G2, Reddit, X"
+    )
+
     weighted_score = models.FloatField()
-    raw_aspect_data = models.JSONField() 
-    
-    created_at = models.DateTimeField(auto_now_add=True, db_index=True) 
+    raw_aspect_data = models.JSONField()
+
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
 
     def _str_(self):
         return f"{self.tool.name} Sentiment: {self.weighted_score} ({self.created_at.date()})"

@@ -1,7 +1,9 @@
 import os
+
 # Make sure to load your .env file so the API key is recognized
 from dotenv import load_dotenv
-load_dotenv() 
+
+load_dotenv()
 
 from utils.sentiment import analyze_review_sentiment, calculate_weighted_score
 
