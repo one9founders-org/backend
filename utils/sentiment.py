@@ -5,7 +5,7 @@ from openai import OpenAI
 from pydantic import BaseModel, Field
 
 # Initialize the OpenAI client
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY", "dummy-key-for-tests"))
 
 
 # 1. Define the Expected Output Structure
