@@ -708,21 +708,13 @@ class LearningContent(models.Model):
             from django.utils.text import slugify
 
             self.slug = slugify(self.title)
-
-        # Auto-calculate reading time (avg 200 words/min)
-        if self.content:
-            from django.utils.html import strip_tags
-
-            word_count = len(strip_tags(self.content).split())
-            self.reading_time = max(1, math.ceil(word_count / 200))  # ← was cut off here
-
         super().save(*args, **kwargs)
 
-    def _str_(self):
+    def __str__(self):
         return self.title
 
     class Meta:
-        db_table = "news"
+        abstract = True
         ordering = ["-published_at", "-created_at"]
 
 
