@@ -37,13 +37,11 @@ def create_driver():
 
     driver.execute_cdp_cmd(
         "Page.addScriptToEvaluateOnNewDocument",
-        {
-            "source": """
+        {"source": """
             Object.defineProperty(navigator, 'webdriver', {
                 get: () => undefined
             });
-            """
-        },
+            """},
     )
 
     return driver
