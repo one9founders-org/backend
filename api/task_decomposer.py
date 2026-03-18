@@ -36,8 +36,8 @@ DECOMPOSE_SYSTEM_PROMPT = (
     "    }\n"
     "  ],\n"
     '  "estimated_monthly_budget": "A rough estimate like'
-    ' \'$0-50/mo\' or \'Mostly free\'",\n'
-    '  "time_to_setup": "Rough estimate like \'1-2 hours\' or \'1 weekend\'"\n'
+    " '$0-50/mo' or 'Mostly free'\",\n"
+    "  \"time_to_setup\": \"Rough estimate like '1-2 hours' or '1 weekend'\"\n"
     "}\n\n"
     "Rules:\n"
     "- Each step should be a task an AI TOOL can help with,"

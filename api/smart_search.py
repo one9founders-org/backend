@@ -62,7 +62,7 @@ INTENT_SYSTEM_PROMPT = (
 
 def _cache_key(prefix, query):
     """Generate a short, safe cache key from a query string."""
-    h = hashlib.md5(query.lower().strip().encode()).hexdigest()[:12]
+    h = hashlib.md5(query.lower().strip().encode()).hexdigest()[:12]  # nosec B324
     return f"smart_search:{prefix}:{h}"
 
 
