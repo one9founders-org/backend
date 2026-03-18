@@ -32,3 +32,6 @@ safety-report.json
 
 # FAISS index files
 faiss_index/
+
+# CSVs
+*.csv

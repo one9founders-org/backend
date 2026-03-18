@@ -479,3 +479,56 @@ class WorkshopDetailSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
         read_only_fields = ["created_at", "updated_at"]
+
+
+# Smart Search Serializers
+
+
+class SmartSearchToolSerializer(ToolListSerializer):
+    """Extended tool serializer with match context for smart search results."""
+
+    match_reason = serializers.CharField(read_only=True, required=False)
+    relevance_score = serializers.FloatField(read_only=True, required=False)
+
+    class Meta(ToolListSerializer.Meta):
+        fields = ToolListSerializer.Meta.fields + ["match_reason", "relevance_score"]
+
+
+class ParsedIntentSerializer(serializers.Serializer):
+    semantic_query = serializers.CharField()
+    filters = serializers.DictField(required=False)
+    sort_by = serializers.CharField(required=False, default="relevance")
+    explanation = serializers.CharField(required=False)
+
+
+class SmartSearchResponseSerializer(serializers.Serializer):
+    """Serializer for the standard smart search response."""
+
+    mode = serializers.CharField()
+    parsed_intent = ParsedIntentSerializer()
+    results = serializers.ListField(child=serializers.DictField())
+    total_results = serializers.IntegerField()
+    suggestions = serializers.ListField(child=serializers.CharField(), required=False)
+
+
+class TaskStepSerializer(serializers.Serializer):
+    """Serializer for a single step in a Tech Stack Recipe."""
+
+    step = serializers.IntegerField()
+    task = serializers.CharField()
+    description = serializers.CharField()
+    recommended_tools = serializers.ListField(child=serializers.DictField())
+    tool_count = serializers.IntegerField()
+
+
+class TaskRecipeResponseSerializer(serializers.Serializer):
+    """Serializer for the full task decomposition / Tech Stack Recipe response."""
+
+    mode = serializers.CharField()
+    goal = serializers.CharField()
+    parsed_intent = ParsedIntentSerializer()
+    estimated_monthly_budget = serializers.CharField(required=False)
+    time_to_setup = serializers.CharField(required=False)
+    steps = TaskStepSerializer(many=True)
+    total_steps = serializers.IntegerField()
+    total_tools_recommended = serializers.IntegerField()

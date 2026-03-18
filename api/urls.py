@@ -38,6 +38,7 @@ router.register(
 
 urlpatterns = [
     # Search and Actions
+    path("tools/smart-search/", views.smart_search, name="smart-search"),
     path("tools/search/", views.search_tools, name="tool-search"),
     path("tools/add/", views.add_tool, name="tool-add"),
     path("internal/sync-lacreme/", views.sync_lacreme, name="sync-lacreme"),
