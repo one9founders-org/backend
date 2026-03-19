@@ -65,13 +65,18 @@ def extension_lookup(request):
         .first()
     )
 
-    # 2. Endswith match (e.g. notion.so matches tool with domain notion.so)
+    # 2. Try progressively stripping subdomains (e.g. app.notion.so -> notion.so)
     if not tool:
-        tool = (
-            Tool.objects.filter(domain__endswith=domain, is_active=True)
-            .prefetch_related("categories", "alternatives")
-            .first()
-        )
+        parts = domain.split(".")
+        for i in range(1, len(parts) - 1):
+            parent_domain = ".".join(parts[i:])
+            tool = (
+                Tool.objects.filter(domain=parent_domain, is_active=True)
+                .prefetch_related("categories", "alternatives")
+                .first()
+            )
+            if tool:
+                break
 
     # 3. No match
     if not tool:
