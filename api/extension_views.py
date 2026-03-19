@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 class ExtensionRateThrottle(AnonRateThrottle):
+    scope = "extension"
     rate = "60/min"
 
 
@@ -53,6 +54,8 @@ def extension_lookup(request):
     cache_key = f"extension_lookup:{domain}"
     cached = cache.get(cache_key)
     if cached is not None:
+        if not cached.get("found", True):
+            return Response(cached, status=status.HTTP_404_NOT_FOUND)
         return Response(cached)
 
     # 1. Exact match on domain field
@@ -62,10 +65,10 @@ def extension_lookup(request):
         .first()
     )
 
-    # 2. Partial/contains match
+    # 2. Endswith match (e.g. notion.so matches tool with domain notion.so)
     if not tool:
         tool = (
-            Tool.objects.filter(domain__icontains=domain, is_active=True)
+            Tool.objects.filter(domain__endswith=domain, is_active=True)
             .prefetch_related("categories", "alternatives")
             .first()
         )
