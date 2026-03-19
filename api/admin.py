@@ -14,6 +14,7 @@ from .models import (
     Review,
     Tool,
     ToolSubmission,
+    ToolSuggestion,
     User,
     UserFavorite,
     Workshop,
@@ -170,6 +171,27 @@ class ToolSubmissionAdmin(admin.ModelAdmin):
 
 
 admin.site.register(UserFavorite)
+
+
+@admin.register(ToolSuggestion)
+class ToolSuggestionAdmin(admin.ModelAdmin):
+    list_display = ["domain", "suggested_by", "status", "created_at"]
+    list_filter = ["status", "created_at"]
+    search_fields = ["domain", "suggested_by"]
+    readonly_fields = ["created_at"]
+    actions = ["mark_reviewed", "mark_rejected"]
+
+    def mark_reviewed(self, request, queryset):
+        updated = queryset.filter(status="pending").update(status="reviewed")
+        self.message_user(request, f"{updated} suggestion(s) marked as reviewed.")
+
+    mark_reviewed.short_description = "Mark selected as reviewed"
+
+    def mark_rejected(self, request, queryset):
+        updated = queryset.filter(status="pending").update(status="rejected")
+        self.message_user(request, f"{updated} suggestion(s) marked as rejected.")
+
+    mark_rejected.short_description = "Mark selected as rejected"
 
 
 # Pipeline Models Admin
