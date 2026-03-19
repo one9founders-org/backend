@@ -143,4 +143,4 @@ jobs:
             DOCKER_BUILDKIT=1 docker compose build --build-arg BUILDKIT_INLINE_CACHE=1
             docker compose up -d
             docker compose exec web python manage.py collectstatic --noinput
-            docker compose exec web python manage.py build_faiss_index
+            docker compose exec -d web python manage.py build_faiss_index
