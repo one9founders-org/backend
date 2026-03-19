@@ -135,6 +135,15 @@ class Tool(models.Model):
         "self", blank=True, symmetrical=False, related_name="alternative_to"
     )
 
+    # Extension
+    domain = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        db_index=True,
+        help_text="Root domain extracted from website URL (e.g. runway.ml)",
+    )
+
     # Security
     security_score = models.IntegerField(
         blank=True,
@@ -784,6 +793,30 @@ class NewsUpvote(models.Model):
                 name="unique_session_upvote",
             ),
         ]
+
+
+class ToolSuggestion(models.Model):
+    STATUS_CHOICES = [
+        ("pending", "Pending"),
+        ("reviewed", "Reviewed"),
+        ("rejected", "Rejected"),
+    ]
+
+    domain = models.CharField(max_length=255, db_index=True)
+    suggested_by = models.CharField(
+        max_length=255, default="extension_user", blank=True
+    )
+    status = models.CharField(
+        max_length=20, choices=STATUS_CHOICES, default="pending", db_index=True
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.domain} - {self.status}"
+
+    class Meta:
+        db_table = "tool_suggestions"
+        ordering = ["-created_at"]
 
 
 class ToolSentimentLog(models.Model):
