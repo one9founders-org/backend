@@ -57,5 +57,9 @@ class AgentCategorySerializer(serializers.ModelSerializer):
         ]
 
     def get_top_agents(self, obj):
-        top = obj.agents.order_by("-popularity_score")[:5]
-        return AgentCategoryTopAgentSerializer(top, many=True).data
+        agents = getattr(obj, "prefetched_agents", None)
+        if agents is None:
+            agents = obj.agents.order_by("-popularity_score")[:5]
+        else:
+            agents = agents[:5]
+        return AgentCategoryTopAgentSerializer(agents, many=True).data

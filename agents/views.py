@@ -1,4 +1,4 @@
-from django.db.models import Count, Q
+from django.db.models import Count, Prefetch, Q
 from rest_framework import viewsets
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny
@@ -81,9 +81,13 @@ class AgentCategoryListView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request):
-        categories = AgentCategory.objects.prefetch_related("agents").order_by(
-            "-agent_count"
-        )
+        categories = AgentCategory.objects.prefetch_related(
+            Prefetch(
+                "agents",
+                queryset=AIAgent.objects.order_by("-popularity_score"),
+                to_attr="prefetched_agents",
+            )
+        ).order_by("-agent_count")
         serializer = AgentCategorySerializer(categories, many=True)
         return Response({"categories": serializer.data})
 

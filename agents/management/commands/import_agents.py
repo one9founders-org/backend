@@ -178,7 +178,7 @@ class Command(BaseCommand):
             use_cases = split_pipe_delimited(item.get("useCases"))
 
             agent_data = {
-                "external_id": safe_str(item.get("id")),
+                "external_id": safe_str(item.get("id")) or None,
                 "name": name,
                 "category": category,
                 "category_name": category_label,
