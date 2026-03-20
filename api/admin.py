@@ -175,23 +175,73 @@ admin.site.register(UserFavorite)
 
 @admin.register(ToolSuggestion)
 class ToolSuggestionAdmin(admin.ModelAdmin):
-    list_display = ["domain", "suggested_by", "status", "created_at"]
-    list_filter = ["status", "created_at"]
+    list_display = [
+        "domain",
+        "is_ai_tool",
+        "status",
+        "auto_created_tool",
+        "created_at",
+        "processed_at",
+    ]
+    list_filter = ["status", "is_ai_tool", "created_at"]
     search_fields = ["domain", "suggested_by"]
-    readonly_fields = ["created_at"]
-    actions = ["mark_reviewed", "mark_rejected"]
+    readonly_fields = [
+        "domain",
+        "suggested_by",
+        "created_at",
+        "processed_at",
+        "is_ai_tool",
+        "ai_reason",
+        "generated_data",
+        "auto_created_tool",
+    ]
+    actions = [
+        "approve_and_publish",
+        "reject_suggestions",
+        "reprocess_with_ai",
+    ]
 
-    def mark_reviewed(self, request, queryset):
-        updated = queryset.filter(status="pending").update(status="reviewed")
-        self.message_user(request, f"{updated} suggestion(s) marked as reviewed.")
+    def approve_and_publish(self, request, queryset):
+        """Approve suggestions and publish their auto-created tools."""
+        count = 0
+        for suggestion in queryset.filter(
+            status="reviewed", auto_created_tool__isnull=False
+        ):
+            tool = suggestion.auto_created_tool
+            tool.is_active = True
+            tool.save(update_fields=["is_active"])
+            suggestion.status = "approved"
+            suggestion.save(update_fields=["status"])
+            count += 1
+        self.message_user(request, f"{count} tool(s) approved and published.")
 
-    mark_reviewed.short_description = "Mark selected as reviewed"
+    approve_and_publish.short_description = "Approve & publish selected tools"
 
-    def mark_rejected(self, request, queryset):
-        updated = queryset.filter(status="pending").update(status="rejected")
-        self.message_user(request, f"{updated} suggestion(s) marked as rejected.")
+    def reject_suggestions(self, request, queryset):
+        """Reject suggestions and delete their draft tools."""
+        count = 0
+        for suggestion in queryset.exclude(status="approved"):
+            if suggestion.auto_created_tool:
+                suggestion.auto_created_tool.delete()
+                suggestion.auto_created_tool = None
+            suggestion.status = "rejected"
+            suggestion.save()
+            count += 1
+        self.message_user(request, f"{count} suggestion(s) rejected.")
 
-    mark_rejected.short_description = "Mark selected as rejected"
+    reject_suggestions.short_description = "Reject selected & delete draft tools"
+
+    def reprocess_with_ai(self, request, queryset):
+        """Re-run OpenAI processing on selected suggestions."""
+        from api.services.tool_enrichment import process_tool_suggestion
+
+        count = 0
+        for suggestion in queryset.filter(status="pending"):
+            process_tool_suggestion(suggestion)
+            count += 1
+        self.message_user(request, f"{count} suggestion(s) reprocessed.")
+
+    reprocess_with_ai.short_description = "Reprocess selected with AI"
 
 
 # Pipeline Models Admin

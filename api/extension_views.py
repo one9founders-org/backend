@@ -150,8 +150,8 @@ def extension_suggest(request):
 
     suggested_by = request.data.get("suggested_by", "extension_user")
 
-    # Avoid duplicate suggestions for the same domain
-    if ToolSuggestion.objects.filter(domain=domain, status="pending").exists():
+    # Avoid duplicate suggestions for the same domain (any status)
+    if ToolSuggestion.objects.filter(domain=domain).exists():
         return Response(
             {"message": "This domain has already been suggested. Thanks!"},
             status=status.HTTP_200_OK,

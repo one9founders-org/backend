@@ -799,6 +799,7 @@ class ToolSuggestion(models.Model):
     STATUS_CHOICES = [
         ("pending", "Pending"),
         ("reviewed", "Reviewed"),
+        ("approved", "Approved"),
         ("rejected", "Rejected"),
     ]
 
@@ -810,6 +811,26 @@ class ToolSuggestion(models.Model):
         max_length=20, choices=STATUS_CHOICES, default="pending", db_index=True
     )
     created_at = models.DateTimeField(auto_now_add=True)
+
+    # AI processing fields
+    is_ai_tool = models.BooleanField(
+        null=True, blank=True, help_text="AI verification result"
+    )
+    ai_reason = models.TextField(
+        blank=True, default="", help_text="Why AI classified it this way"
+    )
+    generated_data = models.JSONField(
+        null=True, blank=True, help_text="OpenAI-generated tool data"
+    )
+    processed_at = models.DateTimeField(null=True, blank=True)
+    auto_created_tool = models.ForeignKey(
+        "Tool",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="suggestions",
+        help_text="The draft Tool created from this suggestion",
+    )
 
     def __str__(self):
         return f"{self.domain} - {self.status}"
