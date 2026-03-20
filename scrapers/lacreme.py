@@ -46,13 +46,11 @@ def create_driver():
 
     driver.execute_cdp_cmd(
         "Page.addScriptToEvaluateOnNewDocument",
-        {
-            "source": """
+        {"source": """
             Object.defineProperty(navigator, 'webdriver', {
                 get: () => undefined
             });
-            """
-        },
+            """},
     )
 
     return driver
@@ -226,13 +224,11 @@ def run():
         driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
         time.sleep(0.3 * scroll_speed)
 
-        driver.execute_script(
-            """
+        driver.execute_script("""
             window.dispatchEvent(new Event('scroll'));
             window.dispatchEvent(new Event('resize'));
             window.dispatchEvent(new Event('load'));
-        """
-        )
+        """)
 
         current_count = len(
             driver.find_elements(By.CSS_SELECTOR, ".collection-item-home")

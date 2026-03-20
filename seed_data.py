@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 """Seed database with sample tools and data"""
+
 import os
 
 import django

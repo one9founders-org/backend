@@ -138,6 +138,9 @@ jobs:
             cd /var/www/one9founders
             git pull origin main
             docker compose down
+            docker image prune -af
+            docker builder prune -af
             DOCKER_BUILDKIT=1 docker compose build --build-arg BUILDKIT_INLINE_CACHE=1
             docker compose up -d
             docker compose exec web python manage.py collectstatic --noinput
+            docker compose exec -d web python manage.py build_faiss_index

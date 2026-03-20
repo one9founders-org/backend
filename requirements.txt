@@ -21,11 +21,13 @@ gunicorn==23.0.0
 PyJWT==2.9.0
 cryptography==43.0.3
 whitenoise==6.8.2
-faiss-cpu==1.7.4
-sentence-transformers==2.2.2
+faiss-cpu>=1.7.4
+sentence-transformers>=2.3.0
 beautifulsoup4==4.12.3
 selenium==4.27.1
 webdriver-manager==4.0.2
+feedparser==6.0.11
+django-apscheduler==0.7.0
 
 # Testing dependencies
 pytest==7.4.3
@@ -44,3 +46,11 @@ pbr==6.0.0
 black==24.10.0
 isort==5.13.2
 pre-commit==3.6.0
+
+# Code formatting and linting
+black==24.10.0
+isort==5.13.2
+pre-commit==3.6.0
+
+# Added for Sentiment Analysis Pipeline
+pydantic>=2.0.0
