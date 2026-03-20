@@ -1,0 +1,527 @@
+[
+  {
+    "label": "AI Agents Platform",
+    "slug": "ai-agents-platform",
+    "agent_count": 226,
+    "growth_rate": 7,
+    "new_agents_30d": 16
+  },
+  {
+    "label": "AI Video Agents",
+    "slug": "ai-video-agents",
+    "agent_count": 156,
+    "growth_rate": 8,
+    "new_agents_30d": 12
+  },
+  {
+    "label": "Productivity",
+    "slug": "productivity",
+    "agent_count": 148,
+    "growth_rate": 4,
+    "new_agents_30d": 6
+  },
+  {
+    "label": "Images",
+    "slug": "images",
+    "agent_count": 145,
+    "growth_rate": 8,
+    "new_agents_30d": 12
+  },
+  {
+    "label": "AI Agents Frameworks",
+    "slug": "ai-agents-frameworks",
+    "agent_count": 123,
+    "growth_rate": 2,
+    "new_agents_30d": 3
+  },
+  {
+    "label": "Voice AI Agents",
+    "slug": "voice-ai-agents",
+    "agent_count": 108,
+    "growth_rate": 2,
+    "new_agents_30d": 2
+  },
+  {
+    "label": "Content Creation",
+    "slug": "content-creation",
+    "agent_count": 93,
+    "growth_rate": 9,
+    "new_agents_30d": 8
+  },
+  {
+    "label": "Customer Service",
+    "slug": "customer-service",
+    "agent_count": 81,
+    "growth_rate": 2,
+    "new_agents_30d": 2
+  },
+  {
+    "label": "Personal Assistant",
+    "slug": "personal-assistant",
+    "agent_count": 73,
+    "growth_rate": 4,
+    "new_agents_30d": 3
+  },
+  {
+    "label": "Sales",
+    "slug": "sales",
+    "agent_count": 63,
+    "growth_rate": 0,
+    "new_agents_30d": 0
+  },
+  {
+    "label": "Data Analysis",
+    "slug": "data-analysis",
+    "agent_count": 62,
+    "growth_rate": 2,
+    "new_agents_30d": 1
+  },
+  {
+    "label": "AI Avatar",
+    "slug": "ai-avatar",
+    "agent_count": 58,
+    "growth_rate": 2,
+    "new_agents_30d": 1
+  },
+  {
+    "label": "Digital Workers",
+    "slug": "digital-workers",
+    "agent_count": 54,
+    "growth_rate": 0,
+    "new_agents_30d": 0
+  },
+  {
+    "label": "Research",
+    "slug": "research",
+    "agent_count": 51,
+    "growth_rate": 4,
+    "new_agents_30d": 2
+  },
+  {
+    "label": "Marketing",
+    "slug": "marketing",
+    "agent_count": 46,
+    "growth_rate": 2,
+    "new_agents_30d": 1
+  },
+  {
+    "label": "Workflow",
+    "slug": "workflow",
+    "agent_count": 40,
+    "growth_rate": 0,
+    "new_agents_30d": 0
+  },
+  {
+    "label": "Education",
+    "slug": "education",
+    "agent_count": 39,
+    "growth_rate": 8,
+    "new_agents_30d": 3
+  },
+  {
+    "label": "WEB 3",
+    "slug": "web-3",
+    "agent_count": 38,
+    "growth_rate": 0,
+    "new_agents_30d": 0
+  },
+  {
+    "label": "Coding Agent",
+    "slug": "coding-agent",
+    "agent_count": 34,
+    "growth_rate": 0,
+    "new_agents_30d": 0
+  },
+  {
+    "label": "AI Directories",
+    "slug": "ai-directories",
+    "agent_count": 32,
+    "growth_rate": 28,
+    "new_agents_30d": 9
+  },
+  {
+    "label": "Coding Assistant",
+    "slug": "coding-assistant",
+    "agent_count": 31,
+    "growth_rate": 0,
+    "new_agents_30d": 0
+  },
+  {
+    "label": "Web AI Agents",
+    "slug": "web-ai-agents",
+    "agent_count": 29,
+    "growth_rate": 7,
+    "new_agents_30d": 2
+  },
+  {
+    "label": "Recruiting AI Agents",
+    "slug": "recruiting-ai-agents",
+    "agent_count": 29,
+    "growth_rate": 0,
+    "new_agents_30d": 0
+  },
+  {
+    "label": "AI Security",
+    "slug": "ai-security",
+    "agent_count": 27,
+    "growth_rate": 11,
+    "new_agents_30d": 3
+  },
+  {
+    "label": "Observability",
+    "slug": "observability",
+    "agent_count": 25,
+    "growth_rate": 0,
+    "new_agents_30d": 0
+  },
+  {
+    "label": "Music",
+    "slug": "music",
+    "agent_count": 25,
+    "growth_rate": 8,
+    "new_agents_30d": 2
+  },
+  {
+    "label": "Marketing AI Agent",
+    "slug": "marketing-ai-agent",
+    "agent_count": 24,
+    "growth_rate": 0,
+    "new_agents_30d": 0
+  },
+  {
+    "label": "AI Docs Agents",
+    "slug": "ai-docs-agents",
+    "agent_count": 24,
+    "growth_rate": 4,
+    "new_agents_30d": 1
+  },
+  {
+    "label": "Lead Generation",
+    "slug": "lead-generation",
+    "agent_count": 22,
+    "growth_rate": 5,
+    "new_agents_30d": 1
+  },
+  {
+    "label": "LLM",
+    "slug": "llm",
+    "agent_count": 21,
+    "growth_rate": 5,
+    "new_agents_30d": 1
+  },
+  {
+    "label": "Software Testing",
+    "slug": "software-testing",
+    "agent_count": 20,
+    "growth_rate": 0,
+    "new_agents_30d": 0
+  },
+  {
+    "label": "Finance",
+    "slug": "finance",
+    "agent_count": 18,
+    "growth_rate": 11,
+    "new_agents_30d": 2
+  },
+  {
+    "label": "Tool Libraries",
+    "slug": "tool-libraries",
+    "agent_count": 16,
+    "growth_rate": 0,
+    "new_agents_30d": 0
+  },
+  {
+    "label": "NSFW",
+    "slug": "nsfw",
+    "agent_count": 16,
+    "growth_rate": 25,
+    "new_agents_30d": 4
+  },
+  {
+    "label": "Recruiting",
+    "slug": "recruiting",
+    "agent_count": 16,
+    "growth_rate": 19,
+    "new_agents_30d": 3
+  },
+  {
+    "label": "SEO Agents",
+    "slug": "seo-agents",
+    "agent_count": 15,
+    "growth_rate": 27,
+    "new_agents_30d": 4
+  },
+  {
+    "label": "Operations AI Agents",
+    "slug": "operations-ai-agents",
+    "agent_count": 15,
+    "growth_rate": 0,
+    "new_agents_30d": 0
+  },
+  {
+    "label": "Translation AI Agents",
+    "slug": "translation-ai-agents",
+    "agent_count": 15,
+    "growth_rate": 7,
+    "new_agents_30d": 1
+  },
+  {
+    "label": "Web Scraping",
+    "slug": "web-scraping",
+    "agent_count": 13,
+    "growth_rate": 15,
+    "new_agents_30d": 2
+  },
+  {
+    "label": "Music AI Agents",
+    "slug": "music-ai-agents",
+    "agent_count": 13,
+    "growth_rate": 0,
+    "new_agents_30d": 0
+  },
+  {
+    "label": "Health Care",
+    "slug": "health-care",
+    "agent_count": 12,
+    "growth_rate": 0,
+    "new_agents_30d": 0
+  },
+  {
+    "label": "Email AI Agents",
+    "slug": "email-ai-agents",
+    "agent_count": 11,
+    "growth_rate": 0,
+    "new_agents_30d": 0
+  },
+  {
+    "label": "Model Serving",
+    "slug": "model-serving",
+    "agent_count": 10,
+    "growth_rate": 0,
+    "new_agents_30d": 0
+  },
+  {
+    "label": "AI Shopping Agents",
+    "slug": "ai-shopping-agents",
+    "agent_count": 10,
+    "growth_rate": 0,
+    "new_agents_30d": 0
+  },
+  {
+    "label": "Ecommerce ",
+    "slug": "ecommerce",
+    "agent_count": 9,
+    "growth_rate": 0,
+    "new_agents_30d": 0
+  },
+  {
+    "label": "AI Agent Memory",
+    "slug": "ai-agent-memory",
+    "agent_count": 8,
+    "growth_rate": 0,
+    "new_agents_30d": 0
+  },
+  {
+    "label": "Coding Library",
+    "slug": "coding-library",
+    "agent_count": 8,
+    "growth_rate": 0,
+    "new_agents_30d": 0
+  },
+  {
+    "label": "Ads AI Agents",
+    "slug": "ads-ai-agents",
+    "agent_count": 8,
+    "growth_rate": 0,
+    "new_agents_30d": 0
+  },
+  {
+    "label": "Website Builder Agent",
+    "slug": "website-builder-agent",
+    "agent_count": 8,
+    "growth_rate": 0,
+    "new_agents_30d": 0
+  },
+  {
+    "label": "AI Detection",
+    "slug": "ai-detection",
+    "agent_count": 8,
+    "growth_rate": 25,
+    "new_agents_30d": 2
+  },
+  {
+    "label": "Gaming",
+    "slug": "gaming",
+    "agent_count": 7,
+    "growth_rate": 0,
+    "new_agents_30d": 0
+  },
+  {
+    "label": "Data Science",
+    "slug": "data-science",
+    "agent_count": 7,
+    "growth_rate": 14,
+    "new_agents_30d": 1
+  },
+  {
+    "label": "Payments",
+    "slug": "payments",
+    "agent_count": 7,
+    "growth_rate": 0,
+    "new_agents_30d": 0
+  },
+  {
+    "label": "Code Generation",
+    "slug": "code-generation",
+    "agent_count": 7,
+    "growth_rate": 14,
+    "new_agents_30d": 1
+  },
+  {
+    "label": "Agentic IDE",
+    "slug": "agentic-ide",
+    "agent_count": 6,
+    "growth_rate": 0,
+    "new_agents_30d": 0
+  },
+  {
+    "label": "Travel ",
+    "slug": "travel",
+    "agent_count": 6,
+    "growth_rate": 0,
+    "new_agents_30d": 0
+  },
+  {
+    "label": "Travel AI Agent",
+    "slug": "travel-ai-agent",
+    "agent_count": 5,
+    "growth_rate": 0,
+    "new_agents_30d": 0
+  },
+  {
+    "label": "Website Builders",
+    "slug": "website-builders",
+    "agent_count": 5,
+    "growth_rate": 0,
+    "new_agents_30d": 0
+  },
+  {
+    "label": "Email",
+    "slug": "email",
+    "agent_count": 5,
+    "growth_rate": 20,
+    "new_agents_30d": 1
+  },
+  {
+    "label": "Blockchain Agent Frameworks",
+    "slug": "blockchain-agent-frameworks",
+    "agent_count": 4,
+    "growth_rate": 50,
+    "new_agents_30d": 2
+  },
+  {
+    "label": "Surveys",
+    "slug": "surveys",
+    "agent_count": 4,
+    "growth_rate": 25,
+    "new_agents_30d": 1
+  },
+  {
+    "label": "Model Context Protocol (MCP)",
+    "slug": "model-context-protocol-mcp",
+    "agent_count": 4,
+    "growth_rate": 0,
+    "new_agents_30d": 0
+  },
+  {
+    "label": "Desktop AI Agents",
+    "slug": "desktop-ai-agents",
+    "agent_count": 2,
+    "growth_rate": 0,
+    "new_agents_30d": 0
+  },
+  {
+    "label": "Authentication Agents",
+    "slug": "authentication-agents",
+    "agent_count": 2,
+    "growth_rate": 0,
+    "new_agents_30d": 0
+  },
+  {
+    "label": "DeFi Agents",
+    "slug": "defi-agents",
+    "agent_count": 2,
+    "growth_rate": 0,
+    "new_agents_30d": 0
+  },
+  {
+    "label": "Legal",
+    "slug": "legal",
+    "agent_count": 2,
+    "growth_rate": 0,
+    "new_agents_30d": 0
+  },
+  {
+    "label": "Mobile App Builders",
+    "slug": "mobile-app-builders",
+    "agent_count": 2,
+    "growth_rate": 0,
+    "new_agents_30d": 0
+  },
+  {
+    "label": "Logo",
+    "slug": "logo",
+    "agent_count": 2,
+    "growth_rate": 0,
+    "new_agents_30d": 0
+  },
+  {
+    "label": "Browser Agents",
+    "slug": "browser-agents",
+    "agent_count": 2,
+    "growth_rate": 0,
+    "new_agents_30d": 0
+  },
+  {
+    "label": "Other",
+    "slug": "other",
+    "agent_count": 2,
+    "growth_rate": 50,
+    "new_agents_30d": 1
+  },
+  {
+    "label": "Memory",
+    "slug": "memory",
+    "agent_count": 2,
+    "growth_rate": 100,
+    "new_agents_30d": 2
+  },
+  {
+    "label": "Purchasing",
+    "slug": "purchasing",
+    "agent_count": 1,
+    "growth_rate": 0,
+    "new_agents_30d": 0
+  },
+  {
+    "label": "Cognitive AI",
+    "slug": "cognitive-ai",
+    "agent_count": 1,
+    "growth_rate": 0,
+    "new_agents_30d": 0
+  },
+  {
+    "label": "Scam Detection",
+    "slug": "scam-detection",
+    "agent_count": 1,
+    "growth_rate": 0,
+    "new_agents_30d": 0
+  },
+  {
+    "label": "Insurance Agents",
+    "slug": "insurance-agents",
+    "agent_count": 1,
+    "growth_rate": 100,
+    "new_agents_30d": 1
+  }
+]
