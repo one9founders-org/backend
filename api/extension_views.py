@@ -3,7 +3,12 @@ import logging
 from django.conf import settings
 from django.core.cache import cache
 from rest_framework import status
-from rest_framework.decorators import api_view, permission_classes, throttle_classes
+from rest_framework.decorators import (
+    api_view,
+    authentication_classes,
+    permission_classes,
+    throttle_classes,
+)
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.throttling import AnonRateThrottle
@@ -28,6 +33,7 @@ def verify_extension_api_key(request):
 
 
 @api_view(["GET"])
+@authentication_classes([])
 @permission_classes([AllowAny])
 @throttle_classes([ExtensionRateThrottle])
 def extension_lookup(request):
@@ -123,6 +129,7 @@ def extension_lookup(request):
 
 
 @api_view(["POST"])
+@authentication_classes([])
 @permission_classes([AllowAny])
 @throttle_classes([ExtensionRateThrottle])
 def extension_suggest(request):
