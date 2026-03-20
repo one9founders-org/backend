@@ -39,7 +39,7 @@ urlpatterns = [
     # Rich Text Editor
     path("summernote/", include("django_summernote.urls")),
     # API
-    path("", include("api.urls")),
+    path("api/", include("api.urls")),
     # Education
     path("api/education/", include("education.urls")),
 ]

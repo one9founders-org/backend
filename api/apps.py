@@ -6,4 +6,5 @@ class ApiConfig(AppConfig):
     name = "api"
 
     def ready(self):
-        import api.signals  # noqa: F401
+        from . import scheduler
+        scheduler.start()

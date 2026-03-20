@@ -1,0 +1,551 @@
+{
+  "source": "RSSNews",
+  "scrape_date": "2026-03-20T04:49:34.571242Z",
+  "items": [
+    {
+      "title": "Amazon acquires Rivr, maker of a stair-climbing delivery robot",
+      "description": "Amazon and Jeff Bezos had previously invested in the startup. The deal signals the e-commerce giant's interest in doorstep delivery.",
+      "url": "https://techcrunch.com/2026/03/19/amazon-acquires-rivr-maker-of-a-stair-climbing-delivery-robot/",
+      "external_url": "https://techcrunch.com/2026/03/19/amazon-acquires-rivr-maker-of-a-stair-climbing-delivery-robot/",
+      "category": "AI News",
+      "tags": [
+        "ai",
+        "news",
+        "techcrunch"
+      ],
+      "metrics": {
+        "source_label": "TechCrunch",
+        "published": "2026-03-19T17:58:37+00:00",
+        "original_summary": "Amazon and Jeff Bezos had previously invested in the startup. The deal signals the e-commerce giant's interest in doorstep delivery."
+      },
+      "images": [],
+      "raw": {
+        "title": "Amazon acquires Rivr, maker of a stair-climbing delivery robot",
+        "title_detail": {
+          "type": "text/plain",
+          "language": null,
+          "base": "https://techcrunch.com/feed/",
+          "value": "Amazon acquires Rivr, maker of a stair-climbing delivery robot"
+        },
+        "links": [
+          {
+            "rel": "alternate",
+            "type": "text/html",
+            "href": "https://techcrunch.com/2026/03/19/amazon-acquires-rivr-maker-of-a-stair-climbing-delivery-robot/"
+          }
+        ],
+        "link": "https://techcrunch.com/2026/03/19/amazon-acquires-rivr-maker-of-a-stair-climbing-delivery-robot/",
+        "authors": [
+          {
+            "name": "Kirsten Korosec"
+          }
+        ],
+        "author": "Kirsten Korosec",
+        "author_detail": {
+          "name": "Kirsten Korosec"
+        },
+        "published": "Thu, 19 Mar 2026 23:28:37 +0000",
+        "published_parsed": [
+          2026,
+          3,
+          19,
+          23,
+          28,
+          37,
+          3,
+          78,
+          0
+        ],
+        "tags": [
+          {
+            "term": "Robotics",
+            "scheme": null,
+            "label": null
+          },
+          {
+            "term": "Transportation",
+            "scheme": null,
+            "label": null
+          },
+          {
+            "term": "Amazon",
+            "scheme": null,
+            "label": null
+          },
+          {
+            "term": "delivery robots",
+            "scheme": null,
+            "label": null
+          },
+          {
+            "term": "In Brief",
+            "scheme": null,
+            "label": null
+          },
+          {
+            "term": "rivr",
+            "scheme": null,
+            "label": null
+          }
+        ],
+        "id": "https://techcrunch.com/?p=3104295",
+        "guidislink": false,
+        "summary": "Amazon and Jeff Bezos had previously invested in the startup. The deal signals the e-commerce giant's interest in doorstep delivery.",
+        "summary_detail": {
+          "type": "text/html",
+          "language": null,
+          "base": "https://techcrunch.com/feed/",
+          "value": "Amazon and Jeff Bezos had previously invested in the startup. The deal signals the e-commerce giant's interest in doorstep delivery."
+        }
+      }
+    },
+    {
+      "title": "Anthropic just shipped an OpenClaw killer called Claude Code Channels, letting you message it over Telegram and Discord",
+      "description": "The hit open source autonomous AI agent  OpenClaw  may have just gotten mogged by Anthropic.  Today,  Anthropic announced Claude Code Channels,  a way to hook up its own powerful Claude Code AI agentic harness to a human user's Discord or Telegram messaging applications, letting them message Claude Code directly whenever they want while on the go and instruct it to write code for them. Official documentation is  here . This isn't just a new UI; it is a fundamental shift in how developers interact with AI agents, moving from a synchronous \"ask-and-wait\" model to an asynchronous, autonomous partnership. Previously, Claude Code users were stuck interacting with the agentic harness on the Claude desktop application, terminal or supported developer environment, and Claude mobile app through a somewhat flaky (in my experience)  interconnection setting called Remote Control . Now, Anthropic is offering some of the same core functionality as OpenClaw that drove its rapid adoption among software developers and vibe coders following its release in November 2025 by  Austrian developer Peter Steinberger  (who, ironically, originally called his project \"Clawd\" in honor of Anthropic's own AI model Claude which powered it initially, until  Anthropic sent him a cease-and-desist  for potential trademark violations. Steinberger was  since hired by Anthropic's rival OpenAI. ) Central to OpenClaw's appeal was its capability of allowing users to have a persistent, personal AI worker that they can message 24/7, whenever they feel like, over common messaging apps such as iMessage, Slack, Telegram, WhatsApp and Discord, and have their AI message them back — not just to chat with, but to perform real work for them on its own, from writing, sending and organizing email and files to  creating whole applications ,  applying for jobs on the user's behalf,  to  managing complete ongoing social marketing campaigns.  When the AI finishes a task, it can immediately alert the human user over their preferred messaging platform. But OpenClaw also came with a high degree of security risk (since it could be given access to a user's hard drive and file system, or other personal information, and run amok) and difficulty for non-technical users, inspiring a wave of offshoots promising greater ease and security, including  NanoClaw ,  KiloClaw  and Nvidia's recently announced  NemoClaw . By giving Claude Code this same basic functionality — the ability for users to message it from popular third-party apps Discord and Telegram, and have it message them back when it finishes a task — Anthropic has effectively countered OpenClaw's appeal and offered something it does not: the Anthropic brand name with its commitment to AI security and safety, and ease of use right out of the box for less technically inclined users.  Technology: The Bridge of the Model Context Protocol At the heart of this update is the Model Context Protocol (MCP) open source  standard that Anthropic introduced back in 2024 . Think of MCP as a universal USB-C port for AI: it provides a standardized way for an AI model to connect to external data and tools. In the new \"Channels\" architecture, an MCP server acts as a two-way bridge. When a developer starts a Claude Code session with the  --channels  flag, they aren't just opening a chat; they are spinning up a polling service.  Using the Bun runtime—known for its extreme speed in executing JavaScript—Claude Code monitors specific plugins (currently Telegram and Discord).  When a message arrives, it is injected directly into the active session as a  <channel>  event. Claude can then use its internal tools to execute code, run tests, or fix bugs, and reply back to the external platform using a specialized  reply  tool. The technical achievement here is persistence. Unlike a standard web-chat that times out, a Claude Code session can now run in a background terminal or a persistent server (like a VPS), waiting for a \"ping\" to spring into action. How to set up Claude Code Connectors on Telegram and Discord Setting up these native connectors requires Claude Code v2.1.80 or later and the Bun runtime installed on your desktop PC or Mac. Follow the instructions  here  or below. 1. Setting up Telegram Create your Bot:  Open  BotFather  in Telegram and use the  /newbot  command to generate a unique bot and access token. Install the Plugin:  Inside your Claude Code terminal, run:  /plugin install telegram@claude-plugins-official Configure the Token:  Run  /telegram:configure <your-token>  to save your credentials. Restart with Channels:  Exit Claude and restart using the channel flag:  claude --channels plugin:telegram@claude-plugins-official Pair your Account:  DM your new bot on Telegram to receive a pairing code, then enter it in your terminal:  /telegram:access pair <code> 2. Setting up Discord Create an Application:  Go to the Discord Developer Portal, create a \"New Application,\" and reset the bot token to copy it. Enable Intents:  In the Bot settings, you  must  enable  Message Content Intent  under \"Privileged Gateway Intents.\" Install and Configure:  In Claude Code, run  /plugin install discord@claude-plugins-official  followed by  /discord:configure <your-token> . Launch and Pair:  Restart with  claude --channels plugin:discord@claude-plugins-official . DM your bot on Discord and use the  /discord:access pair <code>  command to finish the link. Product: From Desktop to \"Everywhere\" The immediate practical impact is the democratization of mobile AI coding. Previously, if a developer wanted to check a build status or run a quick fix while away from their desk, they had to rely on complex self-hosted setups like OpenClaw. With Channels, the setup is native. A developer can create a Telegram bot via BotFather, link it to Claude Code with a  /telegram:configure  command, and \"pair\" their account with a security code. Once configured, the phone becomes a remote control for the development environment. The product also introduces a \"Fakechat\" demo—a local-only chat UI that allows developers to test the \"push\" logic on their own machine before connecting to external servers. This reflects Anthropic’s cautious, \"research preview\" approach, ensuring developers understand the flow of events before exposing their terminal to the internet. Licensing: Proprietary Power on Open Standards The licensing implications of this release highlight a growing trend in the AI industry: proprietary engines running on open tracks. Claude Code remains a proprietary product tied to Anthropic’s commercial subscriptions (Pro, Max, and Enterprise).  However, by building on the open-source Model Context Protocol, Anthropic is encouraging a developer ecosystem to build the \"connectors\" that make their model more useful. While the core Claude \"brain\" is closed, the plugins for Telegram and Discord are being hosted on GitHub under official Anthropic repositories, likely allowing for community contributions or forks.  This strategy allows Anthropic to maintain the security and quality of the model while benefiting from the rapid innovation of the open-source community—a direct challenge to the \"free\" but often fragmented nature of purely open-source agent frameworks. And because it's built on MCP, the community can now build \"Connectors\" for Slack or WhatsApp themselves, rather than waiting for Anthropic to ship them. Community Reactions: 'The OpenClaw Killer' The response from users, especially AI observers on X, was swift and definitive. The sentiment was best captured by  Ejaaz (@cryptopunk7213) , who noted that Anthropic’s speed of shipping—incorporating texting, thousands of MCP skills, and autonomous bug-fixing in just four weeks—was \"fucking crazy.\" For many, this update renders local-first agent frameworks obsolete. BentoBoi ( @BentoBoiNFT ) observed, \"Claude just killed OpenClaw with this update. You no longer need to buy a Mac Mini. I say this as someone who owns a one lol,\" referring to the common practice of developers buying dedicated hardware to run open-source agents like OpenClaw 24/7. By moving this persistence into the Claude Code environment, Anthropic has simplified the \"hardware tax\" for autonomy. AI YouTuber  Matthew Berman summarized the shift succinctly : \"They've BUILT OpenClaw.\"  The consensus among early adopters is that Anthropic has successfully internalized the most desirable features of the open-source movement—multi-channel support and long-term memory—while maintaining the reliability of a tier-one AI provider. While Anthropic’s Claude has long been a favorite for its reasoning, it remained a \"brain in a jar\"—a stateless entity that waited for a user to type before it could think. Meanwhile, open-source projects like OpenClaw thrived by offering \"always-on\" persistence, allowing developers to message their AI from Telegram or Discord to trigger complex workflows. Now, with Anthropic closing the gap, it's up to the users to choose which approach is best for them.",
+      "url": "https://venturebeat.com/orchestration/anthropic-just-shipped-an-openclaw-killer-called-claude-code-channels",
+      "external_url": "https://venturebeat.com/orchestration/anthropic-just-shipped-an-openclaw-killer-called-claude-code-channels",
+      "category": "AI News",
+      "tags": [
+        "ai",
+        "news",
+        "venturebeat"
+      ],
+      "metrics": {
+        "source_label": "VentureBeat",
+        "published": "2026-03-19T20:21:00+00:00",
+        "original_summary": "<p>The hit open source autonomous AI agent <a href=\"https://venturebeat.com/security/openclaw-agentic-ai-security-risk-ciso-guide\">OpenClaw</a> may have just gotten mogged by Anthropic. </p><p>Today, <a href=\"https://x.com/trq212/status/2034761016320696565\">Anthropic announced Claude Code Channels,</a> a way to hook up its own powerful Claude Code AI agentic harness to a human user&#x27;s Discord or Telegram messaging applications, letting them message Claude Code directly whenever they want whi"
+      },
+      "images": [
+        "https://images.ctfassets.net/jdtwqhzvc2n1/3dBMtm7xGFxoVBUCdLdtS9/76357f5bb295d3a62476a2c00e629c44/Gemini_Generated_Image_ezvr5vezvr5vezvr.png?w=300&q=30"
+      ],
+      "raw": {
+        "title": "Anthropic just shipped an OpenClaw killer called Claude Code Channels, letting you message it over Telegram and Discord",
+        "title_detail": {
+          "type": "text/plain",
+          "language": null,
+          "base": "https://venturebeat.com/feed",
+          "value": "Anthropic just shipped an OpenClaw killer called Claude Code Channels, letting you message it over Telegram and Discord"
+        },
+        "links": [
+          {
+            "rel": "alternate",
+            "type": "text/html",
+            "href": "https://venturebeat.com/orchestration/anthropic-just-shipped-an-openclaw-killer-called-claude-code-channels"
+          },
+          {
+            "length": "0",
+            "type": "image/png",
+            "href": "https://images.ctfassets.net/jdtwqhzvc2n1/3dBMtm7xGFxoVBUCdLdtS9/76357f5bb295d3a62476a2c00e629c44/Gemini_Generated_Image_ezvr5vezvr5vezvr.png?w=300&q=30",
+            "rel": "enclosure"
+          }
+        ],
+        "link": "https://venturebeat.com/orchestration/anthropic-just-shipped-an-openclaw-killer-called-claude-code-channels",
+        "id": "2nb9sporR0FlmFcJ37mda3",
+        "guidislink": false,
+        "published": "Fri, 20 Mar 2026 01:51:00 GMT",
+        "published_parsed": [
+          2026,
+          3,
+          20,
+          1,
+          51,
+          0,
+          4,
+          79,
+          0
+        ],
+        "summary": "<p>The hit open source autonomous AI agent <a href=\"https://venturebeat.com/security/openclaw-agentic-ai-security-risk-ciso-guide\">OpenClaw</a> may have just gotten mogged by Anthropic. </p><p>Today, <a href=\"https://x.com/trq212/status/2034761016320696565\">Anthropic announced Claude Code Channels,</a> a way to hook up its own powerful Claude Code AI agentic harness to a human user&#x27;s Discord or Telegram messaging applications, letting them message Claude Code directly whenever they want while on the go and instruct it to write code for them. Official documentation is <a href=\"https://code.claude.com/docs/en/channels\">here</a>.</p><p>This isn&#x27;t just a new UI; it is a fundamental shift in how developers interact with AI agents, moving from a synchronous &quot;ask-and-wait&quot; model to an asynchronous, autonomous partnership. Previously, Claude Code users were stuck interacting with the agentic harness on the Claude desktop application, terminal or supported developer environment, and Claude mobile app through a somewhat flaky (in my experience)<a href=\"https://venturebeat.com/orchestration/anthropic-just-released-a-mobile-version-of-claude-code-called-remote\"> interconnection setting called Remote Control</a>.</p><p>Now, Anthropic is offering some of the same core functionality as OpenClaw that drove its rapid adoption among software developers and vibe coders following its release in November 2025 by <a href=\"https://steipete.me/\">Austrian developer Peter Steinberger</a> (who, ironically, originally called his project &quot;Clawd&quot; in honor of Anthropic&#x27;s own AI model Claude which powered it initially, until<a href=\"https://www.msn.com/en-us/news/technology/clawdbot-creator-says-anthropic-forced-him-to-rename-the-viral-ai-agent-wasn-t-my-decision/ar-AA1V6kdQ?apiversion=v2&amp;domshim=1&amp;noservercache=1&amp;noservertelemetry=1&amp;batchservertelemetry=1&amp;renderwebcomponents=1&amp;wcseo=1#:~:text=Clawdbot%2C%20the%20viral%20AI%20agent,it%20would%20fit%20the%20branding.\"> Anthropic sent him a cease-and-desist </a>for potential trademark violations. Steinberger was <a href=\"https://venturebeat.com/technology/openais-acquisition-of-openclaw-signals-the-beginning-of-the-end-of-the\">since hired by Anthropic&#x27;s rival OpenAI.</a>)</p><p>Central to OpenClaw&#x27;s appeal was its capability of allowing users to have a persistent, personal AI worker that they can message 24/7, whenever they feel like, over common messaging apps such as iMessage, Slack, Telegram, WhatsApp and Discord, and have their AI message them back — not just to chat with, but to perform real work for them on its own, from writing, sending and organizing email and files to <a href=\"https://youtu.be/ukW5AJaGP9c?si=KmM1CzihV6wFqYLk\">creating whole applications</a>, <a href=\"https://medium.com/@lokaesh2000/i-made-openclaw-apply-to-jobs-while-i-watched-a-movie-ead5e3629ce7\">applying for jobs on the user&#x27;s behalf,</a> to <a href=\"https://youtu.be/OV5eK91YY68?si=AvQgruFyKCdxZJyb\">managing complete ongoing social marketing campaigns. </a>When the AI finishes a task, it can immediately alert the human user over their preferred messaging platform.</p><p>But OpenClaw also came with a high degree of security risk (since it could be given access to a user&#x27;s hard drive and file system, or other personal information, and run amok) and difficulty for non-technical users, inspiring a wave of offshoots promising greater ease and security, including <a href=\"https://venturebeat.com/infrastructure/nanoclaw-and-docker-partner-to-make-sandboxes-the-safest-way-for-enterprises\">NanoClaw</a>, <a href=\"https://venturebeat.com/orchestration/kilo-launches-kiloclaw-allowing-anyone-to-deploy-hosted-openclaw-agents-into\">KiloClaw</a> and Nvidia&#x27;s recently announced <a href=\"https://venturebeat.com/technology/nvidia-lets-its-claws-out-nemoclaw-brings-security-scale-to-the-agent\">NemoClaw</a>.</p><p>By giving Claude Code this same basic functionality — the ability for users to message it from popular third-party apps Discord and Telegram, and have it message them back when it finishes a task — Anthropic has effectively countered OpenClaw&#x27;s appeal and offered something it does not: the Anthropic brand name with its commitment to AI security and safety, and ease of use right out of the box for less technically inclined users. </p><h2><b>Technology: The Bridge of the Model Context Protocol</b></h2><p>At the heart of this update is the Model Context Protocol (MCP) open source <a href=\"https://venturebeat.com/data-infrastructure/anthropic-releases-model-context-protocol-to-standardize-ai-data-integration\">standard that Anthropic introduced back in 2024</a>. Think of MCP as a universal USB-C port for AI: it provides a standardized way for an AI model to connect to external data and tools. In the new &quot;Channels&quot; architecture, an MCP server acts as a two-way bridge.</p><p>When a developer starts a Claude Code session with the <code>--channels</code> flag, they aren&#x27;t just opening a chat; they are spinning up a polling service. </p><p>Using the Bun runtime—known for its extreme speed in executing JavaScript—Claude Code monitors specific plugins (currently Telegram and Discord). </p><p>When a message arrives, it is injected directly into the active session as a <code>&lt;channel&gt;</code> event. Claude can then use its internal tools to execute code, run tests, or fix bugs, and reply back to the external platform using a specialized <code>reply</code> tool.</p><p>The technical achievement here is persistence. Unlike a standard web-chat that times out, a Claude Code session can now run in a background terminal or a persistent server (like a VPS), waiting for a &quot;ping&quot; to spring into action.</p><h2><b>How to set up Claude Code Connectors on Telegram and Discord</b></h2><p>Setting up these native connectors requires Claude Code v2.1.80 or later and the Bun runtime installed on your desktop PC or Mac. Follow the instructions <a href=\"https://code.claude.com/docs/en/channels\">here</a> or below.</p><h4><b>1. Setting up Telegram</b></h4><ol><li><p><b>Create your Bot:</b> Open <a href=\"https://t.me/BotFather\">BotFather</a> in Telegram and use the <code>/newbot</code> command to generate a unique bot and access token.</p></li><li><p><b>Install the Plugin:</b> Inside your Claude Code terminal, run: <code>/plugin install telegram@claude-plugins-official</code></p></li><li><p><b>Configure the Token:</b> Run <code>/telegram:configure &lt;your-token&gt;</code> to save your credentials.</p></li><li><p><b>Restart with Channels:</b> Exit Claude and restart using the channel flag: <code>claude --channels plugin:telegram@claude-plugins-official</code></p></li><li><p><b>Pair your Account:</b> DM your new bot on Telegram to receive a pairing code, then enter it in your terminal: <code>/telegram:access pair &lt;code&gt;</code></p></li></ol><h4><b>2. Setting up Discord</b></h4><ol><li><p><b>Create an Application:</b> Go to the Discord Developer Portal, create a &quot;New Application,&quot; and reset the bot token to copy it.</p></li><li><p><b>Enable Intents:</b> In the Bot settings, you <b>must</b> enable <b>Message Content Intent</b> under &quot;Privileged Gateway Intents.&quot;</p></li><li><p><b>Install and Configure:</b> In Claude Code, run <code>/plugin install discord@claude-plugins-official</code> followed by <code>/discord:configure &lt;your-token&gt;</code>.</p></li><li><p><b>Launch and Pair:</b> Restart with <code>claude --channels plugin:discord@claude-plugins-official</code>. DM your bot on Discord and use the <code>/discord:access pair &lt;code&gt;</code> command to finish the link.</p></li></ol><h2><b>Product: From Desktop to &quot;Everywhere&quot;</b></h2><p>The immediate practical impact is the democratization of mobile AI coding. Previously, if a developer wanted to check a build status or run a quick fix while away from their desk, they had to rely on complex self-hosted setups like OpenClaw.</p><p>With Channels, the setup is native. A developer can create a Telegram bot via BotFather, link it to Claude Code with a <code>/telegram:configure</code> command, and &quot;pair&quot; their account with a security code. Once configured, the phone becomes a remote control for the development environment.</p><p>The product also introduces a &quot;Fakechat&quot; demo—a local-only chat UI that allows developers to test the &quot;push&quot; logic on their own machine before connecting to external servers. This reflects Anthropic’s cautious, &quot;research preview&quot; approach, ensuring developers understand the flow of events before exposing their terminal to the internet.</p><h2><b>Licensing: Proprietary Power on Open Standards</b></h2><p>The licensing implications of this release highlight a growing trend in the AI industry: proprietary engines running on open tracks. Claude Code remains a proprietary product tied to Anthropic’s commercial subscriptions (Pro, Max, and Enterprise). </p><p>However, by building on the open-source Model Context Protocol, Anthropic is encouraging a developer ecosystem to build the &quot;connectors&quot; that make their model more useful.</p><p>While the core Claude &quot;brain&quot; is closed, the plugins for Telegram and Discord are being hosted on GitHub under official Anthropic repositories, likely allowing for community contributions or forks. </p><p>This strategy allows Anthropic to maintain the security and quality of the model while benefiting from the rapid innovation of the open-source community—a direct challenge to the &quot;free&quot; but often fragmented nature of purely open-source agent frameworks.</p><p>And because it&#x27;s built on MCP, the community can now build &quot;Connectors&quot; for Slack or WhatsApp themselves, rather than waiting for Anthropic to ship them.</p><h2><b>Community Reactions: &#x27;The OpenClaw Killer&#x27;</b></h2><p>The response from users, especially AI observers on X, was swift and definitive. The sentiment was best captured by <a href=\"https://x.com/cryptopunk7213/status/2034767628464513365\">Ejaaz (@cryptopunk7213)</a>, who noted that Anthropic’s speed of shipping—incorporating texting, thousands of MCP skills, and autonomous bug-fixing in just four weeks—was &quot;fucking crazy.&quot;</p><p>For many, this update renders local-first agent frameworks obsolete. BentoBoi (<a href=\"https://x.com/BentoBoiNFT/status/2034775974349246788?s=20\">@BentoBoiNFT</a>) observed, &quot;Claude just killed OpenClaw with this update. You no longer need to buy a Mac Mini. I say this as someone who owns a one lol,&quot; referring to the common practice of developers buying dedicated hardware to run open-source agents like OpenClaw 24/7. By moving this persistence into the Claude Code environment, Anthropic has simplified the &quot;hardware tax&quot; for autonomy.</p><p>AI YouTuber <a href=\"https://x.com/MatthewBerman/status/2034780653712187902?s=20\">Matthew Berman summarized the shift succinctly</a>: &quot;They&#x27;ve BUILT OpenClaw.&quot; </p><p>The consensus among early adopters is that Anthropic has successfully internalized the most desirable features of the open-source movement—multi-channel support and long-term memory—while maintaining the reliability of a tier-one AI provider.</p><p>While Anthropic’s Claude has long been a favorite for its reasoning, it remained a &quot;brain in a jar&quot;—a stateless entity that waited for a user to type before it could think. Meanwhile, open-source projects like OpenClaw thrived by offering &quot;always-on&quot; persistence, allowing developers to message their AI from Telegram or Discord to trigger complex workflows.</p><p>Now, with Anthropic closing the gap, it&#x27;s up to the users to choose which approach is best for them.</p>",
+        "summary_detail": {
+          "type": "text/html",
+          "language": null,
+          "base": "https://venturebeat.com/feed",
+          "value": "<p>The hit open source autonomous AI agent <a href=\"https://venturebeat.com/security/openclaw-agentic-ai-security-risk-ciso-guide\">OpenClaw</a> may have just gotten mogged by Anthropic. </p><p>Today, <a href=\"https://x.com/trq212/status/2034761016320696565\">Anthropic announced Claude Code Channels,</a> a way to hook up its own powerful Claude Code AI agentic harness to a human user&#x27;s Discord or Telegram messaging applications, letting them message Claude Code directly whenever they want while on the go and instruct it to write code for them. Official documentation is <a href=\"https://code.claude.com/docs/en/channels\">here</a>.</p><p>This isn&#x27;t just a new UI; it is a fundamental shift in how developers interact with AI agents, moving from a synchronous &quot;ask-and-wait&quot; model to an asynchronous, autonomous partnership. Previously, Claude Code users were stuck interacting with the agentic harness on the Claude desktop application, terminal or supported developer environment, and Claude mobile app through a somewhat flaky (in my experience)<a href=\"https://venturebeat.com/orchestration/anthropic-just-released-a-mobile-version-of-claude-code-called-remote\"> interconnection setting called Remote Control</a>.</p><p>Now, Anthropic is offering some of the same core functionality as OpenClaw that drove its rapid adoption among software developers and vibe coders following its release in November 2025 by <a href=\"https://steipete.me/\">Austrian developer Peter Steinberger</a> (who, ironically, originally called his project &quot;Clawd&quot; in honor of Anthropic&#x27;s own AI model Claude which powered it initially, until<a href=\"https://www.msn.com/en-us/news/technology/clawdbot-creator-says-anthropic-forced-him-to-rename-the-viral-ai-agent-wasn-t-my-decision/ar-AA1V6kdQ?apiversion=v2&amp;domshim=1&amp;noservercache=1&amp;noservertelemetry=1&amp;batchservertelemetry=1&amp;renderwebcomponents=1&amp;wcseo=1#:~:text=Clawdbot%2C%20the%20viral%20AI%20agent,it%20would%20fit%20the%20branding.\"> Anthropic sent him a cease-and-desist </a>for potential trademark violations. Steinberger was <a href=\"https://venturebeat.com/technology/openais-acquisition-of-openclaw-signals-the-beginning-of-the-end-of-the\">since hired by Anthropic&#x27;s rival OpenAI.</a>)</p><p>Central to OpenClaw&#x27;s appeal was its capability of allowing users to have a persistent, personal AI worker that they can message 24/7, whenever they feel like, over common messaging apps such as iMessage, Slack, Telegram, WhatsApp and Discord, and have their AI message them back — not just to chat with, but to perform real work for them on its own, from writing, sending and organizing email and files to <a href=\"https://youtu.be/ukW5AJaGP9c?si=KmM1CzihV6wFqYLk\">creating whole applications</a>, <a href=\"https://medium.com/@lokaesh2000/i-made-openclaw-apply-to-jobs-while-i-watched-a-movie-ead5e3629ce7\">applying for jobs on the user&#x27;s behalf,</a> to <a href=\"https://youtu.be/OV5eK91YY68?si=AvQgruFyKCdxZJyb\">managing complete ongoing social marketing campaigns. </a>When the AI finishes a task, it can immediately alert the human user over their preferred messaging platform.</p><p>But OpenClaw also came with a high degree of security risk (since it could be given access to a user&#x27;s hard drive and file system, or other personal information, and run amok) and difficulty for non-technical users, inspiring a wave of offshoots promising greater ease and security, including <a href=\"https://venturebeat.com/infrastructure/nanoclaw-and-docker-partner-to-make-sandboxes-the-safest-way-for-enterprises\">NanoClaw</a>, <a href=\"https://venturebeat.com/orchestration/kilo-launches-kiloclaw-allowing-anyone-to-deploy-hosted-openclaw-agents-into\">KiloClaw</a> and Nvidia&#x27;s recently announced <a href=\"https://venturebeat.com/technology/nvidia-lets-its-claws-out-nemoclaw-brings-security-scale-to-the-agent\">NemoClaw</a>.</p><p>By giving Claude Code this same basic functionality — the ability for users to message it from popular third-party apps Discord and Telegram, and have it message them back when it finishes a task — Anthropic has effectively countered OpenClaw&#x27;s appeal and offered something it does not: the Anthropic brand name with its commitment to AI security and safety, and ease of use right out of the box for less technically inclined users. </p><h2><b>Technology: The Bridge of the Model Context Protocol</b></h2><p>At the heart of this update is the Model Context Protocol (MCP) open source <a href=\"https://venturebeat.com/data-infrastructure/anthropic-releases-model-context-protocol-to-standardize-ai-data-integration\">standard that Anthropic introduced back in 2024</a>. Think of MCP as a universal USB-C port for AI: it provides a standardized way for an AI model to connect to external data and tools. In the new &quot;Channels&quot; architecture, an MCP server acts as a two-way bridge.</p><p>When a developer starts a Claude Code session with the <code>--channels</code> flag, they aren&#x27;t just opening a chat; they are spinning up a polling service. </p><p>Using the Bun runtime—known for its extreme speed in executing JavaScript—Claude Code monitors specific plugins (currently Telegram and Discord). </p><p>When a message arrives, it is injected directly into the active session as a <code>&lt;channel&gt;</code> event. Claude can then use its internal tools to execute code, run tests, or fix bugs, and reply back to the external platform using a specialized <code>reply</code> tool.</p><p>The technical achievement here is persistence. Unlike a standard web-chat that times out, a Claude Code session can now run in a background terminal or a persistent server (like a VPS), waiting for a &quot;ping&quot; to spring into action.</p><h2><b>How to set up Claude Code Connectors on Telegram and Discord</b></h2><p>Setting up these native connectors requires Claude Code v2.1.80 or later and the Bun runtime installed on your desktop PC or Mac. Follow the instructions <a href=\"https://code.claude.com/docs/en/channels\">here</a> or below.</p><h4><b>1. Setting up Telegram</b></h4><ol><li><p><b>Create your Bot:</b> Open <a href=\"https://t.me/BotFather\">BotFather</a> in Telegram and use the <code>/newbot</code> command to generate a unique bot and access token.</p></li><li><p><b>Install the Plugin:</b> Inside your Claude Code terminal, run: <code>/plugin install telegram@claude-plugins-official</code></p></li><li><p><b>Configure the Token:</b> Run <code>/telegram:configure &lt;your-token&gt;</code> to save your credentials.</p></li><li><p><b>Restart with Channels:</b> Exit Claude and restart using the channel flag: <code>claude --channels plugin:telegram@claude-plugins-official</code></p></li><li><p><b>Pair your Account:</b> DM your new bot on Telegram to receive a pairing code, then enter it in your terminal: <code>/telegram:access pair &lt;code&gt;</code></p></li></ol><h4><b>2. Setting up Discord</b></h4><ol><li><p><b>Create an Application:</b> Go to the Discord Developer Portal, create a &quot;New Application,&quot; and reset the bot token to copy it.</p></li><li><p><b>Enable Intents:</b> In the Bot settings, you <b>must</b> enable <b>Message Content Intent</b> under &quot;Privileged Gateway Intents.&quot;</p></li><li><p><b>Install and Configure:</b> In Claude Code, run <code>/plugin install discord@claude-plugins-official</code> followed by <code>/discord:configure &lt;your-token&gt;</code>.</p></li><li><p><b>Launch and Pair:</b> Restart with <code>claude --channels plugin:discord@claude-plugins-official</code>. DM your bot on Discord and use the <code>/discord:access pair &lt;code&gt;</code> command to finish the link.</p></li></ol><h2><b>Product: From Desktop to &quot;Everywhere&quot;</b></h2><p>The immediate practical impact is the democratization of mobile AI coding. Previously, if a developer wanted to check a build status or run a quick fix while away from their desk, they had to rely on complex self-hosted setups like OpenClaw.</p><p>With Channels, the setup is native. A developer can create a Telegram bot via BotFather, link it to Claude Code with a <code>/telegram:configure</code> command, and &quot;pair&quot; their account with a security code. Once configured, the phone becomes a remote control for the development environment.</p><p>The product also introduces a &quot;Fakechat&quot; demo—a local-only chat UI that allows developers to test the &quot;push&quot; logic on their own machine before connecting to external servers. This reflects Anthropic’s cautious, &quot;research preview&quot; approach, ensuring developers understand the flow of events before exposing their terminal to the internet.</p><h2><b>Licensing: Proprietary Power on Open Standards</b></h2><p>The licensing implications of this release highlight a growing trend in the AI industry: proprietary engines running on open tracks. Claude Code remains a proprietary product tied to Anthropic’s commercial subscriptions (Pro, Max, and Enterprise). </p><p>However, by building on the open-source Model Context Protocol, Anthropic is encouraging a developer ecosystem to build the &quot;connectors&quot; that make their model more useful.</p><p>While the core Claude &quot;brain&quot; is closed, the plugins for Telegram and Discord are being hosted on GitHub under official Anthropic repositories, likely allowing for community contributions or forks. </p><p>This strategy allows Anthropic to maintain the security and quality of the model while benefiting from the rapid innovation of the open-source community—a direct challenge to the &quot;free&quot; but often fragmented nature of purely open-source agent frameworks.</p><p>And because it&#x27;s built on MCP, the community can now build &quot;Connectors&quot; for Slack or WhatsApp themselves, rather than waiting for Anthropic to ship them.</p><h2><b>Community Reactions: &#x27;The OpenClaw Killer&#x27;</b></h2><p>The response from users, especially AI observers on X, was swift and definitive. The sentiment was best captured by <a href=\"https://x.com/cryptopunk7213/status/2034767628464513365\">Ejaaz (@cryptopunk7213)</a>, who noted that Anthropic’s speed of shipping—incorporating texting, thousands of MCP skills, and autonomous bug-fixing in just four weeks—was &quot;fucking crazy.&quot;</p><p>For many, this update renders local-first agent frameworks obsolete. BentoBoi (<a href=\"https://x.com/BentoBoiNFT/status/2034775974349246788?s=20\">@BentoBoiNFT</a>) observed, &quot;Claude just killed OpenClaw with this update. You no longer need to buy a Mac Mini. I say this as someone who owns a one lol,&quot; referring to the common practice of developers buying dedicated hardware to run open-source agents like OpenClaw 24/7. By moving this persistence into the Claude Code environment, Anthropic has simplified the &quot;hardware tax&quot; for autonomy.</p><p>AI YouTuber <a href=\"https://x.com/MatthewBerman/status/2034780653712187902?s=20\">Matthew Berman summarized the shift succinctly</a>: &quot;They&#x27;ve BUILT OpenClaw.&quot; </p><p>The consensus among early adopters is that Anthropic has successfully internalized the most desirable features of the open-source movement—multi-channel support and long-term memory—while maintaining the reliability of a tier-one AI provider.</p><p>While Anthropic’s Claude has long been a favorite for its reasoning, it remained a &quot;brain in a jar&quot;—a stateless entity that waited for a user to type before it could think. Meanwhile, open-source projects like OpenClaw thrived by offering &quot;always-on&quot; persistence, allowing developers to message their AI from Telegram or Discord to trigger complex workflows.</p><p>Now, with Anthropic closing the gap, it&#x27;s up to the users to choose which approach is best for them.</p>"
+        },
+        "authors": [
+          {
+            "name": "Carl Franzen",
+            "email": "carl.franzen@venturebeat.com"
+          }
+        ],
+        "author": "carl.franzen@venturebeat.com (Carl Franzen)",
+        "author_detail": {
+          "name": "Carl Franzen",
+          "email": "carl.franzen@venturebeat.com"
+        },
+        "tags": [
+          {
+            "term": "Orchestration",
+            "scheme": null,
+            "label": null
+          }
+        ]
+      }
+    },
+    {
+      "title": "OpenAI is planning a desktop ‘superapp’",
+      "description": "OpenAI is working on a desktop \"superapp\" that merges its ChatGPT app, the Codex AI coding app, and its AI-powered Atlas browser into one app, The Wall Street Journal reports. The company is making the change as part of an effort to simplify its various product efforts, according to a memo cited by the WSJ […]",
+      "url": "https://www.theverge.com/ai-artificial-intelligence/897778/openai-chatgpt-codex-atlas-browser-superapp",
+      "external_url": "https://www.theverge.com/ai-artificial-intelligence/897778/openai-chatgpt-codex-atlas-browser-superapp",
+      "category": "AI News",
+      "tags": [
+        "ai",
+        "news",
+        "the-verge-ai"
+      ],
+      "metrics": {
+        "source_label": "The Verge AI",
+        "published": "2026-03-19T18:39:38+00:00",
+        "original_summary": "OpenAI is working on a desktop \"superapp\" that merges its ChatGPT app, the Codex AI coding app, and its AI-powered Atlas browser into one app, The Wall Street Journal reports. The company is making the change as part of an effort to simplify its various product efforts, according to a memo cited by the WSJ [&#8230;]"
+      },
+      "images": [
+        "https://platform.theverge.com/wp-content/uploads/sites/2/chorus/uploads/chorus_asset/file/25462044/STK155_OPEN_AI_CVirginia_2_B.jpg?quality=90&strip=all&crop=0,0,100,100"
+      ],
+      "raw": {
+        "authors": [
+          {
+            "name": "Jay Peters"
+          }
+        ],
+        "author_detail": {
+          "name": "Jay Peters"
+        },
+        "author": "Jay Peters",
+        "title": "OpenAI is planning a desktop ‘superapp’",
+        "title_detail": {
+          "type": "text/html",
+          "language": "en-US",
+          "base": "https://www.theverge.com/rss/ai-artificial-intelligence/index.xml",
+          "value": "OpenAI is planning a desktop ‘superapp’"
+        },
+        "links": [
+          {
+            "rel": "alternate",
+            "type": "text/html",
+            "href": "https://www.theverge.com/ai-artificial-intelligence/897778/openai-chatgpt-codex-atlas-browser-superapp"
+          }
+        ],
+        "link": "https://www.theverge.com/ai-artificial-intelligence/897778/openai-chatgpt-codex-atlas-browser-superapp",
+        "id": "https://www.theverge.com/?p=897778",
+        "guidislink": false,
+        "updated": "2026-03-19T20:09:38-04:00",
+        "updated_parsed": [
+          2026,
+          3,
+          20,
+          0,
+          9,
+          38,
+          4,
+          79,
+          0
+        ],
+        "published": "2026-03-19T20:09:38-04:00",
+        "published_parsed": [
+          2026,
+          3,
+          20,
+          0,
+          9,
+          38,
+          4,
+          79,
+          0
+        ],
+        "tags": [
+          {
+            "term": "AI",
+            "scheme": "https://www.theverge.com",
+            "label": null
+          },
+          {
+            "term": "Apps",
+            "scheme": "https://www.theverge.com",
+            "label": null
+          },
+          {
+            "term": "News",
+            "scheme": "https://www.theverge.com",
+            "label": null
+          },
+          {
+            "term": "OpenAI",
+            "scheme": "https://www.theverge.com",
+            "label": null
+          },
+          {
+            "term": "Tech",
+            "scheme": "https://www.theverge.com",
+            "label": null
+          }
+        ],
+        "summary": "OpenAI is working on a desktop \"superapp\" that merges its ChatGPT app, the Codex AI coding app, and its AI-powered Atlas browser into one app, The Wall Street Journal reports. The company is making the change as part of an effort to simplify its various product efforts, according to a memo cited by the WSJ [&#8230;]",
+        "summary_detail": {
+          "type": "text/html",
+          "language": "en-US",
+          "base": "https://www.theverge.com/rss/ai-artificial-intelligence/index.xml",
+          "value": "OpenAI is working on a desktop \"superapp\" that merges its ChatGPT app, the Codex AI coding app, and its AI-powered Atlas browser into one app, The Wall Street Journal reports. The company is making the change as part of an effort to simplify its various product efforts, according to a memo cited by the WSJ [&#8230;]"
+        },
+        "content": [
+          {
+            "type": "text/html",
+            "language": "en-US",
+            "base": "https://www.theverge.com/rss/ai-artificial-intelligence/index.xml",
+            "value": "<figure>\n\n<img alt=\"Vector illustration of the Chat GPT logo.\" src=\"https://platform.theverge.com/wp-content/uploads/sites/2/chorus/uploads/chorus_asset/file/25462044/STK155_OPEN_AI_CVirginia_2_B.jpg?quality=90&#038;strip=all&#038;crop=0,0,100,100\" />\n\t<figcaption>\n\t\t</figcaption>\n</figure>\n<p class=\"has-text-align-none\">OpenAI is working on a desktop \"superapp\" that merges its ChatGPT app, the Codex AI coding app, and its AI-powered Atlas browser into one app, <a href=\"https://www.wsj.com/tech/openai-plans-launch-of-desktop-superapp-to-refocus-simplify-user-experience-9e19931d?mod=author_content_page_1_pos_1\"><em>The Wall Street Journal</em> reports</a>. The company is making the change as part of an effort to simplify its various product efforts, according to a memo cited by the <em>WSJ</em> from Fidji Simo, OpenAI's CEO of Applications. Fragmentation \"has been slowing us down and making it harder to hit the quality bar we want,\" Simo said.</p>\n<p class=\"has-text-align-none\">OpenAI made waves last year with splashy announcements like the <a href=\"https://www.theverge.com/ai-artificial-intelligence/788786/openais-new-ai-sora-ios-social-video-app-will-let-you-deepfake-your-friends\">Sora video app</a> and <a href=\"https://www.theverge.com/news/671838/openai-jony-ive-ai-hardware-apple\">buying Jony Ive's AI hardware company</a>. But it has been facing increased competition from Anthropic as of  …</p>\n<p><a href=\"https://www.theverge.com/ai-artificial-intelligence/897778/openai-chatgpt-codex-atlas-browser-superapp\">Read the full story at The Verge.</a></p>"
+          }
+        ]
+      }
+    },
+    {
+      "title": "How we monitor internal coding agents for misalignment",
+      "description": "How OpenAI uses chain-of-thought monitoring to study misalignment in internal coding agents—analyzing real-world deployments to detect risks and strengthen AI safety safeguards.",
+      "url": "https://openai.com/index/how-we-monitor-internal-coding-agents-misalignment",
+      "external_url": "https://openai.com/index/how-we-monitor-internal-coding-agents-misalignment",
+      "category": "AI News",
+      "tags": [
+        "ai",
+        "news",
+        "openai-blog"
+      ],
+      "metrics": {
+        "source_label": "OpenAI Blog",
+        "published": "2026-03-19T04:30:00+00:00",
+        "original_summary": "How OpenAI uses chain-of-thought monitoring to study misalignment in internal coding agents—analyzing real-world deployments to detect risks and strengthen AI safety safeguards."
+      },
+      "images": [],
+      "raw": {
+        "title": "How we monitor internal coding agents for misalignment",
+        "title_detail": {
+          "type": "text/plain",
+          "language": null,
+          "base": "https://openai.com/news/rss.xml",
+          "value": "How we monitor internal coding agents for misalignment"
+        },
+        "summary": "How OpenAI uses chain-of-thought monitoring to study misalignment in internal coding agents—analyzing real-world deployments to detect risks and strengthen AI safety safeguards.",
+        "summary_detail": {
+          "type": "text/html",
+          "language": null,
+          "base": "https://openai.com/news/rss.xml",
+          "value": "How OpenAI uses chain-of-thought monitoring to study misalignment in internal coding agents—analyzing real-world deployments to detect risks and strengthen AI safety safeguards."
+        },
+        "links": [
+          {
+            "rel": "alternate",
+            "type": "text/html",
+            "href": "https://openai.com/index/how-we-monitor-internal-coding-agents-misalignment"
+          }
+        ],
+        "link": "https://openai.com/index/how-we-monitor-internal-coding-agents-misalignment",
+        "id": "https://openai.com/index/how-we-monitor-internal-coding-agents-misalignment",
+        "guidislink": false,
+        "tags": [
+          {
+            "term": "Safety",
+            "scheme": null,
+            "label": null
+          }
+        ],
+        "published": "Thu, 19 Mar 2026 10:00:00 GMT",
+        "published_parsed": [
+          2026,
+          3,
+          19,
+          10,
+          0,
+          0,
+          3,
+          78,
+          0
+        ]
+      }
+    },
+    {
+      "title": "The Download: Quantum computing for health, and why the world doesn’t recycle more nuclear waste",
+      "description": "This is today’s edition of The Download, our weekday newsletter that provides a daily dose of what’s going on in the world of technology. A $5 million prize awaits proof that quantum computers can solve health care problems  In a laboratory on the outskirts of Oxford, a quantum computer built from atoms and light awaits…",
+      "url": "https://www.technologyreview.com/2026/03/19/1134413/the-download-quantum-computing-health-recycling-nuclear-waste/",
+      "external_url": "https://www.technologyreview.com/2026/03/19/1134413/the-download-quantum-computing-health-recycling-nuclear-waste/",
+      "category": "AI News",
+      "tags": [
+        "ai",
+        "news",
+        "mit-tech-review"
+      ],
+      "metrics": {
+        "source_label": "MIT Tech Review",
+        "published": "2026-03-19T06:47:02+00:00",
+        "original_summary": "This is today&#8217;s edition of The Download, our weekday newsletter that provides a daily dose of what&#8217;s going on in the world of technology. A $5 million prize awaits proof that quantum computers can solve health care problems&#160; In a laboratory on the outskirts of Oxford, a quantum computer built from atoms and light awaits&#8230;"
+      },
+      "images": [
+        "https://wp.technologyreview.com/wp-content/uploads/2025/01/Wafer-Testing.jpg?w=3000"
+      ],
+      "raw": {
+        "title": "The Download: Quantum computing for health, and why the world doesn’t recycle more nuclear waste",
+        "title_detail": {
+          "type": "text/plain",
+          "language": null,
+          "base": "https://www.technologyreview.com/feed/",
+          "value": "The Download: Quantum computing for health, and why the world doesn’t recycle more nuclear waste"
+        },
+        "links": [
+          {
+            "rel": "alternate",
+            "type": "text/html",
+            "href": "https://www.technologyreview.com/2026/03/19/1134413/the-download-quantum-computing-health-recycling-nuclear-waste/"
+          }
+        ],
+        "link": "https://www.technologyreview.com/2026/03/19/1134413/the-download-quantum-computing-health-recycling-nuclear-waste/",
+        "authors": [
+          {
+            "name": "Thomas Macaulay"
+          }
+        ],
+        "author": "Thomas Macaulay",
+        "author_detail": {
+          "name": "Thomas Macaulay"
+        },
+        "published": "Thu, 19 Mar 2026 12:17:02 +0000",
+        "published_parsed": [
+          2026,
+          3,
+          19,
+          12,
+          17,
+          2,
+          3,
+          78,
+          0
+        ],
+        "tags": [
+          {
+            "term": "The Download",
+            "scheme": null,
+            "label": null
+          }
+        ],
+        "id": "https://www.technologyreview.com/?p=1134413",
+        "guidislink": false,
+        "summary": "This is today&#8217;s edition of The Download, our weekday newsletter that provides a daily dose of what&#8217;s going on in the world of technology. A $5 million prize awaits proof that quantum computers can solve health care problems&#160; In a laboratory on the outskirts of Oxford, a quantum computer built from atoms and light awaits&#8230;",
+        "summary_detail": {
+          "type": "text/html",
+          "language": null,
+          "base": "https://www.technologyreview.com/feed/",
+          "value": "This is today&#8217;s edition of The Download, our weekday newsletter that provides a daily dose of what&#8217;s going on in the world of technology. A $5 million prize awaits proof that quantum computers can solve health care problems&#160; In a laboratory on the outskirts of Oxford, a quantum computer built from atoms and light awaits&#8230;"
+        },
+        "content": [
+          {
+            "type": "text/html",
+            "language": null,
+            "base": "https://www.technologyreview.com/feed/",
+            "value": "<p><em>This is today&#8217;s edition of </em><a href=\"https://forms.technologyreview.com/newsletters/briefing-the-download/?_ga=2.179569122.736533416.1649661040-405833893.1649413289\"><em>The Download</em></a>,<em> our weekday newsletter that provides a daily dose of what&#8217;s going on in the world of technology.</em></p>\n\n\n\n<h3 class=\"wp-block-heading\"><strong>A $5 million prize awaits proof that quantum computers can solve health care problems</strong>&nbsp;</h3>\n\n\n\n<p>In a laboratory on the outskirts of Oxford, a quantum computer built from atoms and light awaits its moment. The device is small but powerful—and also&nbsp;very valuable.&nbsp;Infleqtion, the company that owns it, is hoping its abilities will win $5 million at a competition next week.&nbsp;</p>\n\n\n\n<p>The prize will go to the quantum computer that can solve real health care problems that conventional “classical” computers are unable to solve. But there can be only one big winner—if there is a winner at all.&nbsp;<a href=\"https://www.technologyreview.com/2026/03/19/1134399/nuclear-waste-reprocessing/?utm_source=the_download&amp;utm_medium=email&amp;utm_campaign=the_download.unpaid.engagement&amp;utm_term=*%7CSUBCLASS%7C*&amp;utm_content=*%7CDATE:m-d-Y%7C*\" rel=\"noreferrer noopener\" target=\"_blank\">Read the full story</a>.&nbsp;</p>\n\n\n\n<p><em>—Michael Brooks</em>&nbsp;</p>\n\n\n\n<h3 class=\"wp-block-heading\"><strong>Why the world&nbsp;doesn&#8217;t&nbsp;recycle more nuclear waste</strong>&nbsp;</h3>\n\n\n\n<p>There’s&nbsp;still a lot of usable uranium in spent nuclear fuel when&nbsp;it’s&nbsp;pulled out of reactors. Recycling could reduce both the waste and the need to mine new material, but the process is costly, complicated, and not fully efficient.&nbsp;</p>\n\n\n\n<p>Find out <a href=\"https://www.technologyreview.com/2026/03/19/1134399/nuclear-waste-reprocessing/\" rel=\"noreferrer noopener\" target=\"_blank\">why it’s such an issue</a>. <em>—Casey Crownhart</em> </p>\n\n\n\n<p><strong>This&nbsp;</strong><a href=\"https://www.technologyreview.com/2026/03/19/1134399/nuclear-waste-reprocessing/?utm_source=the_download&amp;utm_medium=email&amp;utm_campaign=the_download.unpaid.engagement&amp;utm_term=*%7CSUBCLASS%7C*&amp;utm_content=*%7CDATE:m-d-Y%7C*\" rel=\"noreferrer noopener\" target=\"_blank\"><strong>story</strong></a><strong>&nbsp;is from&nbsp;</strong><a href=\"https://forms.technologyreview.com/newsletters/climate-energy-the-spark/?mc_cid=819737906e&amp;mc_eid=488c2c6a6b&amp;utm_source=the_download&amp;utm_medium=email&amp;utm_campaign=the_download.unpaid.engagement&amp;utm_term=*%7CSUBCLASS%7C*&amp;utm_content=*%7CDATE:m-d-Y%7C*\" rel=\"noreferrer noopener\" target=\"_blank\"><strong>The Spark</strong></a><strong>, MIT Technology Review’s weekly climate newsletter. Sign up to receive it in your inbox every Wednesday.</strong>&nbsp;</p>\n\n\n\n<p class=\"has-medium-font-size\"><strong>The must-reads </strong></p>\n\n\n\n<p><em>I’ve&nbsp;combed the internet to find you today’s most fun/important/scary/fascinating stories about technology.</em>&nbsp;</p>\n\n\n\n<p><strong>1 The FBI has confirmed it’s buying Americans&#8217; location data </strong> <br />Director Kash Patel said it’s led to “valuable intelligence.” (<a href=\"https://www.politico.com/news/2026/03/18/fbi-buying-data-track-people-patel-00834080\" rel=\"noreferrer noopener\" target=\"_blank\">Politico</a>) <br /><em>+ What AI “remembers” about you is privacy’s next frontier. </em>(<a href=\"https://www.technologyreview.com/2026/01/28/1131835/what-ai-remembers-about-you-is-privacys-next-frontier/?utm_source=the_download&amp;utm_medium=email&amp;utm_campaign=the_download.unpaid.engagement&amp;utm_term=*%7CSUBCLASS%7C*&amp;utm_content=*%7CDATE:m-d-Y%7C*\" rel=\"noreferrer noopener\" target=\"_blank\">MIT Technology Review</a>) <br /> <br /><strong>2 The first draft of a federal AI bill has been introduced</strong> <br />It aims to protect “children, creators, conservatives, and communities.” (<a href=\"https://www.engadget.com/ai/senator-blackburn-introduces-the-first-draft-of-a-federal-ai-bill-202509852.html\" rel=\"noreferrer noopener\" target=\"_blank\">Engadget</a>) <br /><em>+ A war is brewing over AI regulation in the US. </em>(<a href=\"https://www.technologyreview.com/2026/01/23/1131559/americas-coming-war-over-ai-regulation/?utm_source=the_download&amp;utm_medium=email&amp;utm_campaign=the_download.unpaid.engagement&amp;utm_term=*%7CSUBCLASS%7C*&amp;utm_content=*%7CDATE:m-d-Y%7C*\" rel=\"noreferrer noopener\" target=\"_blank\">MIT Technology Review</a>) <strong> </strong> </p>\n\n\n\n<p><strong>3 Google is pitching itself to the Pentagon as the perfect defense partner</strong> <br />It’s framing its AI as a safe alternative to OpenAI and Anthropic. (<a href=\"https://www.nytimes.com/2026/03/18/technology/google-ai-pentagon.html\" rel=\"noreferrer noopener\" target=\"_blank\">NYT</a> $) <br /><em>+ Here’s where OpenAI’s tech could show up in Iran.</em> (<a href=\"https://www.technologyreview.com/2026/03/16/1134315/where-openais-technology-could-show-up-in-iran/?utm_source=the_download&amp;utm_medium=email&amp;utm_campaign=the_download.unpaid.engagement&amp;utm_term=*%7CSUBCLASS%7C*&amp;utm_content=*%7CDATE:m-d-Y%7C*\" rel=\"noreferrer noopener\" target=\"_blank\">MIT Technology Review</a>) </p>\n\n\n\n<p><strong>4 A rogue AI agent at Meta leaked sensitive information to employees</strong> <br />The exposure lasted for hours before it was contained. (<a href=\"https://www.theinformation.com/articles/inside-meta-rogue-ai-agent-triggers-security-alert\" rel=\"noreferrer noopener\" target=\"_blank\">The Information</a> $) <br /><em>+ Don’t let AI agent hype get ahead of reality.</em> (<a href=\"https://www.technologyreview.com/2025/07/03/1119545/dont-let-hype-about-ai-agents-get-ahead-of-reality/?utm_source=the_download&amp;utm_medium=email&amp;utm_campaign=the_download.unpaid.engagement&amp;utm_term=*%7CSUBCLASS%7C*&amp;utm_content=*%7CDATE:m-d-Y%7C*\" rel=\"noreferrer noopener\" target=\"_blank\">MIT Technology Review</a> $) </p>\n\n\n\n<p><strong>5 Sony just removed 135,000 &#8216;deepfakes&#8217; of its music</strong> <br />Fraudsters were impersonating the label’s artists on streaming services. (<a href=\"https://www.bbc.co.uk/news/articles/cy57593gxe0o\" rel=\"noreferrer noopener\" target=\"_blank\">BBC</a>) <br /><em>+ AI works better as a collaborator than a creator. </em>(<a href=\"https://www.technologyreview.com/2025/04/23/1114891/editors-letter-creativity-art-ai-collaboration-humanity-technology/?utm_source=the_download&amp;utm_medium=email&amp;utm_campaign=the_download.unpaid.engagement&amp;utm_term=*%7CSUBCLASS%7C*&amp;utm_content=*%7CDATE:m-d-Y%7C*\" rel=\"noreferrer noopener\" target=\"_blank\">MIT Technology Review</a>) </p>\n\n\n\n<p><strong>6 The EU has backed a ban on nonconsensual sexualized deepfakes</strong>&nbsp;<br />It has reacted to Elon Musk&#8217;s Grok chatbot “nudifying” children. (<a href=\"https://www.bloomberg.com/news/articles/2026-03-18/eu-moves-to-ban-ai-that-creates-non-consensual-sexual-images\" rel=\"noreferrer noopener\" target=\"_blank\">Bloomberg</a>&nbsp;$)&nbsp;</p>\n\n\n\n<p><strong>7 Two quantum cryptography pioneers have won the Turing Award</strong> <br />Their encryption method can (theoretically) never be broken. (<a href=\"https://www.quantamagazine.org/quantum-cryptography-pioneers-win-turing-award-20260318/\" rel=\"noreferrer noopener\" target=\"_blank\">Quanta</a>) </p>\n\n\n\n<p><strong>8 Gamers are disgusted by Nvidia’s new rendering model&nbsp;</strong>&nbsp;<br />They’ve&nbsp;labeled&nbsp;it an “AI slop filter.” (<a href=\"https://www.theverge.com/games/895753/nvidia-dlss-5-slop-face-fake-frames\" rel=\"noreferrer noopener\" target=\"_blank\">The Verge</a>)&nbsp;</p>\n\n\n\n<p><strong>9 The White House has registered the </strong><a href=\"http://aliens.gov/\" rel=\"noreferrer noopener\" target=\"_blank\"><strong>aliens.gov</strong></a><strong> domain</strong> <br />It’s sparked speculation that Trump’s long-awaited UFO disclosure is imminent. (<a href=\"https://www.404media.co/government-registers-aliens-gov-domain/\" rel=\"noreferrer noopener\" target=\"_blank\">404 Media</a>) <br /><em>+ Meet the new biologists treating LLMs like ETs. </em>(<a href=\"https://www.technologyreview.com/2026/01/12/1129782/ai-large-language-models-biology-alien-autopsy/?utm_source=the_download&amp;utm_medium=email&amp;utm_campaign=the_download.unpaid.engagement&amp;utm_term=*%7CSUBCLASS%7C*&amp;utm_content=*%7CDATE:m-d-Y%7C*\" rel=\"noreferrer noopener\" target=\"_blank\">MIT Technology Review</a>) </p>\n\n\n\n<p><strong>10 Silicon Valley has embraced a new buzzword: “taste”</strong>&nbsp;<br />As a USP amid the deluge of AI-driven recommendations. (<a href=\"https://www.newyorker.com/culture/infinite-scroll/why-tech-bros-are-now-obsessed-with-taste\" rel=\"noreferrer noopener\" target=\"_blank\">The New Yorker</a>&nbsp;$)&nbsp;</p>\n\n\n\n<p class=\"has-medium-font-size\"><strong>Quote of the day </strong></p>\n\n\n\n<h2 class=\"wp-block-heading\">“Big tech and China win. The rest of us lose.” </h2>\n\n\n\n<p>—Elizabeth Warren <a href=\"https://x.com/SenWarren/status/2034257629715869810\" rel=\"noreferrer noopener\" target=\"_blank\">gives her take</a> on the Trump administration allowing Nvidia to sell advanced chips to China. </p>\n\n\n\n<p class=\"has-medium-font-size\"><strong>One More Thing </strong></p>\n\n\n<div class=\"wp-block-image\">\n<figure class=\"wp-block-image size-large\"><img alt=\"an arm hovering over a wafer during a test\" class=\"wp-image-1110486\" height=\"1688\" src=\"https://wp.technologyreview.com/wp-content/uploads/2025/01/Wafer-Testing.jpg?w=3000\" width=\"3000\" /><div class=\"image-credit\">PSIQUANTUM</div>\n</figure>\n</div>\n\n\n<h4 class=\"wp-block-heading\"><strong>Useful quantum computing is inevitable—and increasingly imminent</strong>&nbsp;</h4>\n\n\n\n<p>Last year, Nvidia CEO Jensen Huang jolted the stock market by saying that practical quantum computing is still 15 to 30 years away. He also suggested that those computers would need Nvidia GPUs to function. But Huang’s predictions miss the mark—both on the timeline and the role his company’s technology will play.&nbsp;&nbsp;</p>\n\n\n\n<p>Quantum computing is rapidly converging on utility. And that’s good news, because the hope is that they will be able to perform calculations that no amount of AI or classical computation could ever achieve.&nbsp;<a href=\"https://www.technologyreview.com/2025/01/27/1110540/useful-quantum-computing-is-inevitable-and-increasingly-imminent/?utm_source=the_download&amp;utm_medium=email&amp;utm_campaign=the_download.unpaid.engagement&amp;utm_term=*%7CSUBCLASS%7C*&amp;utm_content=*%7CDATE:m-d-Y%7C*\" rel=\"noreferrer noopener\" target=\"_blank\">Read the full story</a>.&nbsp;</p>\n\n\n\n<p><em>—Peter Barrett</em>&nbsp;</p>\n\n\n\n<p class=\"has-medium-font-size\"><strong>We can still have nice things </strong></p>\n\n\n\n<p><em>A place for comfort, fun and distraction to brighten up your day. (Got any ideas?&nbsp;</em><a href=\"mailto:thomas.macaulay@technologyreview.com\" rel=\"noreferrer noopener\" target=\"_blank\"><em>Drop me a line</em></a><em>.)</em>&nbsp;</p>\n\n\n\n<p>+ A self-described “mad scientist” has&nbsp;<a href=\"https://www.youtube.com/watch?v=HwoZg3BCigU\" rel=\"noreferrer noopener\" target=\"_blank\">powered a car</a>&nbsp;with vape batteries.&nbsp;<br />+ Someone squeezed an&nbsp;<a href=\"https://www.designboom.com/technology/space-inspired-mini-apple-workstation-classic-lego-computers-watt-iv-m2x2/\" rel=\"noreferrer noopener\" target=\"_blank\">Apple Mac Mini</a>&nbsp;inside a classic LEGO computer.&nbsp;<br />+&nbsp;Watch thousands of satellites orbit Earth in real-time with this&nbsp;<a href=\"https://satellitemap.space/\" rel=\"noreferrer noopener\" target=\"_blank\">mesmerizing interactive map</a>.&nbsp;<br />+&nbsp;This&nbsp;<a href=\"https://gremlynrugs.square.site/product/grilled-cheese-wall-art-free-shipping-/NMBPAKFU2WB6MJIMCPI3WVUX?cp=true&amp;sa=true&amp;sbp=false&amp;q=false\" rel=\"noreferrer noopener\" target=\"_blank\">grilled wall cheese</a>&nbsp;art looks good enough to eat.&nbsp;&nbsp;</p>\n\n\n\n<p></p>"
+          }
+        ],
+        "post-id": "1134413"
+      }
+    },
+    {
+      "title": "Bringing the power of Personal Intelligence to more people",
+      "description": "Bubble that says \"Personal Intelligence\" with Google G, Google Photos logo, and Gmail logo around it",
+      "url": "https://blog.google/products-and-platforms/products/search/personal-intelligence-expansion/",
+      "external_url": "https://blog.google/products-and-platforms/products/search/personal-intelligence-expansion/",
+      "category": "AI News",
+      "tags": [
+        "ai",
+        "news",
+        "google-ai-blog"
+      ],
+      "metrics": {
+        "source_label": "Google AI Blog",
+        "published": "2026-03-17T10:30:00+00:00",
+        "original_summary": "Bubble that says \"Personal Intelligence\" with Google G, Google Photos logo, and Gmail logo around it"
+      },
+      "images": [
+        "https://storage.googleapis.com/gweb-uniblog-publish-prod/images/Header_gl7r1il.max-600x600.format-webp.webp"
+      ],
+      "raw": {
+        "title": "Bringing the power of Personal Intelligence to more people",
+        "title_detail": {
+          "type": "text/plain",
+          "language": "en-us",
+          "base": "https://blog.google/innovation-and-ai/technology/ai/rss/",
+          "value": "Bringing the power of Personal Intelligence to more people"
+        },
+        "links": [
+          {
+            "rel": "alternate",
+            "type": "text/html",
+            "href": "https://blog.google/products-and-platforms/products/search/personal-intelligence-expansion/"
+          }
+        ],
+        "link": "https://blog.google/products-and-platforms/products/search/personal-intelligence-expansion/",
+        "media_content": [
+          {
+            "height": "540",
+            "medium": "image",
+            "url": "https://storage.googleapis.com/gweb-uniblog-publish-prod/images/Header_gl7r1il.max-600x600.format-webp.webp",
+            "width": "540"
+          }
+        ],
+        "summary": "Bubble that says \"Personal Intelligence\" with Google G, Google Photos logo, and Gmail logo around it",
+        "summary_detail": {
+          "type": "text/html",
+          "language": "en-us",
+          "base": "https://blog.google/innovation-and-ai/technology/ai/rss/",
+          "value": "We're expanding Personal Intelligence across AI Mode in Search, the Gemini app and Gemini in Chrome."
+        },
+        "content": [
+          {
+            "type": "text/plain",
+            "language": "en-us",
+            "base": "https://blog.google/innovation-and-ai/technology/ai/rss/",
+            "value": "<img src=\"https://storage.googleapis.com/gweb-uniblog-publish-prod/images/Header_gl7r1il.max-600x600.format-webp.webp\">We're expanding Personal Intelligence across AI Mode in Search, the Gemini app and Gemini in Chrome."
+          }
+        ],
+        "published": "Tue, 17 Mar 2026 16:00:00 +0000",
+        "published_parsed": [
+          2026,
+          3,
+          17,
+          16,
+          0,
+          0,
+          1,
+          76,
+          0
+        ],
+        "id": "https://blog.google/products-and-platforms/products/search/personal-intelligence-expansion/",
+        "guidislink": false,
+        "tags": [
+          {
+            "term": "Gemini App",
+            "scheme": null,
+            "label": null
+          },
+          {
+            "term": "Search",
+            "scheme": null,
+            "label": null
+          },
+          {
+            "term": "AI",
+            "scheme": null,
+            "label": null
+          }
+        ],
+        "type": "article",
+        "site_name": "Google",
+        "href": "https://blog.google/products-and-platforms/products/search/personal-intelligence-expansion/",
+        "og": "",
+        "authors": [
+          {
+            "name": ""
+          }
+        ],
+        "author_detail": {
+          "name": ""
+        },
+        "department": "",
+        "company": "",
+        "author": ""
+      }
+    }
+  ]
+}

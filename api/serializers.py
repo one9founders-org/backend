@@ -133,6 +133,10 @@ class DealSerializer(serializers.ModelSerializer):
 
 
 class NewsListSerializer(serializers.ModelSerializer):
+    description = serializers.CharField(source="excerpt", read_only=True)
+    date = serializers.DateTimeField(source="published_at", read_only=True)
+    image = serializers.URLField(source="featured_image", read_only=True)
+    read_time = serializers.SerializerMethodField()
     has_upvoted = serializers.SerializerMethodField()
 
     class Meta:
@@ -141,18 +145,21 @@ class NewsListSerializer(serializers.ModelSerializer):
             "id",
             "title",
             "slug",
-            "excerpt",
-            "featured_image",
+            "description",
+            "image",
             "author",
             "category",
             "tags",
-            "reading_time",
+            "read_time",
             "views_count",
             "upvote_count",
             "has_upvoted",
             "is_featured",
-            "published_at",
+            "date",
         ]
+
+    def get_read_time(self, obj):
+        return f"{obj.reading_time} min read"
 
     def get_has_upvoted(self, obj):
         request = self.context.get("request")
@@ -168,19 +175,37 @@ class NewsListSerializer(serializers.ModelSerializer):
 
 class NewsDetailSerializer(serializers.ModelSerializer):
     related_tools = ToolListSerializer(many=True, read_only=True)
+    description = serializers.CharField(source="excerpt", read_only=True)
+    date = serializers.DateTimeField(source="published_at", read_only=True)
+    image = serializers.URLField(source="featured_image", read_only=True)
+    read_time = serializers.SerializerMethodField()
     has_upvoted = serializers.SerializerMethodField()
 
     class Meta:
         model = News
-        exclude = ["is_published"]
-        read_only_fields = [
-            "created_at",
-            "updated_at",
-            "published_at",
+        fields = [
+            "id",
+            "title",
+            "slug",
+            "description",
+            "content",
+            "image",
+            "author",
+            "category",
+            "tags",
+            "read_time",
             "views_count",
             "upvote_count",
-            "reading_time",
+            "has_upvoted",
+            "is_featured",
+            "date",
+            "related_tools",
+            "created_at",
+            "updated_at",
         ]
+
+    def get_read_time(self, obj):
+        return f"{obj.reading_time} min read"
 
     def get_has_upvoted(self, obj):
         request = self.context.get("request")
@@ -196,8 +221,6 @@ class NewsDetailSerializer(serializers.ModelSerializer):
 
 class NewsUpvoteSerializer(serializers.ModelSerializer):
     class Meta:
-        model = NewsUpvote
-        fields = ["id", "news", "user", "session_id", "created_at"]
         read_only_fields = ["created_at", "user"]
 
 

@@ -1,4 +1,8 @@
+# Virtual environment
 /venv
+/.venv
+.venv/
+venv/
 .env
 .env.prod
 .env.local
@@ -32,6 +36,3 @@ safety-report.json
 
 # FAISS index files
 faiss_index/
-
-# CSVs
-*.csv

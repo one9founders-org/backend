@@ -198,6 +198,25 @@ class NewsViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [AllowAny]
     lookup_field = "slug"
 
+    def get_object(self):
+        queryset = self.get_queryset()
+        lookup_url_kwarg = self.lookup_url_kwarg or self.lookup_field
+        lookup_value = self.kwargs[lookup_url_kwarg]
+
+        # Try to find by slug
+        filter_kwargs = {self.lookup_field: lookup_value}
+        try:
+            return queryset.get(**filter_kwargs)
+        except (News.DoesNotExist, ValueError):
+            # If not found or lookup_value isn't a valid slug format, try lookup by ID
+            if lookup_value.isdigit():
+                try:
+                    return queryset.get(pk=lookup_value)
+                except News.DoesNotExist:
+                    pass
+            # Re-raise the original exception if ID lookup also fails
+            raise
+
     def get_serializer_class(self):
         if self.action == "retrieve":
             return NewsDetailSerializer
