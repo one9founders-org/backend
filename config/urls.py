@@ -42,6 +42,8 @@ urlpatterns = [
     path("", include("api.urls")),
     # Education
     path("api/education/", include("education.urls")),
+    # Agents Directory
+    path("", include("agents.urls")),
 ]
 
 if settings.DEBUG:
