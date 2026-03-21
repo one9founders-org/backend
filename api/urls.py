@@ -1,7 +1,7 @@
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
-from . import pipeline_views, views
+from . import extension_views, pipeline_views, views
 from .auth_views import get_current_user, google_auth, login_user, register_user
 
 router = DefaultRouter()
@@ -38,6 +38,7 @@ router.register(
 
 urlpatterns = [
     # Search and Actions
+    path("tools/smart-search/", views.smart_search, name="smart-search"),
     path("tools/search/", views.search_tools, name="tool-search"),
     path("tools/add/", views.add_tool, name="tool-add"),
     path("internal/sync-lacreme/", views.sync_lacreme, name="sync-lacreme"),
@@ -80,6 +81,17 @@ urlpatterns = [
         name="pipeline-toggle-publishing",
     ),
     path("pipeline/feed/", pipeline_views.news_feed, name="pipeline-news-feed"),
+    # Chrome Extension API
+    path(
+        "api/v1/extension/lookup/",
+        extension_views.extension_lookup,
+        name="extension-lookup",
+    ),
+    path(
+        "api/v1/extension/suggest/",
+        extension_views.extension_suggest,
+        name="extension-suggest",
+    ),
     # REST API
     path("", include(router.urls)),
 ]

@@ -2,6 +2,7 @@ import logging
 import math
 
 from django.contrib.auth.models import AbstractUser
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django_summernote.fields import SummernoteTextField
 from pgvector.django import VectorField
@@ -132,6 +133,28 @@ class Tool(models.Model):
     # Relations
     alternatives = models.ManyToManyField(
         "self", blank=True, symmetrical=False, related_name="alternative_to"
+    )
+
+    # Extension
+    domain = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        db_index=True,
+        help_text="Root domain extracted from website URL (e.g. runway.ml)",
+    )
+
+    # Security
+    security_score = models.IntegerField(
+        blank=True,
+        null=True,
+        validators=[MinValueValidator(0), MaxValueValidator(100)],
+        help_text="Security score from 0-100 based on 10-point assessment",
+    )
+    security_assessed_at = models.DateTimeField(
+        blank=True,
+        null=True,
+        help_text="When the security assessment was last performed",
     )
 
     # AI
@@ -769,4 +792,75 @@ class NewsUpvote(models.Model):
                 condition=models.Q(session_id__gt=""),
                 name="unique_session_upvote",
             ),
+        ]
+
+
+class ToolSuggestion(models.Model):
+    STATUS_CHOICES = [
+        ("pending", "Pending"),
+        ("reviewed", "Reviewed"),
+        ("approved", "Approved"),
+        ("rejected", "Rejected"),
+    ]
+
+    domain = models.CharField(max_length=255, db_index=True)
+    suggested_by = models.CharField(
+        max_length=255, default="extension_user", blank=True
+    )
+    status = models.CharField(
+        max_length=20, choices=STATUS_CHOICES, default="pending", db_index=True
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    # AI processing fields
+    is_ai_tool = models.BooleanField(
+        null=True, blank=True, help_text="AI verification result"
+    )
+    ai_reason = models.TextField(
+        blank=True, default="", help_text="Why AI classified it this way"
+    )
+    generated_data = models.JSONField(
+        null=True, blank=True, help_text="OpenAI-generated tool data"
+    )
+    processed_at = models.DateTimeField(null=True, blank=True)
+    auto_created_tool = models.ForeignKey(
+        "Tool",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="suggestions",
+        help_text="The draft Tool created from this suggestion",
+    )
+
+    def __str__(self):
+        return f"{self.domain} - {self.status}"
+
+    class Meta:
+        db_table = "tool_suggestions"
+        ordering = ["-created_at"]
+
+
+class ToolSentimentLog(models.Model):
+    # Link directly to the existing Tool model!
+    tool = models.ForeignKey(
+        Tool, on_delete=models.CASCADE, related_name="sentiment_logs"
+    )
+    source = models.CharField(
+        max_length=50, default="Unknown", help_text="e.g., G2, Reddit, X"
+    )
+
+    weighted_score = models.FloatField()
+    raw_aspect_data = models.JSONField()
+
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    def _str_(self):
+        date_str = self.created_at.date()
+        return f"{self.tool.name} Sentiment: {self.weighted_score} ({date_str})"
+
+    class Meta:
+        db_table = "tool_sentiment_logs"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["tool", "-created_at"]),
         ]

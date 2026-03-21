@@ -71,13 +71,11 @@ def create_driver(
 
     driver.execute_cdp_cmd(
         "Page.addScriptToEvaluateOnNewDocument",
-        {
-            "source": """
+        {"source": """
                 Object.defineProperty(navigator, 'webdriver', {
                     get: () => undefined
                 })
-            """
-        },
+            """},
     )
 
     logger.info(f"Created WebDriver (headless={headless})")

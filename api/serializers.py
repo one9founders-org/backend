@@ -75,7 +75,13 @@ class ToolListSerializer(serializers.ModelSerializer):
             "verified",
             "is_featured",
             "startup_friendly",
+            "security_score",
+            "security_assessed_at",
             "similarity",
+        ]
+        read_only_fields = [
+            "security_score",
+            "security_assessed_at",
         ]
 
 
@@ -94,6 +100,8 @@ class ToolDetailSerializer(serializers.ModelSerializer):
             "rating",
             "review_count",
             "views_count",
+            "security_score",
+            "security_assessed_at",
         ]
 
     def to_representation(self, instance):
@@ -125,6 +133,10 @@ class DealSerializer(serializers.ModelSerializer):
 
 
 class NewsListSerializer(serializers.ModelSerializer):
+    description = serializers.CharField(source="excerpt", read_only=True)
+    date = serializers.DateTimeField(source="published_at", read_only=True)
+    image = serializers.URLField(source="featured_image", read_only=True)
+    read_time = serializers.SerializerMethodField()
     has_upvoted = serializers.SerializerMethodField()
 
     class Meta:
@@ -133,18 +145,21 @@ class NewsListSerializer(serializers.ModelSerializer):
             "id",
             "title",
             "slug",
-            "excerpt",
-            "featured_image",
+            "description",
+            "image",
             "author",
             "category",
             "tags",
-            "reading_time",
+            "read_time",
             "views_count",
             "upvote_count",
             "has_upvoted",
             "is_featured",
-            "published_at",
+            "date",
         ]
+
+    def get_read_time(self, obj):
+        return f"{obj.reading_time} min read"
 
     def get_has_upvoted(self, obj):
         request = self.context.get("request")
@@ -160,19 +175,37 @@ class NewsListSerializer(serializers.ModelSerializer):
 
 class NewsDetailSerializer(serializers.ModelSerializer):
     related_tools = ToolListSerializer(many=True, read_only=True)
+    description = serializers.CharField(source="excerpt", read_only=True)
+    date = serializers.DateTimeField(source="published_at", read_only=True)
+    image = serializers.URLField(source="featured_image", read_only=True)
+    read_time = serializers.SerializerMethodField()
     has_upvoted = serializers.SerializerMethodField()
 
     class Meta:
         model = News
-        exclude = ["is_published"]
-        read_only_fields = [
-            "created_at",
-            "updated_at",
-            "published_at",
+        fields = [
+            "id",
+            "title",
+            "slug",
+            "description",
+            "content",
+            "image",
+            "author",
+            "category",
+            "tags",
+            "read_time",
             "views_count",
             "upvote_count",
-            "reading_time",
+            "has_upvoted",
+            "is_featured",
+            "date",
+            "related_tools",
+            "created_at",
+            "updated_at",
         ]
+
+    def get_read_time(self, obj):
+        return f"{obj.reading_time} min read"
 
     def get_has_upvoted(self, obj):
         request = self.context.get("request")
@@ -471,3 +504,56 @@ class WorkshopDetailSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
         read_only_fields = ["created_at", "updated_at"]
+
+
+# Smart Search Serializers
+
+
+class SmartSearchToolSerializer(ToolListSerializer):
+    """Extended tool serializer with match context for smart search results."""
+
+    match_reason = serializers.CharField(read_only=True, required=False)
+    relevance_score = serializers.FloatField(read_only=True, required=False)
+
+    class Meta(ToolListSerializer.Meta):
+        fields = ToolListSerializer.Meta.fields + ["match_reason", "relevance_score"]
+
+
+class ParsedIntentSerializer(serializers.Serializer):
+    semantic_query = serializers.CharField()
+    filters = serializers.DictField(required=False)
+    sort_by = serializers.CharField(required=False, default="relevance")
+    explanation = serializers.CharField(required=False)
+
+
+class SmartSearchResponseSerializer(serializers.Serializer):
+    """Serializer for the standard smart search response."""
+
+    mode = serializers.CharField()
+    parsed_intent = ParsedIntentSerializer()
+    results = serializers.ListField(child=serializers.DictField())
+    total_results = serializers.IntegerField()
+    suggestions = serializers.ListField(child=serializers.CharField(), required=False)
+
+
+class TaskStepSerializer(serializers.Serializer):
+    """Serializer for a single step in a Tech Stack Recipe."""
+
+    step = serializers.IntegerField()
+    task = serializers.CharField()
+    description = serializers.CharField()
+    recommended_tools = serializers.ListField(child=serializers.DictField())
+    tool_count = serializers.IntegerField()
+
+
+class TaskRecipeResponseSerializer(serializers.Serializer):
+    """Serializer for the full task decomposition / Tech Stack Recipe response."""
+
+    mode = serializers.CharField()
+    goal = serializers.CharField()
+    parsed_intent = ParsedIntentSerializer()
+    estimated_monthly_budget = serializers.CharField(required=False)
+    time_to_setup = serializers.CharField(required=False)
+    steps = TaskStepSerializer(many=True)
+    total_steps = serializers.IntegerField()
+    total_tools_recommended = serializers.IntegerField()
