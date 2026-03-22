@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     "agents",
     "rag_directory",
     "research_papers",
+    "sentiment",
 ]
 
 MIDDLEWARE = [

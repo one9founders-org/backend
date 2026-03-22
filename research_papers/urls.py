@@ -1,9 +1,9 @@
 from django.urls import include, path
-from rest_framework.routers import DefaultRouter
+from rest_framework.routers import SimpleRouter
 
 from .views import PaperStatsView, PaperTrendingView, PaperViewSet
 
-router = DefaultRouter()
+router = SimpleRouter()
 router.register(r"", PaperViewSet, basename="paper")
 
 urlpatterns = [

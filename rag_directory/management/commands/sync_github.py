@@ -116,10 +116,13 @@ class Command(BaseCommand):
                 tool.last_commit_at = parsed_pushed_at
 
                 # Mark stale if no commits in 90 days, or reset to active
+                # Preserve manually-set statuses like "deprecated"
                 if parsed_pushed_at and parsed_pushed_at < stale_threshold:
-                    tool.status = "stale"
+                    if tool.status != "deprecated":
+                        tool.status = "stale"
                 elif parsed_pushed_at:
-                    tool.status = "active"
+                    if tool.status == "stale":
+                        tool.status = "active"
 
                 tool.save(
                     update_fields=[

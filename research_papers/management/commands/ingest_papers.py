@@ -154,7 +154,7 @@ class Command(BaseCommand):
                 hf_url = f"https://huggingface.co/papers/{arxiv_id}"
 
                 update_fields = []
-                if upvotes and upvotes != paper.hf_upvotes:
+                if upvotes is not None and upvotes != paper.hf_upvotes:
                     paper.hf_upvotes = upvotes
                     update_fields.append("hf_upvotes")
                 if hf_url and hf_url != paper.hf_url:
