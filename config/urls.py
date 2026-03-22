@@ -11,6 +11,8 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
+from rag_directory.search import global_search
+
 
 @api_view(["GET"])
 @permission_classes([AllowAny])
@@ -44,6 +46,12 @@ urlpatterns = [
     path("api/education/", include("education.urls")),
     # Agents Directory
     path("", include("agents.urls")),
+    # RAG & Vector DB Directory
+    path("api/v1/rag/", include("rag_directory.urls")),
+    # Research Papers
+    path("api/v1/papers/", include("research_papers.urls")),
+    # Global Search
+    path("api/v1/search/", global_search, name="global-search"),
 ]
 
 if settings.DEBUG:

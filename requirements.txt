@@ -24,6 +24,8 @@ whitenoise==6.8.2
 faiss-cpu==1.7.4
 sentence-transformers==2.2.2
 beautifulsoup4==4.12.3
+anthropic>=0.40.0
+feedparser>=6.0.0
 selenium==4.27.1
 webdriver-manager==4.0.2
 
