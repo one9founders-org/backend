@@ -101,7 +101,7 @@ class RagToolViewSet(viewsets.ReadOnlyModelViewSet):
             "name": "name",
             "newest": "-created_at",
         }
-        order = sort_map.get(sort, sort)
+        order = sort_map.get(sort, "-overall_rating")
         if not search:
             queryset = queryset.order_by(order)
 
