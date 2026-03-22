@@ -40,6 +40,7 @@ class PaperPagination(PageNumberPagination):
 class PaperViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [AllowAny]
     lookup_field = "arxiv_id"
+    lookup_value_regex = r"[\d.]+"
     pagination_class = PaperPagination
 
     def get_serializer_class(self):

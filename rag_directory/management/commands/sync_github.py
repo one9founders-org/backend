@@ -90,6 +90,11 @@ class Command(BaseCommand):
                 except Exception:
                     pass
 
+                # Parse pushed_at once upfront for consistent usage
+                from django.utils.dateparse import parse_datetime
+
+                parsed_pushed_at = parse_datetime(pushed_at) if pushed_at else None
+
                 # Create snapshot
                 GitHubSnapshot.objects.update_or_create(
                     tool=tool,
@@ -99,7 +104,7 @@ class Command(BaseCommand):
                         "forks": forks,
                         "open_issues": open_issues,
                         "contributors": contributors,
-                        "last_commit_at": pushed_at,
+                        "last_commit_at": parsed_pushed_at,
                         "latest_release": latest_release,
                     },
                 )
@@ -108,18 +113,13 @@ class Command(BaseCommand):
                 tool.github_stars = stars
                 tool.github_forks = forks
                 tool.latest_release = latest_release
-
-                # Parse pushed_at to datetime for proper comparison and storage
-                parsed_pushed_at = None
-                if pushed_at:
-                    from django.utils.dateparse import parse_datetime
-
-                    parsed_pushed_at = parse_datetime(pushed_at)
                 tool.last_commit_at = parsed_pushed_at
 
-                # Mark stale if no commits in 90 days
+                # Mark stale if no commits in 90 days, or reset to active
                 if parsed_pushed_at and parsed_pushed_at < stale_threshold:
                     tool.status = "stale"
+                elif parsed_pushed_at:
+                    tool.status = "active"
 
                 tool.save(
                     update_fields=[

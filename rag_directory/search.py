@@ -18,7 +18,7 @@ def global_search(request):
     if not query or len(query) < 2:
         return Response({"rag": [], "papers": []})
 
-    results = {}
+    results = {"rag": [], "papers": []}
 
     if "rag" in search_types:
         rag_tools = RagTool.objects.filter(
