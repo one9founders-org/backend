@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     "api",
     "education",
     "agents",
+    'sentiment',
 ]
 
 MIDDLEWARE = [
