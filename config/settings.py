@@ -42,6 +42,8 @@ INSTALLED_APPS = [
     "api",
     "education",
     "agents",
+    "rag_directory",
+    "research_papers",
 ]
 
 MIDDLEWARE = [
@@ -203,6 +205,8 @@ AUTHENTICATION_BACKENDS = [
 
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
 
 # Google reCAPTCHA v3 Configuration
 RECAPTCHA_SITE_KEY = os.getenv("RECAPTCHA_SITE_KEY", "")

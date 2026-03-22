@@ -5,3 +5,4 @@ per-file-ignores =
     config/settings.py:E501
     api/migrations/0001_initial.py:E501
     api/management/commands/enrich_tools.py:E501
+    rag_directory/management/commands/seed_rag_tools.py:E501
