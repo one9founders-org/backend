@@ -128,6 +128,8 @@ class ToolDetailSerializer(serializers.ModelSerializer):
         many=True, queryset=Category.objects.all(), required=False
     )
     alternatives = ToolListSerializer(many=True, read_only=True)
+    pricing_inr = serializers.SerializerMethodField()
+    pricing_inr_with_gst = serializers.SerializerMethodField()
 
     class Meta:
         model = Tool
@@ -139,6 +141,41 @@ class ToolDetailSerializer(serializers.ModelSerializer):
             "review_count",
             "views_count",
         ]
+
+    def _get_exchange_rate(self):
+        """Get cached exchange rate from SiteConfig."""
+        if not hasattr(self, "_exchange_rate_cache"):
+            try:
+                config = SiteConfig.objects.get(key="EXCHANGE_RATE_USD_INR")
+                self._exchange_rate_cache = float(config.value)
+            except (SiteConfig.DoesNotExist, ValueError):
+                self._exchange_rate_cache = 83.5
+        return self._exchange_rate_cache
+
+    def _get_gst_rate(self):
+        """Get cached GST rate from SiteConfig."""
+        if not hasattr(self, "_gst_rate_cache"):
+            try:
+                config = SiteConfig.objects.get(key="GST_RATE")
+                self._gst_rate_cache = float(config.value)
+            except (SiteConfig.DoesNotExist, ValueError):
+                self._gst_rate_cache = 0.18
+        return self._gst_rate_cache
+
+    def get_pricing_inr(self, obj):
+        if obj.pricing_inr_override is not None:
+            return round(float(obj.pricing_inr_override))
+        if obj.pricing_from is not None:
+            rate = self._get_exchange_rate()
+            return round(float(obj.pricing_from) * rate)
+        return None
+
+    def get_pricing_inr_with_gst(self, obj):
+        inr_price = self.get_pricing_inr(obj)
+        if inr_price is not None and obj.gst_applicable:
+            gst_rate = self._get_gst_rate()
+            return round(inr_price * (1 + gst_rate))
+        return inr_price
 
     def to_representation(self, instance):
         """Override to show full category details in response"""
