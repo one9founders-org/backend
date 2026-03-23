@@ -11,7 +11,9 @@ from .models import (
     News,
     NewsletterSubscription,
     NewsUpvote,
+    PricingReport,
     Review,
+    SiteConfig,
     Tool,
     ToolSubmission,
     User,
@@ -51,7 +53,14 @@ class NewsletterResource(resources.ModelResource):
 
 @admin.register(User)
 class UserAdmin(admin.ModelAdmin):
-    list_display = ["email", "username", "first_name", "last_name", "is_startup", "is_active"]
+    list_display = [
+        "email",
+        "username",
+        "first_name",
+        "last_name",
+        "is_startup",
+        "is_active",
+    ]
     search_fields = ["email", "username"]
     list_filter = ["is_startup", "is_active"]
 
@@ -163,6 +172,27 @@ class ToolSubmissionAdmin(admin.ModelAdmin):
 
 
 admin.site.register(UserFavorite)
+
+
+@admin.register(SiteConfig)
+class SiteConfigAdmin(admin.ModelAdmin):
+    list_display = ["key", "value", "updated_at"]
+    search_fields = ["key", "description"]
+    readonly_fields = ["updated_at"]
+
+
+@admin.register(PricingReport)
+class PricingReportAdmin(admin.ModelAdmin):
+    list_display = [
+        "tool",
+        "reported_by_email",
+        "is_resolved",
+        "created_at",
+    ]
+    list_filter = ["is_resolved", "created_at"]
+    search_fields = ["tool__name", "reported_by_email", "message"]
+    readonly_fields = ["created_at"]
+    raw_id_fields = ["tool"]
 
 
 # Pipeline Models Admin

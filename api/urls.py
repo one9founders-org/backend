@@ -54,6 +54,13 @@ urlpatterns = [
         views.tool_usage_count,
         name="tool-usage-count",
     ),
+    # Pricing endpoints
+    path("config/pricing/", views.pricing_config, name="pricing-config"),
+    path(
+        "tools/<slug:tool_slug>/report-pricing/",
+        views.report_pricing,
+        name="report-pricing",
+    ),
     # News upvote endpoints
     path("news/<int:news_id>/upvote/", views.upvote_news, name="news-upvote"),
     path(

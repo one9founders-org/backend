@@ -28,6 +28,7 @@ from .models import (
     NewsUpvote,
     Review,
     SearchQuery,
+    SiteConfig,
     Tool,
     ToolClick,
     ToolSubmission,
@@ -44,6 +45,7 @@ from .serializers import (
     NewsDetailSerializer,
     NewsletterSubscriptionSerializer,
     NewsListSerializer,
+    PricingReportSerializer,
     ReviewSerializer,
     ToolDetailSerializer,
     ToolListSerializer,
@@ -634,6 +636,54 @@ def remove_upvote_news(request, news_id):
                 "has_upvoted": False,
             }
         )
+
+
+# --- Pricing Config & Report Endpoints ---
+
+
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def pricing_config(request):
+    """Return INR pricing configuration for the frontend."""
+    config_keys = ["EXCHANGE_RATE_USD_INR", "EXCHANGE_RATE_UPDATED", "GST_RATE"]
+    configs = SiteConfig.objects.filter(key__in=config_keys)
+    config_dict = {c.key: c.value for c in configs}
+
+    return Response(
+        {
+            "exchange_rate": float(config_dict.get("EXCHANGE_RATE_USD_INR", "83.5")),
+            "exchange_rate_updated": config_dict.get(
+                "EXCHANGE_RATE_UPDATED", "2026-03-01"
+            ),
+            "gst_rate": float(config_dict.get("GST_RATE", "0.18")),
+        }
+    )
+
+
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def report_pricing(request, tool_slug):
+    """Report incorrect pricing for a tool."""
+    try:
+        tool = Tool.objects.get(slug=tool_slug, is_active=True)
+    except Tool.DoesNotExist:
+        return Response({"error": "Tool not found"}, status=status.HTTP_404_NOT_FOUND)
+
+    serializer = PricingReportSerializer(
+        data={
+            "tool": tool.id,
+            "reported_by_email": request.data.get("email", ""),
+            "session_id": request.data.get("session_id", ""),
+            "message": request.data.get("message", ""),
+        }
+    )
+    if serializer.is_valid():
+        serializer.save()
+        return Response(
+            {"message": "Thank you for reporting. We will review this shortly."},
+            status=status.HTTP_201_CREATED,
+        )
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 # --- Learning Content ViewSets ---

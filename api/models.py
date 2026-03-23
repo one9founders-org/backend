@@ -134,6 +134,23 @@ class Tool(models.Model):
         "self", blank=True, symmetrical=False, related_name="alternative_to"
     )
 
+    # INR Pricing
+    pricing_inr_override = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        blank=True,
+        null=True,
+        help_text="Manual INR price override (takes precedence over converted rate)",
+    )
+    pricing_has_india_plan = models.BooleanField(
+        default=False,
+        help_text="Whether this tool offers India-specific pricing",
+    )
+    gst_applicable = models.BooleanField(
+        default=True,
+        help_text="Whether 18% GST applies to this tool for Indian users",
+    )
+
     # AI
     embedding = VectorField(dimensions=1536, blank=True, null=True)
 
@@ -729,6 +746,44 @@ class Workshop(LearningContent):
         db_table = "workshops"
         verbose_name = "Workshop"
         verbose_name_plural = "Workshops"
+
+
+class SiteConfig(models.Model):
+    """Key-value store for site-wide configuration."""
+
+    key = models.CharField(max_length=100, unique=True, db_index=True)
+    value = models.TextField()
+    description = models.TextField(blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.key} = {self.value}"
+
+    class Meta:
+        db_table = "site_config"
+        ordering = ["key"]
+
+
+class PricingReport(models.Model):
+    """User reports of incorrect pricing information."""
+
+    tool = models.ForeignKey(
+        Tool, on_delete=models.CASCADE, related_name="pricing_reports"
+    )
+    reported_by_email = models.EmailField(blank=True)
+    session_id = models.CharField(max_length=255, blank=True)
+    message = models.TextField(
+        blank=True, help_text="Details about the incorrect pricing"
+    )
+    is_resolved = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Pricing report for {self.tool.name}"
+
+    class Meta:
+        db_table = "pricing_reports"
+        ordering = ["-created_at"]
 
 
 class NewsUpvote(models.Model):
