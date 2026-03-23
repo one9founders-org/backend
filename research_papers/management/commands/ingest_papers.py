@@ -38,7 +38,7 @@ class Command(BaseCommand):
 
     def _ingest_arxiv(self):
         try:
-            resp = requests.get(ARXIV_API_URL, timeout=30)
+            resp = requests.get(ARXIV_API_URL, timeout=90)
             resp.raise_for_status()
         except Exception as e:
             logger.error("Failed to fetch arXiv API: %s", e)
@@ -130,7 +130,7 @@ class Command(BaseCommand):
 
     def _sync_hf(self):
         try:
-            resp = requests.get(HF_DAILY_PAPERS_URL, timeout=30)
+            resp = requests.get(HF_DAILY_PAPERS_URL, timeout=60)
             resp.raise_for_status()
             papers_data = resp.json()
         except Exception as e:
