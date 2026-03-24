@@ -44,6 +44,8 @@ urlpatterns = [
     path("", include("api.urls")),
     # Education
     path("api/education/", include("education.urls")),
+    # Sentiment Analysis
+    path("api/sentiment/", include("sentiment.urls")),
     # Agents Directory
     path("", include("agents.urls")),
     # RAG & Vector DB Directory
