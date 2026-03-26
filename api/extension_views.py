@@ -1,3 +1,4 @@
+import hmac
 import logging
 from urllib.parse import urlparse
 
@@ -18,7 +19,7 @@ def _verify_extension_key(request):
     expected = getattr(settings, "EXTENSION_API_KEY", "")
     if not expected or not key:
         return False
-    return key == expected
+    return hmac.compare_digest(key, expected)
 
 
 def _extract_domain(url):
@@ -126,10 +127,10 @@ def extension_suggest(request):
                 status=status.HTTP_200_OK,
             )
 
-    # Check if already suggested (use exact URL match to avoid false positives)
-    website_url = f"https://{domain}"
+    # Check if already suggested — normalize to lowercase https URL
+    website_url = f"https://{domain_lower}"
     existing_submission = ToolSubmission.objects.filter(
-        website=website_url, status="pending"
+        website__iexact=website_url, status="pending"
     ).first()
     if existing_submission:
         return Response(
@@ -142,10 +143,10 @@ def extension_suggest(request):
 
     # Create a new submission
     ToolSubmission.objects.create(
-        name=domain.split(".")[0].title(),
-        description=f"Tool suggested via Chrome extension from domain: {domain}",
+        name=domain_lower.split(".")[0].title(),
+        description=f"Tool suggested via Chrome extension from domain: {domain_lower}",
         website=website_url,
-        submitter_email="",
+        submitter_email="extension@one9founders.com",
         submitter_name=suggested_by,
     )
 
