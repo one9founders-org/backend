@@ -64,8 +64,12 @@ class Command(BaseCommand):
                     )
                     if release_resp.status_code == 200:
                         latest_release = release_resp.json().get("tag_name", "")
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(
+                        "Failed to fetch latest release for %s: %s",
+                        tool.github_repo,
+                        e,
+                    )
 
                 # Get contributor count
                 contributors = 0
@@ -87,8 +91,12 @@ class Command(BaseCommand):
                                 contributors = int(match.group(1))
                         else:
                             contributors = len(contrib_resp.json())
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(
+                        "Failed to fetch contributors for %s: %s",
+                        tool.github_repo,
+                        e,
+                    )
 
                 # Parse pushed_at once upfront for consistent usage
                 from django.utils.dateparse import parse_datetime

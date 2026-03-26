@@ -7,44 +7,50 @@ on:
     branches: [main, develop]
 
 jobs:
+  # ─────────────────────────────────────────────
+  # 1. Lint + Format
+  # ─────────────────────────────────────────────
   lint-and-format:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - name: Cache pip dependencies
+      - name: Cache pip
         uses: actions/cache@v4
         with:
-          path: |
-            ~/.cache/pip
-            ~/.local/lib/python3.11/site-packages
-          key: ${{ runner.os }}-lint-${{ hashFiles('**/requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-lint-
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-lint-${{ hashFiles('requirements.txt') }}
 
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install --cache-dir ~/.cache/pip black isort flake8 bandit
+      - name: Install lint tools
+        run: pip install black isort flake8 bandit
 
-      - name: Check code formatting with Black
+      - name: Black
         run: black --check --diff api/ config/ tests/
 
-      - name: Check import sorting with isort
+      - name: isort
         run: isort --check-only --diff api/ config/ tests/
 
-      - name: Run flake8 linting
+      - name: flake8
         run: flake8 api/ config/ tests/
 
-      - name: Run security checks with bandit
+      - name: bandit (security scan)
         run: bandit -r api/ -f json -o bandit-report.json || true
 
+      - name: Upload bandit report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bandit-report
+          path: bandit-report.json
+
+  # ─────────────────────────────────────────────
+  # 2. Test
+  # ─────────────────────────────────────────────
   test:
     needs: lint-and-format
     runs-on: ubuntu-latest
@@ -68,53 +74,52 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - name: Cache pip dependencies
+      - name: Cache pip
         uses: actions/cache@v4
         with:
-          path: |
-            ~/.cache/pip
-            ~/.local/lib/python3.11/site-packages
-          key: ${{ runner.os }}-test-${{ hashFiles('**/requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-test-
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-test-${{ hashFiles('requirements.txt') }}
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install --cache-dir ~/.cache/pip -r requirements.txt
+          pip install -r requirements.txt
 
-      - name: Set up environment variables
+      - name: Set env vars
         run: |
-          echo "SECRET_KEY=test-secret-key-for-ci" >> $GITHUB_ENV
-          echo "DEBUG=True" >> $GITHUB_ENV
-          echo "DATABASE_NAME=test_one9founders" >> $GITHUB_ENV
-          echo "DATABASE_USER=one9testuser" >> $GITHUB_ENV
-          echo "DATABASE_PASSWORD=one9testpass" >> $GITHUB_ENV
-          echo "DATABASE_HOST=localhost" >> $GITHUB_ENV
-          echo "DATABASE_PORT=5432" >> $GITHUB_ENV
-          echo "GEMINI_API_KEY=test-key" >> $GITHUB_ENV
-          echo "FRONTEND_URL=http://localhost:3000" >> $GITHUB_ENV
-          echo "DJANGO_SETTINGS_MODULE=config.settings" >> $GITHUB_ENV
+          echo "SECRET_KEY=test-secret-key-for-ci"           >> $GITHUB_ENV
+          echo "DEBUG=True"                                   >> $GITHUB_ENV
+          echo "DATABASE_NAME=test_one9founders"              >> $GITHUB_ENV
+          echo "DATABASE_USER=one9testuser"                   >> $GITHUB_ENV
+          echo "DATABASE_PASSWORD=one9testpass"               >> $GITHUB_ENV
+          echo "DATABASE_HOST=localhost"                      >> $GITHUB_ENV
+          echo "DATABASE_PORT=5432"                           >> $GITHUB_ENV
+          echo "OPENAI_API_KEY=test-key"                      >> $GITHUB_ENV
+          echo "DJANGO_SETTINGS_MODULE=config.settings"       >> $GITHUB_ENV
+
+      # FIX: run makemigrations --check so missing migrations are caught in CI
+      - name: Check for missing migrations
+        run: python manage.py makemigrations --check --dry-run
 
       - name: Run migrations
-        run: |
-          python manage.py migrate
+        run: python manage.py migrate
 
       - name: Run tests with coverage
-        run: |
-          pytest --cov=api --cov-report=xml --cov-report=html
+        run: pytest --cov=api --cov-report=xml --cov-report=html
 
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
         with:
           file: ./coverage.xml
           flags: unittests
-          name: codecov-umbrella
 
+  # ─────────────────────────────────────────────
+  # 3. Deploy  (main branch only)
+  # ─────────────────────────────────────────────
   deploy:
     needs: [lint-and-format, test]
     runs-on: ubuntu-latest
@@ -133,11 +138,26 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           port: 22
-          timeout: 60s
+          timeout: 120s
           script: |
+            set -e
             cd /var/www/one9founders
             git pull origin main
+
+            # Rebuild and restart containers
             docker compose down
             DOCKER_BUILDKIT=1 docker compose build --build-arg BUILDKIT_INLINE_CACHE=1
             docker compose up -d
-            docker compose exec web python manage.py collectstatic --noinput
+
+            # Run migrations
+            docker compose exec -T web python manage.py migrate --noinput
+
+            # Collect static files
+            docker compose exec -T web python manage.py collectstatic --noinput
+
+            # FIX: Rebuild FAISS index and upload to S3 so search works after deploy
+            # This downloads the S3 index on the next cold start automatically.
+            # Only rebuilds if tools have changed — the command is idempotent.
+            docker compose exec -T web python manage.py build_faiss_index
+
+            echo "Deploy complete."
