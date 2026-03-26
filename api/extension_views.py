@@ -44,7 +44,7 @@ def extension_lookup(request):
             status=status.HTTP_403_FORBIDDEN,
         )
 
-    domain = request.query_params.get("domain", "").strip().lower()
+    domain = request.query_params.get("domain", "").strip().lower().removeprefix("www.")
     if not domain:
         return Response(
             {"error": "domain parameter is required"},
@@ -114,7 +114,7 @@ def extension_suggest(request):
         )
 
     # Check if this domain already exists as a tool
-    domain_lower = domain.lower()
+    domain_lower = domain.lower().removeprefix("www.")
     candidates = Tool.objects.filter(is_active=True, website__icontains=domain_lower)
     for tool in candidates:
         tool_domain = _extract_domain(tool.website).lower()
