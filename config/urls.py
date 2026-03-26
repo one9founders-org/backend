@@ -40,6 +40,8 @@ urlpatterns = [
     path("summernote/", include("django_summernote.urls")),
     # API
     path("", include("api.urls")),
+    # Extension API (versioned)
+    path("api/v1/extension/", include("api.extension_urls")),
 ]
 
 if settings.DEBUG:

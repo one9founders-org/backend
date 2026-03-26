@@ -178,6 +178,7 @@ CORS_ALLOWED_HEADERS = [
     "user-agent",
     "x-csrftoken",
     "x-requested-with",
+    "x-extension-key",
 ]
 CORS_ALLOWED_METHODS = [
     "DELETE",
@@ -195,6 +196,9 @@ AUTHENTICATION_BACKENDS = [
 
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+
+# Chrome Extension API Key
+EXTENSION_API_KEY = os.getenv("EXTENSION_API_KEY", "")
 
 
 # Logging Configuration
