@@ -4,7 +4,11 @@ from urllib.parse import urlparse
 
 from django.conf import settings
 from rest_framework import status
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import (
+    api_view,
+    authentication_classes,
+    permission_classes,
+)
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
@@ -35,6 +39,7 @@ def _extract_domain(url):
 
 
 @api_view(["GET"])
+@authentication_classes([])
 @permission_classes([AllowAny])
 def extension_lookup(request):
     """Look up a tool by its website domain."""
@@ -95,6 +100,7 @@ def extension_lookup(request):
 
 
 @api_view(["POST"])
+@authentication_classes([])
 @permission_classes([AllowAny])
 def extension_suggest(request):
     """Accept a tool suggestion from the Chrome extension."""
