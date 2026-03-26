@@ -188,6 +188,7 @@ CORS_ALLOWED_HEADERS = [
     "user-agent",
     "x-csrftoken",
     "x-requested-with",
+    "x-extension-key",
     "x-session-id",
 ]
 CORS_ALLOWED_METHODS = [
@@ -213,6 +214,9 @@ GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
 RECAPTCHA_SITE_KEY = os.getenv("RECAPTCHA_SITE_KEY", "")
 RECAPTCHA_SECRET_KEY = os.getenv("RECAPTCHA_SECRET_KEY", "")
 RECAPTCHA_SCORE_THRESHOLD = float(os.getenv("RECAPTCHA_SCORE_THRESHOLD", "0.5"))
+
+# Chrome Extension API Key
+EXTENSION_API_KEY = os.getenv("EXTENSION_API_KEY", "")
 
 
 # Logging Configuration
