@@ -1,3 +1,14 @@
+"""
+api/views.py — fixed version.
+
+Changes vs original:
+  1. Removed the dead ToolViewSet.search() @action (was shadowed by the explicit
+     path("tools/search/") route and never called).
+  2. Extracted shared search logic into _run_search() to avoid copy-paste.
+  3. All bare `except Exception: pass` replaced with logged warnings.
+  4. Minor: typing hints added to helpers.
+"""
+
 import logging
 from datetime import timedelta
 
@@ -57,8 +68,12 @@ from .serializers import (
 
 logger = logging.getLogger(__name__)
 
-# Initialize OpenAI client with new API syntax (openai>=1.0.0)
 openai_client = OpenAI(api_key=settings.OPENAI_API_KEY)
+
+
+# ---------------------------------------------------------------------------
+# Pagination
+# ---------------------------------------------------------------------------
 
 
 class CustomPageNumberPagination(PageNumberPagination):
@@ -68,14 +83,55 @@ class CustomPageNumberPagination(PageNumberPagination):
 
     def get_page_size(self, request):
         page_size = super().get_page_size(request)
-        req_size = request.query_params.get("page_size")
-        logger.debug("Requested page_size: %s, Final: %s", req_size, page_size)
+        logger.debug(
+            "Requested page_size: %s, Final: %s",
+            request.query_params.get("page_size"),
+            page_size,
+        )
         return page_size
 
     def get_paginated_response(self, data):
         response = super().get_paginated_response(data)
         response["X-Page-Size-Used"] = str(self.page_size)
         return response
+
+
+# ---------------------------------------------------------------------------
+# Shared search helper  (single source of truth)
+# ---------------------------------------------------------------------------
+
+
+def _run_search(query: str):
+    """
+    Try FAISS semantic search; fall back to icontains text search.
+    Always returns a list (never None).
+    """
+    try:
+        from .faiss_search import FAISSSearchService
+
+        service = FAISSSearchService.get_instance()
+        results = service.search(query, top_k=20, similarity_threshold=0.3)
+        if results is not None:
+            logger.debug(
+                "FAISS search returned %d results for '%s'", len(results), query
+            )
+            return results
+        logger.info("FAISS index unavailable — falling back to text search.")
+    except Exception as e:
+        logger.warning("FAISS search error: %s — falling back to text search.", e)
+
+    # Text search fallback
+    tools = Tool.objects.filter(
+        Q(name__icontains=query) | Q(description__icontains=query),
+        is_active=True,
+    ).prefetch_related("categories")[:20]
+    logger.debug("Text search fallback: %d results for '%s'", tools.count(), query)
+    return ToolListSerializer(tools, many=True).data
+
+
+# ---------------------------------------------------------------------------
+# ViewSets
+# ---------------------------------------------------------------------------
 
 
 class ToolViewSet(viewsets.ModelViewSet):
@@ -98,7 +154,6 @@ class ToolViewSet(viewsets.ModelViewSet):
         startup_friendly = self.request.query_params.get("startup_friendly")
 
         if category:
-            # Support both category name and slug for filtering
             queryset = queryset.filter(
                 Q(categories__slug=category.lower())
                 | Q(categories__name__iexact=category)
@@ -122,31 +177,10 @@ class ToolViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(instance)
         return Response(serializer.data)
 
-    @action(detail=False, methods=["post"])
-    def search(self, request):
-        query = request.data.get("query", "")
-        logger.debug("Search query: %s", query)
-        if not query:
-            return Response([])
-
-        try:
-            from .faiss_search import FAISSSearchService
-
-            service = FAISSSearchService.get_instance()
-            results = service.search(query, top_k=20, similarity_threshold=0.3)
-            if results is not None:
-                logger.debug("FAISS search results: %d", len(results))
-                return Response(results)
-            logger.debug("FAISS index not available, falling back to text search")
-            raise Exception("FAISS index not available")
-        except Exception as e:
-            logger.warning("FAISS search failed: %s", e)
-            tools = Tool.objects.filter(
-                Q(name__icontains=query) | Q(description__icontains=query),
-                is_active=True,
-            )[:20]
-            logger.debug("Text search fallback results: %d", tools.count())
-            return Response(ToolListSerializer(tools, many=True).data)
+    # NOTE: The search @action has been removed.
+    # The canonical search endpoint is the standalone `search_tools` view at
+    # POST /tools/search/ — registered explicitly in urls.py before the router.
+    # Having both caused the @action to be permanently shadowed and never called.
 
 
 class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
@@ -179,7 +213,6 @@ class ReviewViewSet(viewsets.ModelViewSet):
                     {"error": result["error"], "recaptcha_failed": True},
                     status=status.HTTP_403_FORBIDDEN,
                 )
-
         return super().create(request, *args, **kwargs)
 
 
@@ -213,6 +246,11 @@ class NewsViewSet(viewsets.ReadOnlyModelViewSet):
         return Response(serializer.data)
 
 
+# ---------------------------------------------------------------------------
+# Standalone function-based views
+# ---------------------------------------------------------------------------
+
+
 @api_view(["POST"])
 @permission_classes([AllowAny])
 @authentication_classes([JWTAuthentication])
@@ -239,6 +277,7 @@ def subscribe_newsletter(request):
                     {"error": "Email already subscribed"},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
+            logger.error("Newsletter subscribe error: %s", e)
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -267,7 +306,6 @@ class ToolSubmissionViewSet(viewsets.ModelViewSet):
                     {"error": result["error"], "recaptcha_failed": True},
                     status=status.HTTP_403_FORBIDDEN,
                 )
-
         return super().create(request, *args, **kwargs)
 
 
@@ -281,29 +319,18 @@ def health_check(request):
 @permission_classes([AllowAny])
 @authentication_classes([JWTAuthentication])
 def search_tools(request):
-    query = request.data.get("query", "")
-    logger.debug("Standalone search query: %s", query)
+    """
+    POST /tools/search/
+    Body: {"query": "..."}
+
+    Uses FAISS semantic search with text search fallback.
+    This is the single canonical search endpoint.
+    """
+    query = request.data.get("query", "").strip()
+    logger.debug("Search query: '%s'", query)
     if not query:
         return Response([])
-
-    try:
-        from .faiss_search import FAISSSearchService
-
-        service = FAISSSearchService.get_instance()
-        results = service.search(query, top_k=20, similarity_threshold=0.3)
-        if results is not None:
-            logger.debug("FAISS search results: %d", len(results))
-            return Response(results)
-        logger.debug("FAISS index not available, falling back to text search")
-        raise Exception("FAISS index not available")
-    except Exception as e:
-        logger.warning("FAISS search failed: %s", e)
-        tools = Tool.objects.filter(
-            Q(name__icontains=query) | Q(description__icontains=query),
-            is_active=True,
-        )[:20]
-        logger.debug("Text search fallback results: %d", tools.count())
-        return Response(ToolListSerializer(tools, many=True).data)
+    return Response(_run_search(query))
 
 
 @api_view(["POST"])
@@ -323,24 +350,15 @@ def sync_lacreme(request):
     from .lacreme_scraper import run
 
     scraped_tools = run()
-
-    # Existing tool names (case-insensitive safe compare)
     existing_names = set(Tool.objects.values_list("name", flat=True))
-
     added = 0
     skipped = 0
 
     for t in scraped_tools:
         name = t.get("name")
-
-        if not name:
+        if not name or name in existing_names:
             skipped += 1
             continue
-
-        if name in existing_names:
-            skipped += 1
-            continue
-
         try:
             Tool.objects.create(
                 name=name,
@@ -353,7 +371,6 @@ def sync_lacreme(request):
             )
             added += 1
             existing_names.add(name)
-
         except IntegrityError:
             skipped += 1
 
@@ -367,13 +384,11 @@ def sync_lacreme(request):
     )
 
 
-def get_client_ip(request):
+def get_client_ip(request) -> str:
     x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
     if x_forwarded_for:
-        ip = x_forwarded_for.split(",")[0]
-    else:
-        ip = request.META.get("REMOTE_ADDR")
-    return ip
+        return x_forwarded_for.split(",")[0].strip()
+    return request.META.get("REMOTE_ADDR", "")
 
 
 @api_view(["POST"])
@@ -387,22 +402,17 @@ def track_tool_usage(request):
         return Response(
             {"error": "tool_id is required"}, status=status.HTTP_400_BAD_REQUEST
         )
-
     try:
         tool = Tool.objects.get(id=tool_id, is_active=True)
     except Tool.DoesNotExist:
         return Response({"error": "Tool not found"}, status=status.HTTP_404_NOT_FOUND)
 
-    user = request.user if request.user.is_authenticated else None
-    ip_address = get_client_ip(request)
-
     usage = ToolUsage.objects.create(
         tool=tool,
-        user=user,
+        user=request.user if request.user.is_authenticated else None,
         session_id=session_id,
-        ip_address=ip_address,
+        ip_address=get_client_ip(request),
     )
-
     return Response(
         {"message": "Usage tracked", "id": usage.id}, status=status.HTTP_201_CREATED
     )
@@ -435,18 +445,14 @@ def track_tool_click(request):
     except Tool.DoesNotExist:
         return Response({"error": "Tool not found"}, status=status.HTTP_404_NOT_FOUND)
 
-    user = request.user if request.user.is_authenticated else None
-    ip_address = get_client_ip(request)
-
     click = ToolClick.objects.create(
         tool=tool,
         action=action,
-        user=user,
+        user=request.user if request.user.is_authenticated else None,
         session_id=session_id,
-        ip_address=ip_address,
+        ip_address=get_client_ip(request),
         referrer=referrer,
     )
-
     return Response(
         {"message": "Click tracked", "id": click.id}, status=status.HTTP_201_CREATED
     )
@@ -466,18 +472,14 @@ def track_search_query(request):
             {"error": "query is required"}, status=status.HTTP_400_BAD_REQUEST
         )
 
-    user = request.user if request.user.is_authenticated else None
-    ip_address = get_client_ip(request)
-
     search = SearchQuery.objects.create(
         query=query,
-        user=user,
+        user=request.user if request.user.is_authenticated else None,
         session_id=session_id,
-        ip_address=ip_address,
+        ip_address=get_client_ip(request),
         results_count=results_count,
         filters=filters,
     )
-
     return Response(
         {"message": "Search tracked", "id": search.id}, status=status.HTTP_201_CREATED
     )
@@ -488,7 +490,6 @@ def track_search_query(request):
 def trending_tools(request):
     days = int(request.query_params.get("days", 7))
     limit = int(request.query_params.get("limit", 10))
-
     since = timezone.now() - timedelta(days=days)
 
     tools = (
@@ -504,8 +505,7 @@ def trending_tools(request):
         .order_by("-usage_count", "-click_count", "-views_count")[:limit]
     )
 
-    serializer = TrendingToolSerializer(tools, many=True)
-    return Response(serializer.data)
+    return Response(TrendingToolSerializer(tools, many=True).data)
 
 
 @api_view(["GET"])
@@ -517,13 +517,8 @@ def tool_usage_count(request, tool_id):
         return Response({"error": "Tool not found"}, status=status.HTTP_404_NOT_FOUND)
 
     usage_count = ToolUsage.objects.filter(tool=tool).count()
-
     return Response(
-        {
-            "tool_id": tool_id,
-            "tool_name": tool.name,
-            "usage_count": usage_count,
-        }
+        {"tool_id": tool_id, "tool_name": tool.name, "usage_count": usage_count}
     )
 
 
@@ -531,7 +526,6 @@ def tool_usage_count(request, tool_id):
 @permission_classes([AllowAny])
 @authentication_classes([JWTAuthentication])
 def upvote_news(request, news_id):
-    """Upvote a news article. Supports authenticated users and anonymous sessions."""
     try:
         news = News.objects.get(id=news_id, is_published=True)
     except News.DoesNotExist:
@@ -552,9 +546,7 @@ def upvote_news(request, news_id):
     try:
         if user:
             upvote, created = NewsUpvote.objects.get_or_create(
-                news=news,
-                user=user,
-                defaults={"ip_address": ip_address},
+                news=news, user=user, defaults={"ip_address": ip_address}
             )
         else:
             upvote, created = NewsUpvote.objects.get_or_create(
@@ -574,15 +566,14 @@ def upvote_news(request, news_id):
                 },
                 status=status.HTTP_201_CREATED,
             )
-        else:
-            return Response(
-                {
-                    "message": "Already upvoted",
-                    "upvote_count": news.upvote_count,
-                    "has_upvoted": True,
-                },
-                status=status.HTTP_200_OK,
-            )
+        return Response(
+            {
+                "message": "Already upvoted",
+                "upvote_count": news.upvote_count,
+                "has_upvoted": True,
+            },
+            status=status.HTTP_200_OK,
+        )
     except IntegrityError:
         return Response(
             {"error": "Already upvoted", "has_upvoted": True},
@@ -594,7 +585,6 @@ def upvote_news(request, news_id):
 @permission_classes([AllowAny])
 @authentication_classes([JWTAuthentication])
 def remove_upvote_news(request, news_id):
-    """Remove upvote from a news article."""
     try:
         news = News.objects.get(id=news_id, is_published=True)
     except News.DoesNotExist:
@@ -628,23 +618,18 @@ def remove_upvote_news(request, news_id):
                 "has_upvoted": False,
             }
         )
-    else:
-        return Response(
-            {
-                "message": "No upvote to remove",
-                "upvote_count": news.upvote_count,
-                "has_upvoted": False,
-            }
-        )
-
-
-# --- Pricing Config & Report Endpoints ---
+    return Response(
+        {
+            "message": "No upvote to remove",
+            "upvote_count": news.upvote_count,
+            "has_upvoted": False,
+        }
+    )
 
 
 @api_view(["GET"])
 @permission_classes([AllowAny])
 def pricing_config(request):
-    """Return INR pricing configuration for the frontend."""
     config_keys = ["EXCHANGE_RATE_USD_INR", "EXCHANGE_RATE_UPDATED", "GST_RATE"]
     configs = SiteConfig.objects.filter(key__in=config_keys)
     config_dict = {c.key: c.value for c in configs}
@@ -663,7 +648,6 @@ def pricing_config(request):
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def report_pricing(request, tool_slug):
-    """Report incorrect pricing for a tool."""
     try:
         tool = Tool.objects.get(slug=tool_slug, is_active=True)
     except Tool.DoesNotExist:
@@ -686,12 +670,12 @@ def report_pricing(request, tool_slug):
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-# --- Learning Content ViewSets ---
+# ---------------------------------------------------------------------------
+# Learning Content ViewSets
+# ---------------------------------------------------------------------------
 
 
 class LearningContentViewSetMixin:
-    """Shared filtering logic for Guide, Lab, and Workshop viewsets."""
-
     permission_classes = [AllowAny]
     lookup_field = "slug"
     pagination_class = CustomPageNumberPagination
@@ -719,12 +703,10 @@ class LearningContentViewSetMixin:
             queryset = queryset.filter(
                 Q(tools_used__slug=tool) | Q(tools_used__name__iexact=tool)
             ).distinct()
-
         return queryset
 
     @action(detail=False, methods=["get"])
     def filters(self, request):
-        """Return available filter options for the content type."""
         from .models import LearningContent
 
         return Response(

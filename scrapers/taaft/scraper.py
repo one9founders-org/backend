@@ -280,8 +280,10 @@ class TAAFTScraper:
                                 break
                             except ValueError:
                                 continue
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        self.logger.warning(
+                            "Failed to parse date for tool: %s", e
+                        )
 
                 break
 

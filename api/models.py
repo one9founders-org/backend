@@ -185,8 +185,8 @@ class Tool(models.Model):
                 self.free_tier_available = enriched.get("free_tier_available", False)
                 if not self.free_trial_days:
                     self.free_trial_days = enriched.get("free_trial_days")
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("AI enrichment failed for tool '%s': %s", self.name, e)
 
         # Generate embedding
         if self.embedding is None and self.name and self.description:
@@ -375,8 +375,10 @@ class ToolSubmission(models.Model):
                 self.enriched_data = enrich_tool_data(
                     self.name, self.description, self.website
                 )
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(
+                    "AI enrichment failed for submission '%s': %s", self.name, e
+                )
         super().save(*args, **kwargs)
 
     def approve_and_create_tool(self):

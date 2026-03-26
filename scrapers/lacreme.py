@@ -1,3 +1,4 @@
+import logging
 import re
 import time
 
@@ -17,6 +18,8 @@ from webdriver_manager.chrome import ChromeDriverManager
 EN_URL = "https://www.lacreme.ai/en"
 BASE_URL = "https://www.lacreme.ai"
 HEADERS = {"User-Agent": "Mozilla/5.0"}
+
+logger = logging.getLogger(__name__)
 
 
 ##############################################
@@ -120,7 +123,8 @@ def scrape_detail(url):
             "comparison": comparison,
         }
 
-    except Exception:
+    except Exception as e:
+        logger.warning("lacreme: failed to scrape detail page %s: %s", url, e)
         return {
             "image": "",
             "website": "",
@@ -163,8 +167,8 @@ def run():
                     btn.click()
                     time.sleep(3)
                     break
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("lacreme: failed to click clear filter: %s", e)
 
         checkboxes = driver.find_elements(
             By.CSS_SELECTOR, "input[type='checkbox']:checked"
@@ -173,16 +177,16 @@ def run():
             try:
                 driver.execute_script("arguments[0].click();", cb)
                 time.sleep(0.2)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("lacreme: failed to uncheck checkbox: %s", e)
 
         current_url = driver.current_url
         if "?" in current_url or "#" in current_url:
             driver.get(current_url.split("?")[0].split("#")[0])
             time.sleep(5)
 
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("lacreme: failed to clear filters — continuing: %s", e)
 
     # -------- WAIT FOR COUNTS --------
     expected_count = None
@@ -207,8 +211,8 @@ def run():
                 By.CSS_SELECTOR, '[fs-cmsfilter-element="items-count"]'
             ).text.strip()
         )
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("lacreme: failed to get expected count — continuing: %s", e)
 
     # -------- AGGRESSIVE SCROLL --------
     last_count = 0
@@ -283,7 +287,8 @@ def run():
                     ),
                 }
             )
-        except Exception:
+        except Exception as e:
+            logger.warning("lacreme: failed to parse card: %s", e)
             continue
 
     # -------- DETAIL LOOP --------

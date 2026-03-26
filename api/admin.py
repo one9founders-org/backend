@@ -438,15 +438,246 @@ class LearningContentAdmin(SummernoteModelAdmin):
 
 
 @admin.register(Guide)
-class GuideAdmin(LearningContentAdmin):
-    pass
+class GuideAdmin(SummernoteModelAdmin):
+    """Full admin for Guide — extends LearningContentAdmin behaviour."""
+
+    summernote_fields = ("content",)
+
+    list_display = (
+        "title",
+        "author",
+        "difficulty",
+        "category",
+        "audience",
+        "pricing",
+        "is_featured",
+        "is_published",
+        "published_at",
+    )
+    list_filter = (
+        "difficulty",
+        "category",
+        "audience",
+        "pricing",
+        "is_featured",
+        "is_published",
+    )
+    search_fields = ("title", "author", "short_description")
+    prepopulated_fields = {"slug": ("title",)}
+    filter_horizontal = ("tools_used",)
+    readonly_fields = ("created_at", "updated_at")
+    date_hierarchy = "published_at"
+    ordering = ("-published_at",)
+
+    fieldsets = (
+        (
+            "Content",
+            {
+                "fields": (
+                    "title",
+                    "slug",
+                    "short_description",
+                    "content",
+                    "featured_image",
+                    "author",
+                )
+            },
+        ),
+        (
+            "Classification",
+            {
+                "fields": (
+                    "difficulty",
+                    "estimated_time",
+                    "category",
+                    "audience",
+                    "tools_used",
+                )
+            },
+        ),
+        (
+            "Pricing",
+            {"fields": ("pricing", "price_amount")},
+        ),
+        (
+            "SEO",
+            {"fields": ("meta_title", "meta_description"), "classes": ("collapse",)},
+        ),
+        (
+            "Publishing",
+            {
+                "fields": (
+                    "is_published",
+                    "is_featured",
+                    "published_at",
+                    "last_updated",
+                    "created_at",
+                    "updated_at",
+                )
+            },
+        ),
+    )
 
 
 @admin.register(Lab)
-class LabAdmin(LearningContentAdmin):
-    pass
+class LabAdmin(SummernoteModelAdmin):
+    """Full admin for Lab."""
+
+    summernote_fields = ("content",)
+
+    list_display = (
+        "title",
+        "author",
+        "difficulty",
+        "category",
+        "audience",
+        "pricing",
+        "is_featured",
+        "is_published",
+        "published_at",
+    )
+    list_filter = (
+        "difficulty",
+        "category",
+        "audience",
+        "pricing",
+        "is_featured",
+        "is_published",
+    )
+    search_fields = ("title", "author", "short_description")
+    prepopulated_fields = {"slug": ("title",)}
+    filter_horizontal = ("tools_used",)
+    readonly_fields = ("created_at", "updated_at")
+    date_hierarchy = "published_at"
+    ordering = ("-published_at",)
+
+    fieldsets = (
+        (
+            "Content",
+            {
+                "fields": (
+                    "title",
+                    "slug",
+                    "short_description",
+                    "content",
+                    "featured_image",
+                    "author",
+                )
+            },
+        ),
+        (
+            "Classification",
+            {
+                "fields": (
+                    "difficulty",
+                    "estimated_time",
+                    "category",
+                    "audience",
+                    "tools_used",
+                )
+            },
+        ),
+        (
+            "Pricing",
+            {"fields": ("pricing", "price_amount")},
+        ),
+        (
+            "SEO",
+            {"fields": ("meta_title", "meta_description"), "classes": ("collapse",)},
+        ),
+        (
+            "Publishing",
+            {
+                "fields": (
+                    "is_published",
+                    "is_featured",
+                    "published_at",
+                    "last_updated",
+                    "created_at",
+                    "updated_at",
+                )
+            },
+        ),
+    )
 
 
 @admin.register(Workshop)
-class WorkshopAdmin(LearningContentAdmin):
-    pass
+class WorkshopAdmin(SummernoteModelAdmin):
+    """Full admin for Workshop."""
+
+    summernote_fields = ("content",)
+
+    list_display = (
+        "title",
+        "author",
+        "difficulty",
+        "category",
+        "audience",
+        "pricing",
+        "is_featured",
+        "is_published",
+        "published_at",
+    )
+    list_filter = (
+        "difficulty",
+        "category",
+        "audience",
+        "pricing",
+        "is_featured",
+        "is_published",
+    )
+    search_fields = ("title", "author", "short_description")
+    prepopulated_fields = {"slug": ("title",)}
+    filter_horizontal = ("tools_used",)
+    readonly_fields = ("created_at", "updated_at")
+    date_hierarchy = "published_at"
+    ordering = ("-published_at",)
+
+    fieldsets = (
+        (
+            "Content",
+            {
+                "fields": (
+                    "title",
+                    "slug",
+                    "short_description",
+                    "content",
+                    "featured_image",
+                    "author",
+                )
+            },
+        ),
+        (
+            "Classification",
+            {
+                "fields": (
+                    "difficulty",
+                    "estimated_time",
+                    "category",
+                    "audience",
+                    "tools_used",
+                )
+            },
+        ),
+        (
+            "Pricing",
+            {"fields": ("pricing", "price_amount")},
+        ),
+        (
+            "SEO",
+            {"fields": ("meta_title", "meta_description"), "classes": ("collapse",)},
+        ),
+        (
+            "Publishing",
+            {
+                "fields": (
+                    "is_published",
+                    "is_featured",
+                    "published_at",
+                    "last_updated",
+                    "created_at",
+                    "updated_at",
+                )
+            },
+        ),
+    )
