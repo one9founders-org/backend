@@ -50,15 +50,16 @@ def extension_lookup(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    # Search for a tool whose website matches the given domain
-    tools = Tool.objects.filter(is_active=True).prefetch_related(
-        "categories", "alternatives"
-    )
+    # Search for a tool whose website contains the domain
+    # Use DB-level filter to narrow candidates, then verify exact domain match
+    candidates = Tool.objects.filter(
+        is_active=True, website__icontains=domain
+    ).prefetch_related("categories", "alternatives")
 
     matched_tool = None
-    for tool in tools.iterator():
+    for tool in candidates:
         tool_domain = _extract_domain(tool.website).lower()
-        if tool_domain and tool_domain == domain:
+        if tool_domain == domain:
             matched_tool = tool
             break
 
@@ -112,10 +113,11 @@ def extension_suggest(request):
         )
 
     # Check if this domain already exists as a tool
-    tools = Tool.objects.filter(is_active=True)
-    for tool in tools.iterator():
+    domain_lower = domain.lower()
+    candidates = Tool.objects.filter(is_active=True, website__icontains=domain_lower)
+    for tool in candidates:
         tool_domain = _extract_domain(tool.website).lower()
-        if tool_domain and tool_domain == domain.lower():
+        if tool_domain == domain_lower:
             return Response(
                 {
                     "status": "exists",
@@ -124,10 +126,10 @@ def extension_suggest(request):
                 status=status.HTTP_200_OK,
             )
 
-    # Check if already suggested
+    # Check if already suggested (use exact URL match to avoid false positives)
     website_url = f"https://{domain}"
     existing_submission = ToolSubmission.objects.filter(
-        website__icontains=domain, status="pending"
+        website=website_url, status="pending"
     ).first()
     if existing_submission:
         return Response(
