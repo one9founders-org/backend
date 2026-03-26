@@ -102,8 +102,9 @@ jobs:
           echo "DJANGO_SETTINGS_MODULE=config.settings"       >> $GITHUB_ENV
 
       # FIX: run makemigrations --check so missing migrations are caught in CI
+      # Scope to project apps only (excludes third-party like django_summernote)
       - name: Check for missing migrations
-        run: python manage.py makemigrations --check --dry-run
+        run: python manage.py makemigrations --check --dry-run api rag_directory research_papers
 
       - name: Run migrations
         run: python manage.py migrate
