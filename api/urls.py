@@ -68,11 +68,11 @@ urlpatterns = [
         views.remove_upvote_news,
         name="news-upvote-remove",
     ),
-    # Authentication
-    path("auth/register/", register_user, name="register_user"),
-    path("auth/login/", login_user, name="login_user"),
-    path("auth/google/", google_auth, name="google_auth"),
-    path("auth/me/", get_current_user, name="current_user"),
+    # Authentication (also available at root /auth/* via config/urls.py)
+    path("auth/register/", register_user, name="api_register_user"),
+    path("auth/login/", login_user, name="api_login_user"),
+    path("auth/google/", google_auth, name="api_google_auth"),
+    path("auth/me/", get_current_user, name="api_current_user"),
     # Pipeline API
     path(
         "pipeline/ingest/", pipeline_views.ingest_scraped_data, name="pipeline-ingest"
