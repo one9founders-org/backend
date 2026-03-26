@@ -11,6 +11,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
+from api.auth_views import get_current_user, google_auth, login_user, register_user
 from rag_directory.search import global_search
 
 
@@ -40,8 +41,13 @@ urlpatterns = [
     path("api/redoc/", SpectacularRedocView.as_view(url_name="schema"), name="redoc"),
     # Rich Text Editor
     path("summernote/", include("django_summernote.urls")),
+    # Authentication (frontend calls /auth/* without /api/ prefix)
+    path("auth/register/", register_user, name="register_user"),
+    path("auth/login/", login_user, name="login_user"),
+    path("auth/google/", google_auth, name="google_auth"),
+    path("auth/me/", get_current_user, name="current_user"),
     # API
-    path("", include("api.urls")),
+    path("api/", include("api.urls")),
     # Extension API (versioned)
     path("api/v1/extension/", include("api.extension_urls")),
     # Education
