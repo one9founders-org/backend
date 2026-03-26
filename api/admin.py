@@ -6,13 +6,27 @@ from import_export.admin import ImportExportModelAdmin
 from .models import (
     Category,
     Deal,
+    Guide,
+    Lab,
     News,
     NewsletterSubscription,
+    NewsUpvote,
+    PricingReport,
     Review,
+    SiteConfig,
     Tool,
     ToolSubmission,
     User,
     UserFavorite,
+    Workshop,
+)
+from .pipeline_models import (
+    NewsDraft,
+    PipelineConfig,
+    PipelineRun,
+    PublishedArticle,
+    QualifiedNewsItem,
+    ScrapedItem,
 )
 
 
@@ -39,8 +53,16 @@ class NewsletterResource(resources.ModelResource):
 
 @admin.register(User)
 class UserAdmin(admin.ModelAdmin):
-    list_display = ["email", "username", "first_name", "last_name", "is_active"]
+    list_display = [
+        "email",
+        "username",
+        "first_name",
+        "last_name",
+        "is_startup",
+        "is_active",
+    ]
     search_fields = ["email", "username"]
+    list_filter = ["is_startup", "is_active"]
 
 
 @admin.register(Category)
@@ -68,7 +90,9 @@ class ToolAdmin(ImportExportModelAdmin):
         "categories",
     ]
     search_fields = ["name", "description", "tags"]
-    filter_horizontal = ["categories", "alternatives"]
+    filter_horizontal = ["categories"]
+    raw_id_fields = ["alternatives"]
+    exclude = ["embedding"]
 
 
 @admin.register(Review)
@@ -104,6 +128,8 @@ class NewsAdmin(SummernoteModelAdmin):
         "author",
         "category",
         "reading_time",
+        "upvote_count",
+        "views_count",
         "is_published",
         "is_featured",
         "published_at",
@@ -111,8 +137,14 @@ class NewsAdmin(SummernoteModelAdmin):
     list_filter = ["is_published", "is_featured", "category"]
     search_fields = ["title", "content", "excerpt"]
     prepopulated_fields = {"slug": ("title",)}
-    filter_horizontal = ["related_tools"]
-    readonly_fields = ["reading_time", "views_count", "created_at", "updated_at"]
+    raw_id_fields = ["related_tools"]
+    readonly_fields = [
+        "reading_time",
+        "views_count",
+        "upvote_count",
+        "created_at",
+        "updated_at",
+    ]
 
 
 @admin.register(NewsletterSubscription)
@@ -140,3 +172,281 @@ class ToolSubmissionAdmin(admin.ModelAdmin):
 
 
 admin.site.register(UserFavorite)
+
+
+@admin.register(SiteConfig)
+class SiteConfigAdmin(admin.ModelAdmin):
+    list_display = ["key", "value", "updated_at"]
+    search_fields = ["key", "description"]
+    readonly_fields = ["updated_at"]
+
+
+@admin.register(PricingReport)
+class PricingReportAdmin(admin.ModelAdmin):
+    list_display = [
+        "tool",
+        "reported_by_email",
+        "is_resolved",
+        "created_at",
+    ]
+    list_filter = ["is_resolved", "created_at"]
+    search_fields = ["tool__name", "reported_by_email", "message"]
+    readonly_fields = ["created_at"]
+    raw_id_fields = ["tool"]
+
+
+# Pipeline Models Admin
+@admin.register(ScrapedItem)
+class ScrapedItemAdmin(admin.ModelAdmin):
+    list_display = [
+        "title",
+        "source",
+        "status",
+        "scraped_at",
+        "scrape_batch_id",
+    ]
+    list_filter = ["source", "status", "scraped_at"]
+    search_fields = ["title", "description", "source_url"]
+    readonly_fields = ["content_hash", "scraped_at", "processed_at"]
+    date_hierarchy = "scraped_at"
+
+
+@admin.register(QualifiedNewsItem)
+class QualifiedNewsItemAdmin(admin.ModelAdmin):
+    list_display = [
+        "get_title",
+        "relevance_score",
+        "founder_relevance",
+        "practical_impact",
+        "novelty_score",
+        "status",
+        "created_at",
+    ]
+    list_filter = ["status", "scoring_model", "created_at"]
+    search_fields = ["scraped_item__title", "scoring_rationale"]
+    readonly_fields = ["created_at", "updated_at"]
+    raw_id_fields = ["scraped_item"]
+
+    def get_title(self, obj):
+        return obj.scraped_item.title[:50]
+
+    get_title.short_description = "Title"
+
+
+@admin.register(NewsDraft)
+class NewsDraftAdmin(SummernoteModelAdmin):
+    summernote_fields = ("content",)
+    list_display = [
+        "title",
+        "category",
+        "status",
+        "scheduled_for",
+        "created_at",
+    ]
+    list_filter = ["status", "category", "created_at"]
+    search_fields = ["title", "content", "excerpt"]
+    prepopulated_fields = {"slug": ("title",)}
+    readonly_fields = ["created_at", "updated_at", "published_at"]
+    raw_id_fields = ["qualified_item"]
+    actions = ["publish_drafts"]
+
+    def publish_drafts(self, request, queryset):
+        """Publish selected drafts to the News model."""
+        from .pipeline_engine import PipelineEngine
+        from .pipeline_models import PipelineConfig
+
+        if not PipelineConfig.is_publishing_enabled():
+            self.message_user(
+                request,
+                "Publishing is disabled. Enable it in Pipeline Config first.",
+                level="error",
+            )
+            return
+
+        engine = PipelineEngine()
+        published_count = 0
+        failed_count = 0
+
+        for draft in queryset.filter(status__in=["generated", "ready", "editing"]):
+            slot, _ = engine.get_next_publish_slot()
+            result = engine.publish_draft(draft, slot)
+            if result:
+                published_count += 1
+            else:
+                failed_count += 1
+
+        if published_count > 0:
+            self.message_user(
+                request, f"Successfully published {published_count} article(s)."
+            )
+        if failed_count > 0:
+            self.message_user(
+                request,
+                f"Failed to publish {failed_count} article(s).",
+                level="warning",
+            )
+
+    publish_drafts.short_description = "Publish selected drafts to News"
+
+
+@admin.register(PublishedArticle)
+class PublishedArticleAdmin(admin.ModelAdmin):
+    list_display = [
+        "get_title",
+        "source",
+        "relevance_score",
+        "publish_slot",
+        "views_count",
+        "published_at",
+    ]
+    list_filter = ["source", "published_at"]
+    search_fields = ["news__title"]
+    readonly_fields = ["published_at", "views_count", "engagement_score"]
+    raw_id_fields = ["draft", "news"]
+    date_hierarchy = "published_at"
+
+    def get_title(self, obj):
+        return obj.news.title[:50]
+
+    get_title.short_description = "Title"
+
+
+@admin.register(PipelineRun)
+class PipelineRunAdmin(admin.ModelAdmin):
+    list_display = [
+        "batch_id",
+        "run_type",
+        "status",
+        "source",
+        "items_processed",
+        "items_succeeded",
+        "items_failed",
+        "started_at",
+        "duration_seconds",
+    ]
+    list_filter = ["run_type", "status", "source", "started_at"]
+    search_fields = ["batch_id", "error_message"]
+    readonly_fields = [
+        "started_at",
+        "completed_at",
+        "duration_seconds",
+        "logs",
+    ]
+    date_hierarchy = "started_at"
+
+
+@admin.register(PipelineConfig)
+class PipelineConfigAdmin(admin.ModelAdmin):
+    list_display = ["key", "value", "updated_at", "updated_by"]
+    search_fields = ["key", "description"]
+    readonly_fields = ["updated_at"]
+
+
+@admin.register(NewsUpvote)
+class NewsUpvoteAdmin(admin.ModelAdmin):
+    list_display = ["news", "user", "session_id", "created_at"]
+    list_filter = ["created_at"]
+    search_fields = ["news__title", "user__username", "session_id"]
+    readonly_fields = ["created_at"]
+    raw_id_fields = ["news", "user"]
+
+
+# --- Learning Content Admin ---
+
+
+class LearningContentAdmin(SummernoteModelAdmin):
+    """Base admin for Guide, Lab, and Workshop models."""
+
+    summernote_fields = ("content",)
+    list_display = [
+        "title",
+        "difficulty",
+        "category",
+        "audience",
+        "pricing",
+        "is_published",
+        "is_featured",
+        "last_updated",
+        "published_at",
+    ]
+    list_filter = [
+        "is_published",
+        "is_featured",
+        "difficulty",
+        "category",
+        "audience",
+        "pricing",
+    ]
+    search_fields = ["title", "short_description", "content"]
+    prepopulated_fields = {"slug": ("title",)}
+    filter_horizontal = ["tools_used"]
+    readonly_fields = ["created_at", "updated_at"]
+    fieldsets = (
+        (
+            None,
+            {
+                "fields": (
+                    "title",
+                    "slug",
+                    "short_description",
+                    "content",
+                    "featured_image",
+                    "author",
+                )
+            },
+        ),
+        (
+            "Classification",
+            {
+                "fields": (
+                    "difficulty",
+                    "estimated_time",
+                    "category",
+                    "audience",
+                    "tools_used",
+                )
+            },
+        ),
+        (
+            "Pricing",
+            {
+                "fields": ("pricing", "price_amount"),
+                "classes": ("collapse",),
+            },
+        ),
+        (
+            "SEO",
+            {
+                "fields": ("meta_title", "meta_description"),
+                "classes": ("collapse",),
+            },
+        ),
+        (
+            "Status & Dates",
+            {
+                "fields": (
+                    "is_published",
+                    "is_featured",
+                    "last_updated",
+                    "published_at",
+                    "created_at",
+                    "updated_at",
+                )
+            },
+        ),
+    )
+
+
+@admin.register(Guide)
+class GuideAdmin(LearningContentAdmin):
+    pass
+
+
+@admin.register(Lab)
+class LabAdmin(LearningContentAdmin):
+    pass
+
+
+@admin.register(Workshop)
+class WorkshopAdmin(LearningContentAdmin):
+    pass

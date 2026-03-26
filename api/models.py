@@ -1,3 +1,4 @@
+import logging
 import math
 
 from django.contrib.auth.models import AbstractUser
@@ -5,9 +6,14 @@ from django.db import models
 from django_summernote.fields import SummernoteTextField
 from pgvector.django import VectorField
 
+logger = logging.getLogger(__name__)
+
 
 class User(AbstractUser):
     avatar_url = models.URLField(blank=True, null=True)
+    is_startup = models.BooleanField(
+        default=False, help_text="Whether the user is a startup founder"
+    )
 
     class Meta:
         db_table = "users"
@@ -37,6 +43,11 @@ class Tool(models.Model):
         ("contact", "Contact Sales"),
         ("usage_based", "Usage Based"),
     ]
+    PRICING_TYPE_CHOICES = [
+        ("free", "Free"),
+        ("freemium", "Freemium"),
+        ("paid", "Paid"),
+    ]
     BILLING_CHOICES = [
         ("monthly", "Monthly"),
         ("yearly", "Yearly"),
@@ -55,6 +66,9 @@ class Tool(models.Model):
     affiliate_url = models.URLField(blank=True, null=True)
     logo_url = models.URLField(blank=True, null=True)
     video_demo_url = models.URLField(blank=True, null=True)
+    landing_page_screenshot = models.URLField(
+        blank=True, null=True, help_text="Screenshot/preview of the tool's landing page"
+    )
 
     # Pricing
     pricing_models = models.JSONField(
@@ -70,6 +84,13 @@ class Tool(models.Model):
     )
     free_tier_available = models.BooleanField(default=False)
     free_trial_days = models.IntegerField(blank=True, null=True)
+    pricing_type = models.CharField(
+        max_length=20,
+        choices=PRICING_TYPE_CHOICES,
+        default="freemium",
+        db_index=True,
+        help_text="Primary pricing type: free, freemium, or paid",
+    )
 
     # Content
     tags = models.JSONField(default=list, blank=True)
@@ -101,9 +122,33 @@ class Tool(models.Model):
     is_featured = models.BooleanField(default=False, db_index=True)
     is_active = models.BooleanField(default=True, db_index=True)
 
+    # Display order for homepage ranking (lower = higher priority)
+    display_order = models.IntegerField(
+        default=9999,
+        db_index=True,
+        help_text="Display order on homepage (lower = higher)",
+    )
+
     # Relations
     alternatives = models.ManyToManyField(
         "self", blank=True, symmetrical=False, related_name="alternative_to"
+    )
+
+    # INR Pricing
+    pricing_inr_override = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        blank=True,
+        null=True,
+        help_text="Manual INR price override (takes precedence over converted rate)",
+    )
+    pricing_has_india_plan = models.BooleanField(
+        default=False,
+        help_text="Whether this tool offers India-specific pricing",
+    )
+    gst_applicable = models.BooleanField(
+        default=True,
+        help_text="Whether 18% GST applies to this tool for Indian users",
     )
 
     # AI
@@ -146,10 +191,10 @@ class Tool(models.Model):
         # Generate embedding
         if self.embedding is None and self.name and self.description:
             try:
-                import openai
                 from django.conf import settings
+                from openai import OpenAI
 
-                openai.api_key = settings.OPENAI_API_KEY
+                client = OpenAI(api_key=settings.OPENAI_API_KEY)
 
                 parts = [
                     self.name,
@@ -163,12 +208,14 @@ class Tool(models.Model):
                 ]
                 text = " ".join(filter(None, parts))
 
-                response = openai.Embedding.create(
+                response = client.embeddings.create(
                     model="text-embedding-ada-002", input=text
                 )
-                self.embedding = response["data"][0]["embedding"]
-            except Exception:
-                pass
+                self.embedding = response.data[0].embedding
+            except Exception as e:
+                logger.warning(
+                    "Failed to generate embedding for tool %s: %s", self.name, e
+                )
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -176,7 +223,7 @@ class Tool(models.Model):
 
     class Meta:
         db_table = "tools"
-        ordering = ["-is_featured", "-rating"]
+        ordering = ["display_order", "-is_featured", "-rating"]
 
 
 class Review(models.Model):
@@ -206,10 +253,10 @@ class Review(models.Model):
             try:
                 import json
 
-                import openai
                 from django.conf import settings
+                from openai import OpenAI
 
-                openai.api_key = settings.OPENAI_API_KEY
+                client = OpenAI(api_key=settings.OPENAI_API_KEY)
 
                 prompt = f"""Extract pros and cons from this review:
 
@@ -218,7 +265,7 @@ class Review(models.Model):
 Return JSON: {{"pros": ["pro1", "pro2"], "cons": ["con1", "con2"]}}
 Only return JSON."""
 
-                response = openai.ChatCompletion.create(
+                response = client.chat.completions.create(
                     model="gpt-3.5-turbo",
                     messages=[{"role": "user", "content": prompt}],
                     temperature=0,
@@ -231,8 +278,8 @@ Only return JSON."""
                 )
                 self.pros = data.get("pros", [])
                 self.cons = data.get("cons", [])
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("Failed to extract pros/cons from review: %s", e)
 
         super().save(*args, **kwargs)
 
@@ -405,6 +452,82 @@ class Deal(models.Model):
         ordering = ["-featured_deal", "-created_at"]
 
 
+class ToolUsage(models.Model):
+    tool = models.ForeignKey(Tool, on_delete=models.CASCADE, related_name="usages")
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="tool_usages",
+        null=True,
+        blank=True,
+    )
+    session_id = models.CharField(max_length=255, blank=True, db_index=True)
+    ip_address = models.GenericIPAddressField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        user_str = self.user.username if self.user else self.session_id or "Anonymous"
+        return f"{user_str} uses {self.tool.name}"
+
+    class Meta:
+        db_table = "tool_usages"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["tool", "-created_at"]),
+        ]
+
+
+class SearchQuery(models.Model):
+    query = models.CharField(max_length=500, db_index=True)
+    user = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name="searches"
+    )
+    session_id = models.CharField(max_length=255, blank=True, db_index=True)
+    ip_address = models.GenericIPAddressField(blank=True, null=True)
+    results_count = models.IntegerField(default=0)
+    filters = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"'{self.query}' - {self.results_count} results"
+
+    class Meta:
+        db_table = "search_queries"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["-created_at"]),
+        ]
+
+
+class ToolClick(models.Model):
+    ACTION_CHOICES = [
+        ("view_details", "View Details"),
+        ("visit_tool", "Visit Tool"),
+        ("write_review", "Write Review"),
+        ("i_use_this", "I Use This"),
+    ]
+
+    tool = models.ForeignKey(Tool, on_delete=models.CASCADE, related_name="clicks")
+    action = models.CharField(max_length=50, choices=ACTION_CHOICES, db_index=True)
+    user = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name="clicks"
+    )
+    session_id = models.CharField(max_length=255, blank=True, db_index=True)
+    ip_address = models.GenericIPAddressField(blank=True, null=True)
+    referrer = models.URLField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.action} on {self.tool.name}"
+
+    class Meta:
+        db_table = "tool_clicks"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["tool", "action", "-created_at"]),
+        ]
+
+
 class News(models.Model):
     # Basic
     title = models.CharField(max_length=255)
@@ -428,6 +551,7 @@ class News(models.Model):
     # Meta
     reading_time = models.IntegerField(default=0, help_text="Minutes to read")
     views_count = models.IntegerField(default=0)
+    upvote_count = models.IntegerField(default=0, help_text="Number of upvotes")
     is_published = models.BooleanField(default=False, db_index=True)
     is_featured = models.BooleanField(default=False)
 
@@ -458,3 +582,246 @@ class News(models.Model):
         db_table = "news"
         verbose_name_plural = "News"
         ordering = ["-published_at"]
+
+
+class LearningContent(models.Model):
+    """Abstract base model for Guides, Labs, and Workshops."""
+
+    DIFFICULTY_CHOICES = [
+        ("beginner", "Beginner"),
+        ("intermediate", "Intermediate"),
+        ("advanced", "Advanced"),
+    ]
+
+    CATEGORY_CHOICES = [
+        ("ai-fundamentals", "AI Fundamentals"),
+        ("machine-learning", "Machine Learning"),
+        ("natural-language-processing", "Natural Language Processing"),
+        ("computer-vision", "Computer Vision"),
+        ("automation", "Automation"),
+        ("data-analytics", "Data & Analytics"),
+        ("marketing", "Marketing"),
+        ("product-development", "Product Development"),
+        ("sales", "Sales"),
+        ("operations", "Operations"),
+        ("security", "Security"),
+        ("other", "Other"),
+    ]
+
+    AUDIENCE_CHOICES = [
+        ("founders", "Founders"),
+        ("developers", "Developers"),
+        ("marketers", "Marketers"),
+        ("product-managers", "Product Managers"),
+        ("designers", "Designers"),
+        ("non-technical", "Non-Technical"),
+        ("everyone", "Everyone"),
+    ]
+
+    PRICING_CHOICES = [
+        ("free", "Free"),
+        ("paid", "Paid"),
+        ("freemium", "Freemium"),
+    ]
+
+    # Core fields
+    title = models.CharField(max_length=255, db_index=True)
+    slug = models.SlugField(max_length=255, unique=True, blank=True)
+    short_description = models.CharField(max_length=300, blank=True)
+    content = SummernoteTextField(blank=True)
+    featured_image = models.URLField(blank=True)
+    author = models.CharField(max_length=255, default="One9Founders")
+
+    # Classification fields
+    difficulty = models.CharField(
+        max_length=20,
+        choices=DIFFICULTY_CHOICES,
+        default="beginner",
+        db_index=True,
+    )
+    estimated_time = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="e.g., '30 min', '2 hours', '1-2 hours'",
+    )
+    category = models.CharField(
+        max_length=50,
+        choices=CATEGORY_CHOICES,
+        default="ai-fundamentals",
+        db_index=True,
+    )
+    audience = models.CharField(
+        max_length=30,
+        choices=AUDIENCE_CHOICES,
+        default="founders",
+        db_index=True,
+    )
+
+    # Taxonomy: tools used
+    tools_used = models.ManyToManyField(
+        Tool,
+        blank=True,
+        related_name="%(class)s_content",
+        help_text="AI tools referenced or used in this content",
+    )
+
+    # Pricing
+    pricing = models.CharField(
+        max_length=20,
+        choices=PRICING_CHOICES,
+        default="free",
+        db_index=True,
+    )
+    price_amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        blank=True,
+        null=True,
+        help_text="Price in USD (if applicable)",
+    )
+
+    # SEO fields
+    meta_title = models.CharField(
+        max_length=70,
+        blank=True,
+        help_text="SEO title (max 70 chars). Falls back to title if blank.",
+    )
+    meta_description = models.CharField(
+        max_length=160,
+        blank=True,
+        help_text="SEO description (max 160 chars). Falls back to short_description.",
+    )
+
+    # Status
+    is_published = models.BooleanField(default=False, db_index=True)
+    is_featured = models.BooleanField(default=False, db_index=True)
+
+    # Timestamps
+    last_updated = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Manually set 'last updated' date for content freshness",
+    )
+    published_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            from django.utils.text import slugify
+
+            self.slug = slugify(self.title)
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.title
+
+    class Meta:
+        abstract = True
+        ordering = ["-published_at", "-created_at"]
+
+
+class Guide(LearningContent):
+    """In-depth written guides and tutorials."""
+
+    class Meta(LearningContent.Meta):
+        db_table = "guides"
+        verbose_name = "Guide"
+        verbose_name_plural = "Guides"
+
+
+class Lab(LearningContent):
+    """Hands-on, interactive lab exercises."""
+
+    class Meta(LearningContent.Meta):
+        db_table = "labs"
+        verbose_name = "Lab"
+        verbose_name_plural = "Labs"
+
+
+class Workshop(LearningContent):
+    """Live or recorded workshop sessions."""
+
+    class Meta(LearningContent.Meta):
+        db_table = "workshops"
+        verbose_name = "Workshop"
+        verbose_name_plural = "Workshops"
+
+
+class SiteConfig(models.Model):
+    """Key-value store for site-wide configuration."""
+
+    key = models.CharField(max_length=100, unique=True, db_index=True)
+    value = models.TextField()
+    description = models.TextField(blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.key} = {self.value}"
+
+    class Meta:
+        db_table = "site_config"
+        ordering = ["key"]
+
+
+class PricingReport(models.Model):
+    """User reports of incorrect pricing information."""
+
+    tool = models.ForeignKey(
+        Tool, on_delete=models.CASCADE, related_name="pricing_reports"
+    )
+    reported_by_email = models.EmailField(blank=True)
+    session_id = models.CharField(max_length=255, blank=True)
+    message = models.TextField(
+        blank=True, help_text="Details about the incorrect pricing"
+    )
+    is_resolved = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Pricing report for {self.tool.name}"
+
+    class Meta:
+        db_table = "pricing_reports"
+        ordering = ["-created_at"]
+
+
+class NewsUpvote(models.Model):
+    """Track upvotes on news articles."""
+
+    news = models.ForeignKey(News, on_delete=models.CASCADE, related_name="upvotes")
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="news_upvotes",
+        null=True,
+        blank=True,
+    )
+    session_id = models.CharField(
+        max_length=255, blank=True, db_index=True, help_text="For anonymous upvotes"
+    )
+    ip_address = models.GenericIPAddressField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        user_str = self.user.username if self.user else self.session_id or "Anonymous"
+        return f"{user_str} upvoted {self.news.title[:30]}"
+
+    class Meta:
+        db_table = "news_upvotes"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["news", "-created_at"]),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["news", "user"],
+                condition=models.Q(user__isnull=False),
+                name="unique_user_upvote",
+            ),
+            models.UniqueConstraint(
+                fields=["news", "session_id"],
+                condition=models.Q(session_id__gt=""),
+                name="unique_session_upvote",
+            ),
+        ]

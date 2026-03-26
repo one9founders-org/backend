@@ -38,7 +38,13 @@ INSTALLED_APPS = [
     "import_export",
     "django_summernote",
     "storages",
+    "django_filters",
     "api",
+    "education",
+    "agents",
+    "rag_directory",
+    "research_papers",
+    "sentiment",
 ]
 
 MIDDLEWARE = [
@@ -166,6 +172,10 @@ CORS_ALLOWED_ORIGINS = [
     "https://one9founders.com",
     "https://www.one9founders.com",
 ]
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^https://one9founders-git-.*-one9founders-projects\.vercel\.app$",
+    r"^https://one9founders-.*-one9founders-projects\.vercel\.app$",
+]
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_ALL_ORIGINS = DEBUG
 CORS_ALLOWED_HEADERS = [
@@ -179,6 +189,7 @@ CORS_ALLOWED_HEADERS = [
     "x-csrftoken",
     "x-requested-with",
     "x-extension-key",
+    "x-session-id",
 ]
 CORS_ALLOWED_METHODS = [
     "DELETE",
@@ -196,6 +207,13 @@ AUTHENTICATION_BACKENDS = [
 
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
+
+# Google reCAPTCHA v3 Configuration
+RECAPTCHA_SITE_KEY = os.getenv("RECAPTCHA_SITE_KEY", "")
+RECAPTCHA_SECRET_KEY = os.getenv("RECAPTCHA_SECRET_KEY", "")
+RECAPTCHA_SCORE_THRESHOLD = float(os.getenv("RECAPTCHA_SCORE_THRESHOLD", "0.5"))
 
 # Chrome Extension API Key
 EXTENSION_API_KEY = os.getenv("EXTENSION_API_KEY", "")

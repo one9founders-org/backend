@@ -4,12 +4,21 @@ from rest_framework import serializers
 from .models import (
     Category,
     Deal,
+    Guide,
+    Lab,
     News,
     NewsletterSubscription,
+    NewsUpvote,
+    PricingReport,
     Review,
+    SearchQuery,
+    SiteConfig,
     Tool,
+    ToolClick,
     ToolSubmission,
+    ToolUsage,
     UserFavorite,
+    Workshop,
 )
 
 User = get_user_model()
@@ -44,6 +53,8 @@ class CategorySerializer(serializers.ModelSerializer):
 class ToolListSerializer(serializers.ModelSerializer):
     categories = CategorySerializer(many=True, read_only=True)
     similarity = serializers.FloatField(read_only=True, required=False)
+    pricing_inr = serializers.SerializerMethodField()
+    pricing_inr_with_gst = serializers.SerializerMethodField()
 
     class Meta:
         model = Tool
@@ -55,6 +66,7 @@ class ToolListSerializer(serializers.ModelSerializer):
             "logo_url",
             "website",
             "categories",
+            "pricing_type",
             "pricing_models",
             "pricing_from",
             "free_tier_available",
@@ -68,7 +80,47 @@ class ToolListSerializer(serializers.ModelSerializer):
             "is_featured",
             "startup_friendly",
             "similarity",
+            "pricing_inr_override",
+            "pricing_has_india_plan",
+            "gst_applicable",
+            "pricing_inr",
+            "pricing_inr_with_gst",
         ]
+
+    def _get_exchange_rate(self):
+        """Get cached exchange rate from SiteConfig."""
+        if not hasattr(self, "_exchange_rate_cache"):
+            try:
+                config = SiteConfig.objects.get(key="EXCHANGE_RATE_USD_INR")
+                self._exchange_rate_cache = float(config.value)
+            except (SiteConfig.DoesNotExist, ValueError):
+                self._exchange_rate_cache = 83.5
+        return self._exchange_rate_cache
+
+    def _get_gst_rate(self):
+        """Get cached GST rate from SiteConfig."""
+        if not hasattr(self, "_gst_rate_cache"):
+            try:
+                config = SiteConfig.objects.get(key="GST_RATE")
+                self._gst_rate_cache = float(config.value)
+            except (SiteConfig.DoesNotExist, ValueError):
+                self._gst_rate_cache = 0.18
+        return self._gst_rate_cache
+
+    def get_pricing_inr(self, obj):
+        if obj.pricing_inr_override is not None:
+            return round(float(obj.pricing_inr_override))
+        if obj.pricing_from is not None:
+            rate = self._get_exchange_rate()
+            return round(float(obj.pricing_from) * rate)
+        return None
+
+    def get_pricing_inr_with_gst(self, obj):
+        inr_price = self.get_pricing_inr(obj)
+        if inr_price is not None and obj.gst_applicable:
+            gst_rate = self._get_gst_rate()
+            return round(inr_price * (1 + gst_rate))
+        return inr_price
 
 
 class ToolDetailSerializer(serializers.ModelSerializer):
@@ -76,6 +128,8 @@ class ToolDetailSerializer(serializers.ModelSerializer):
         many=True, queryset=Category.objects.all(), required=False
     )
     alternatives = ToolListSerializer(many=True, read_only=True)
+    pricing_inr = serializers.SerializerMethodField()
+    pricing_inr_with_gst = serializers.SerializerMethodField()
 
     class Meta:
         model = Tool
@@ -87,6 +141,41 @@ class ToolDetailSerializer(serializers.ModelSerializer):
             "review_count",
             "views_count",
         ]
+
+    def _get_exchange_rate(self):
+        """Get cached exchange rate from SiteConfig."""
+        if not hasattr(self, "_exchange_rate_cache"):
+            try:
+                config = SiteConfig.objects.get(key="EXCHANGE_RATE_USD_INR")
+                self._exchange_rate_cache = float(config.value)
+            except (SiteConfig.DoesNotExist, ValueError):
+                self._exchange_rate_cache = 83.5
+        return self._exchange_rate_cache
+
+    def _get_gst_rate(self):
+        """Get cached GST rate from SiteConfig."""
+        if not hasattr(self, "_gst_rate_cache"):
+            try:
+                config = SiteConfig.objects.get(key="GST_RATE")
+                self._gst_rate_cache = float(config.value)
+            except (SiteConfig.DoesNotExist, ValueError):
+                self._gst_rate_cache = 0.18
+        return self._gst_rate_cache
+
+    def get_pricing_inr(self, obj):
+        if obj.pricing_inr_override is not None:
+            return round(float(obj.pricing_inr_override))
+        if obj.pricing_from is not None:
+            rate = self._get_exchange_rate()
+            return round(float(obj.pricing_from) * rate)
+        return None
+
+    def get_pricing_inr_with_gst(self, obj):
+        inr_price = self.get_pricing_inr(obj)
+        if inr_price is not None and obj.gst_applicable:
+            gst_rate = self._get_gst_rate()
+            return round(inr_price * (1 + gst_rate))
+        return inr_price
 
     def to_representation(self, instance):
         """Override to show full category details in response"""
@@ -117,6 +206,8 @@ class DealSerializer(serializers.ModelSerializer):
 
 
 class NewsListSerializer(serializers.ModelSerializer):
+    has_upvoted = serializers.SerializerMethodField()
+
     class Meta:
         model = News
         fields = [
@@ -130,13 +221,27 @@ class NewsListSerializer(serializers.ModelSerializer):
             "tags",
             "reading_time",
             "views_count",
+            "upvote_count",
+            "has_upvoted",
             "is_featured",
             "published_at",
         ]
 
+    def get_has_upvoted(self, obj):
+        request = self.context.get("request")
+        if not request:
+            return False
+        if request.user.is_authenticated:
+            return obj.upvotes.filter(user=request.user).exists()
+        session_id = request.headers.get("X-Session-ID", "")
+        if session_id:
+            return obj.upvotes.filter(session_id=session_id).exists()
+        return False
+
 
 class NewsDetailSerializer(serializers.ModelSerializer):
     related_tools = ToolListSerializer(many=True, read_only=True)
+    has_upvoted = serializers.SerializerMethodField()
 
     class Meta:
         model = News
@@ -146,8 +251,27 @@ class NewsDetailSerializer(serializers.ModelSerializer):
             "updated_at",
             "published_at",
             "views_count",
+            "upvote_count",
             "reading_time",
         ]
+
+    def get_has_upvoted(self, obj):
+        request = self.context.get("request")
+        if not request:
+            return False
+        if request.user.is_authenticated:
+            return obj.upvotes.filter(user=request.user).exists()
+        session_id = request.headers.get("X-Session-ID", "")
+        if session_id:
+            return obj.upvotes.filter(session_id=session_id).exists()
+        return False
+
+
+class NewsUpvoteSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = NewsUpvote
+        fields = ["id", "news", "user", "session_id", "created_at"]
+        read_only_fields = ["created_at", "user"]
 
 
 class NewsletterSubscriptionSerializer(serializers.ModelSerializer):
@@ -182,3 +306,273 @@ class UserFavoriteSerializer(serializers.ModelSerializer):
         model = UserFavorite
         fields = "__all__"
         read_only_fields = ["created_at"]
+
+
+class ToolUsageSerializer(serializers.ModelSerializer):
+    tool_name = serializers.CharField(source="tool.name", read_only=True)
+
+    class Meta:
+        model = ToolUsage
+        fields = ["id", "tool", "tool_name", "session_id", "created_at"]
+        read_only_fields = ["created_at"]
+
+
+class SearchQuerySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SearchQuery
+        fields = ["id", "query", "session_id", "results_count", "filters", "created_at"]
+        read_only_fields = ["created_at"]
+
+
+class ToolClickSerializer(serializers.ModelSerializer):
+    tool_name = serializers.CharField(source="tool.name", read_only=True)
+
+    class Meta:
+        model = ToolClick
+        fields = [
+            "id",
+            "tool",
+            "tool_name",
+            "action",
+            "session_id",
+            "referrer",
+            "created_at",
+        ]
+        read_only_fields = ["created_at"]
+
+
+class TrendingToolSerializer(serializers.ModelSerializer):
+    categories = CategorySerializer(many=True, read_only=True)
+    usage_count = serializers.IntegerField(read_only=True)
+    click_count = serializers.IntegerField(read_only=True)
+
+    class Meta:
+        model = Tool
+        fields = [
+            "id",
+            "name",
+            "slug",
+            "short_description",
+            "logo_url",
+            "website",
+            "categories",
+            "rating",
+            "review_count",
+            "views_count",
+            "usage_count",
+            "click_count",
+            "is_featured",
+        ]
+
+
+class SiteConfigSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SiteConfig
+        fields = ["key", "value", "description", "updated_at"]
+        read_only_fields = ["updated_at"]
+
+
+class PricingReportSerializer(serializers.ModelSerializer):
+    tool_name = serializers.CharField(source="tool.name", read_only=True)
+
+    class Meta:
+        model = PricingReport
+        fields = [
+            "id",
+            "tool",
+            "tool_name",
+            "reported_by_email",
+            "session_id",
+            "message",
+            "created_at",
+        ]
+        read_only_fields = ["created_at"]
+
+
+# --- Learning Content Serializers ---
+
+
+class LearningContentListSerializer(serializers.Serializer):
+    """Shared list serializer for Guides, Labs, and Workshops."""
+
+    id = serializers.IntegerField(read_only=True)
+    title = serializers.CharField()
+    slug = serializers.SlugField()
+    short_description = serializers.CharField()
+    featured_image = serializers.URLField()
+    author = serializers.CharField()
+    difficulty = serializers.CharField()
+    estimated_time = serializers.CharField()
+    category = serializers.CharField()
+    audience = serializers.CharField()
+    tools_used = ToolListSerializer(many=True, read_only=True)
+    pricing = serializers.CharField()
+    price_amount = serializers.DecimalField(max_digits=10, decimal_places=2)
+    is_featured = serializers.BooleanField()
+    last_updated = serializers.DateTimeField()
+    published_at = serializers.DateTimeField()
+
+
+class GuideListSerializer(LearningContentListSerializer):
+    class Meta:
+        model = Guide
+        fields = [
+            "id",
+            "title",
+            "slug",
+            "short_description",
+            "featured_image",
+            "author",
+            "difficulty",
+            "estimated_time",
+            "category",
+            "audience",
+            "tools_used",
+            "pricing",
+            "price_amount",
+            "is_featured",
+            "last_updated",
+            "published_at",
+        ]
+
+
+class GuideDetailSerializer(serializers.ModelSerializer):
+    tools_used = ToolListSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Guide
+        fields = [
+            "id",
+            "title",
+            "slug",
+            "short_description",
+            "content",
+            "featured_image",
+            "author",
+            "difficulty",
+            "estimated_time",
+            "category",
+            "audience",
+            "tools_used",
+            "pricing",
+            "price_amount",
+            "meta_title",
+            "meta_description",
+            "is_published",
+            "is_featured",
+            "last_updated",
+            "published_at",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["created_at", "updated_at"]
+
+
+class LabListSerializer(LearningContentListSerializer):
+    class Meta:
+        model = Lab
+        fields = [
+            "id",
+            "title",
+            "slug",
+            "short_description",
+            "featured_image",
+            "author",
+            "difficulty",
+            "estimated_time",
+            "category",
+            "audience",
+            "tools_used",
+            "pricing",
+            "price_amount",
+            "is_featured",
+            "last_updated",
+            "published_at",
+        ]
+
+
+class LabDetailSerializer(serializers.ModelSerializer):
+    tools_used = ToolListSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Lab
+        fields = [
+            "id",
+            "title",
+            "slug",
+            "short_description",
+            "content",
+            "featured_image",
+            "author",
+            "difficulty",
+            "estimated_time",
+            "category",
+            "audience",
+            "tools_used",
+            "pricing",
+            "price_amount",
+            "meta_title",
+            "meta_description",
+            "is_published",
+            "is_featured",
+            "last_updated",
+            "published_at",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["created_at", "updated_at"]
+
+
+class WorkshopListSerializer(LearningContentListSerializer):
+    class Meta:
+        model = Workshop
+        fields = [
+            "id",
+            "title",
+            "slug",
+            "short_description",
+            "featured_image",
+            "author",
+            "difficulty",
+            "estimated_time",
+            "category",
+            "audience",
+            "tools_used",
+            "pricing",
+            "price_amount",
+            "is_featured",
+            "last_updated",
+            "published_at",
+        ]
+
+
+class WorkshopDetailSerializer(serializers.ModelSerializer):
+    tools_used = ToolListSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Workshop
+        fields = [
+            "id",
+            "title",
+            "slug",
+            "short_description",
+            "content",
+            "featured_image",
+            "author",
+            "difficulty",
+            "estimated_time",
+            "category",
+            "audience",
+            "tools_used",
+            "pricing",
+            "price_amount",
+            "meta_title",
+            "meta_description",
+            "is_published",
+            "is_featured",
+            "last_updated",
+            "published_at",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["created_at", "updated_at"]
