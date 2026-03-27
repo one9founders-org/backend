@@ -72,7 +72,8 @@ def smart_search(query: str, top_k: int = 20) -> list:
         enriched_query = " ".join(
             filter(
                 None,
-                [intent.get("primary_intent", query)] + intent.get("keywords", []),
+                [intent.get("primary_intent") or query]
+                + (intent.get("keywords") or []),
             )
         )
         faiss_results = service.search(
@@ -91,8 +92,8 @@ def smart_search(query: str, top_k: int = 20) -> list:
 
     search_terms = list(
         set(
-            intent.get("keywords", [])
-            + [t for t in intent.get("tasks", []) if len(t) < 50]
+            (intent.get("keywords") or [])
+            + [t for t in (intent.get("tasks") or []) if len(t) < 50]
         )
     )
     if not search_terms:
@@ -120,7 +121,7 @@ def smart_search(query: str, top_k: int = 20) -> list:
     results.extend(sql_results)
 
     # Step 3: Category filter from intent
-    intent_categories = intent.get("categories", [])
+    intent_categories = intent.get("categories") or []
     if intent_categories and len(results) > top_k // 2:
         category_filtered = [
             r
