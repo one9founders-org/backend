@@ -13,7 +13,11 @@ RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
 # Copy and install Python dependencies (changes less frequently)
 COPY requirements.txt .
-RUN pip install --upgrade pip && pip install --no-cache-dir -r requirements.txt
+# Install PyTorch CPU-only first to avoid pulling ~7GB of NVIDIA CUDA packages.
+# This server runs on CPU — the full CUDA build exceeds the EC2 disk budget.
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu && \
+    pip install --no-cache-dir -r requirements.txt
 
 # Copy application code (changes most frequently)
 COPY . .
