@@ -102,7 +102,7 @@ class TestBasicSearch:
 
 @pytest.mark.django_db
 class TestSmartSearch:
-    @patch("api.smart_search_views.smart_search")
+    @patch("api.smart_search.smart_search")
     def test_smart_search_returns_200(self, mock_search, api_client):
         mock_search.return_value = [{"id": 1, "name": "TestTool", "similarity": 0.9}]
         response = api_client.post(
@@ -126,7 +126,7 @@ class TestSmartSearch:
         assert "too long" in response.json()["error"].lower()
 
     @patch(
-        "api.smart_search_views.smart_search",
+        "api.smart_search.smart_search",
         side_effect=Exception("boom"),
     )
     def test_smart_search_graceful_degradation(self, mock_search, api_client):
