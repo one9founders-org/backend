@@ -9,6 +9,8 @@ services:
       - "8000"
     env_file:
       - .env
+    depends_on:
+      - redis
 
   n8n:
     image: n8nio/n8n:latest
@@ -19,7 +21,7 @@ services:
     environment:
       - N8N_BASIC_AUTH_ACTIVE=true
       - N8N_BASIC_AUTH_USER=one9founders
-      - N8N_BASIC_AUTH_PASSWORD=M@rch15Deadline
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_PASSWORD}
       - N8N_HOST=n8n.one9founders.com
       - N8N_PORT=5678
       - WEBHOOK_URL=https://n8n.one9founders.com
@@ -41,6 +43,14 @@ services:
     depends_on:
       - web
       - n8n
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    restart: unless-stopped
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    ports:
+      - "127.0.0.1:6379:6379"
 
 volumes:
   static_volume:

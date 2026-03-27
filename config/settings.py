@@ -90,6 +90,25 @@ DATABASES = {
     }
 }
 
+# Redis Cache
+REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/1")
+
+CACHES = {
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": REDIS_URL,
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+            "IGNORE_EXCEPTIONS": True,
+        },
+        "KEY_PREFIX": "one9",
+        "TIMEOUT": 300,
+    }
+}
+
+SESSION_ENGINE = "django.contrib.sessions.backends.cached_db"
+SESSION_CACHE_ALIAS = "default"
+
 AUTH_PASSWORD_VALIDATORS = [
     {
         "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"
@@ -163,6 +182,8 @@ REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_RATES": {
         "anon": "100/hour",
         "user": "1000/hour",
+        "smart_search_anon": "30/hour",
+        "smart_search_user": "200/hour",
     },
 }
 
@@ -288,6 +309,28 @@ SPECTACULAR_SETTINGS = {
     "SERVE_INCLUDE_SCHEMA": False,
     "COMPONENT_SPLIT_REQUEST": True,
 }
+
+# Sentry Error Monitoring
+SENTRY_DSN = os.getenv("SENTRY_DSN", "")
+
+if SENTRY_DSN:
+    import logging as _logging
+
+    import sentry_sdk
+    from sentry_sdk.integrations.django import DjangoIntegration
+    from sentry_sdk.integrations.logging import LoggingIntegration
+
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        integrations=[
+            DjangoIntegration(transaction_style="url"),
+            LoggingIntegration(level=_logging.WARNING, event_level=_logging.ERROR),
+        ],
+        traces_sample_rate=0.1,
+        send_default_pii=False,
+        environment="production" if not DEBUG else "development",
+        release=os.getenv("GIT_SHA", "unknown"),
+    )
 
 # Security Headers
 SECURE_BROWSER_XSS_FILTER = True
