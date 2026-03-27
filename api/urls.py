@@ -3,6 +3,7 @@ from rest_framework.routers import DefaultRouter
 
 from . import pipeline_views, views
 from .auth_views import get_current_user, google_auth, login_user, register_user
+from .smart_search_views import decompose_task_search, smart_search_tools
 
 router = DefaultRouter()
 router.register(r"tools", views.ToolViewSet, basename="tool")
@@ -39,6 +40,10 @@ router.register(
 urlpatterns = [
     # Search and Actions
     path("tools/search/", views.search_tools, name="tool-search"),
+    path("tools/smart-search/", smart_search_tools, name="tool-smart-search"),
+    path(
+        "tools/decompose-search/", decompose_task_search, name="tool-decompose-search"
+    ),
     path("tools/add/", views.add_tool, name="tool-add"),
     path("internal/sync-lacreme/", views.sync_lacreme, name="sync-lacreme"),
     path(

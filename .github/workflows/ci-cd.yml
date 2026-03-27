@@ -145,6 +145,9 @@ jobs:
             cd /var/www/one9founders
             git pull origin main
 
+            # Record git SHA for Sentry release tracking
+            echo "GIT_SHA=$(git rev-parse --short HEAD)" >> .env
+
             # Rebuild and restart containers
             docker compose down
             DOCKER_BUILDKIT=1 docker compose build --build-arg BUILDKIT_INLINE_CACHE=1
