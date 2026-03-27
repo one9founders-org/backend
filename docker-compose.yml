@@ -12,25 +12,6 @@ services:
     depends_on:
       - redis
 
-  n8n:
-    image: n8nio/n8n:latest
-    container_name: n8n
-    restart: unless-stopped
-    ports:
-      - "5678:5678"
-    environment:
-      - N8N_BASIC_AUTH_ACTIVE=true
-      - N8N_BASIC_AUTH_USER=one9founders
-      - N8N_BASIC_AUTH_PASSWORD=${N8N_PASSWORD}
-      - N8N_HOST=n8n.one9founders.com
-      - N8N_PORT=5678
-      - WEBHOOK_URL=https://n8n.one9founders.com
-      - N8N_PROTOCOL=http
-      - TZ=Asia/Kolkata
-
-    volumes:
-      - n8n_data:/home/node/.n8n
-
   nginx:
     image: nginx:alpine
     container_name: nginx
@@ -42,7 +23,6 @@ services:
       - media_volume:/app/backend/media
     depends_on:
       - web
-      - n8n
 
   redis:
     image: redis:7-alpine
@@ -55,4 +35,3 @@ services:
 volumes:
   static_volume:
   media_volume:
-  n8n_data:
