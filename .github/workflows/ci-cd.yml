@@ -146,6 +146,7 @@ jobs:
             git pull origin main
 
             # Record git SHA for Sentry release tracking
+            sed -i '/^GIT_SHA=/d' .env
             echo "GIT_SHA=$(git rev-parse --short HEAD)" >> .env
 
             # Rebuild and restart containers
