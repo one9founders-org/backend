@@ -1,3 +1,4 @@
+import json
 import os
 
 import requests as http_requests
@@ -12,6 +13,7 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 
 User = get_user_model()
+FOUNDER_ROLES = {"founder", "cofounder"}
 
 
 def verify_turnstile(token):
@@ -29,14 +31,28 @@ def verify_turnstile(token):
     return result.get("success", False)
 
 
+def _parse_json_field(value, default=None):
+    if default is None:
+        default = []
+    if not value:
+        return default
+    if isinstance(value, list):
+        return value
+    try:
+        return json.loads(value)
+    except (json.JSONDecodeError, TypeError):
+        return default
+
+
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def register_user(request):
-    email = request.data.get("email")
-    password = request.data.get("password")
-    name = request.data.get("name", "")
-    is_startup = request.data.get("is_startup", False)
-    turnstile_token = request.data.get("turnstile_token")
+    data = request.data
+    email = data.get("email", "").strip()
+    password = data.get("password", "")
+    name = data.get("name", "").strip()
+    turnstile_token = data.get("turnstile_token", "")
+    user_role = data.get("user_role", "other").strip().lower()
 
     if not verify_turnstile(turnstile_token):
         return Response(
@@ -53,23 +69,42 @@ def register_user(request):
             {"error": "User already exists"}, status=status.HTTP_400_BAD_REQUEST
         )
 
-    try:
-        # Split full name into first and last name
-        name_parts = name.strip().split(None, 1) if name else []
-        first_name = name_parts[0] if len(name_parts) > 0 else ""
-        last_name = name_parts[1] if len(name_parts) > 1 else ""
+    is_founder = user_role in FOUNDER_ROLES
+    is_startup = is_founder
 
+    name_parts = name.split(None, 1) if name else []
+    first_name = name_parts[0] if name_parts else ""
+    last_name = name_parts[1] if len(name_parts) > 1 else ""
+
+    founder_kwargs = {}
+    if is_founder:
+        founder_kwargs = {
+            "startup_name": data.get("startup_name", "").strip(),
+            "startup_website": data.get("website", "").strip() or None,
+            "startup_stage": data.get("startup_stage", "").strip(),
+            "team_size": data.get("team_size", "").strip(),
+            "industry": _parse_json_field(data.get("industry")),
+            "challenges": _parse_json_field(data.get("challenges")),
+            "ai_tasks": _parse_json_field(data.get("ai_tasks")),
+            "time_lost_per_week": data.get("time_lost_per_week", "").strip(),
+            "ai_comfort_level": data.get("ai_comfort_level", "").strip(),
+        }
+
+    try:
         user = User.objects.create(
             email=email,
             username=email,
             first_name=first_name,
             last_name=last_name,
             password=make_password(password),
-            is_startup=bool(is_startup),
+            is_startup=is_startup,
+            user_role=user_role,
+            referral_source=data.get("referral_source", "").strip(),
+            profile_completed=True,
+            **founder_kwargs,
         )
 
         refresh = RefreshToken.for_user(user)
-
         return Response(
             {
                 "access": str(refresh.access_token),
@@ -79,10 +114,13 @@ def register_user(request):
                     "email": user.email,
                     "name": user.get_full_name() or user.first_name,
                     "is_startup": user.is_startup,
+                    "user_role": user.user_role,
+                    "profile_completed": user.profile_completed,
                 },
             },
             status=status.HTTP_201_CREATED,
         )
+
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -116,6 +154,8 @@ def login_user(request):
                         "id": user.id,
                         "email": user.email,
                         "name": user.get_full_name() or user.first_name,
+                        "user_role": user.user_role,
+                        "profile_completed": user.profile_completed,
                     },
                 }
             )
@@ -192,6 +232,8 @@ def google_auth(request):
                     "id": user.id,
                     "email": user.email,
                     "name": user.get_full_name() or user.first_name,
+                    "user_role": getattr(user, "user_role", ""),
+                    "profile_completed": getattr(user, "profile_completed", False),
                 },
             }
         )
@@ -208,5 +250,36 @@ def get_current_user(request):
             "id": user.id,
             "email": user.email,
             "name": user.get_full_name() or user.first_name,
+            "is_startup": user.is_startup,
+            "user_role": getattr(user, "user_role", ""),
+            "profile_completed": getattr(user, "profile_completed", False),
         }
     )
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def complete_profile(request):
+    user = request.user
+    data = request.data
+    user_role = data.get("user_role", "").strip().lower()
+    is_founder = user_role in FOUNDER_ROLES
+
+    user.user_role = user_role
+    user.referral_source = data.get("referral_source", "").strip()
+    user.profile_completed = True
+
+    if is_founder:
+        user.is_startup = True
+        user.startup_name = data.get("startup_name", "").strip()
+        user.startup_website = data.get("website", "").strip() or None
+        user.startup_stage = data.get("startup_stage", "").strip()
+        user.team_size = data.get("team_size", "").strip()
+        user.industry = _parse_json_field(data.get("industry"))
+        user.challenges = _parse_json_field(data.get("challenges"))
+        user.ai_tasks = _parse_json_field(data.get("ai_tasks"))
+        user.time_lost_per_week = data.get("time_lost_per_week", "").strip()
+        user.ai_comfort_level = data.get("ai_comfort_level", "").strip()
+
+    user.save()
+    return Response({"success": True, "user_role": user.user_role})
