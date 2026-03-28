@@ -2,6 +2,7 @@ services:
   web:
     build: .
     container_name: web
+    restart: unless-stopped
     volumes:
       - static_volume:/app/backend/staticfiles
       - media_volume:/app/backend/media
@@ -15,6 +16,7 @@ services:
   nginx:
     image: nginx:alpine
     container_name: nginx
+    restart: unless-stopped
     ports:
       - "80:80"
     volumes:
