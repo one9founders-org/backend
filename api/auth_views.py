@@ -48,11 +48,11 @@ def _parse_json_field(value, default=None):
 @permission_classes([AllowAny])
 def register_user(request):
     data = request.data
-    email = data.get("email", "").strip()
-    password = data.get("password", "")
-    name = data.get("name", "").strip()
-    turnstile_token = data.get("turnstile_token", "")
-    user_role = data.get("user_role", "other").strip().lower()
+    email = (data.get("email") or "").strip()
+    password = data.get("password") or ""
+    name = (data.get("name") or "").strip()
+    turnstile_token = data.get("turnstile_token") or ""
+    user_role = (data.get("user_role") or "other").strip().lower()
 
     if not verify_turnstile(turnstile_token):
         return Response(
@@ -79,15 +79,15 @@ def register_user(request):
     founder_kwargs = {}
     if is_founder:
         founder_kwargs = {
-            "startup_name": data.get("startup_name", "").strip(),
-            "startup_website": data.get("website", "").strip() or None,
-            "startup_stage": data.get("startup_stage", "").strip(),
-            "team_size": data.get("team_size", "").strip(),
+            "startup_name": (data.get("startup_name") or "").strip(),
+            "startup_website": (data.get("website") or "").strip() or None,
+            "startup_stage": (data.get("startup_stage") or "").strip(),
+            "team_size": (data.get("team_size") or "").strip(),
             "industry": _parse_json_field(data.get("industry")),
             "challenges": _parse_json_field(data.get("challenges")),
             "ai_tasks": _parse_json_field(data.get("ai_tasks")),
-            "time_lost_per_week": data.get("time_lost_per_week", "").strip(),
-            "ai_comfort_level": data.get("ai_comfort_level", "").strip(),
+            "time_lost_per_week": (data.get("time_lost_per_week") or "").strip(),
+            "ai_comfort_level": (data.get("ai_comfort_level") or "").strip(),
         }
 
     try:
@@ -99,7 +99,7 @@ def register_user(request):
             password=make_password(password),
             is_startup=is_startup,
             user_role=user_role,
-            referral_source=data.get("referral_source", "").strip(),
+            referral_source=(data.get("referral_source") or "").strip(),
             profile_completed=True,
             **founder_kwargs,
         )
@@ -154,6 +154,7 @@ def login_user(request):
                         "id": user.id,
                         "email": user.email,
                         "name": user.get_full_name() or user.first_name,
+                        "is_startup": user.is_startup,
                         "user_role": user.user_role,
                         "profile_completed": user.profile_completed,
                     },
@@ -232,6 +233,7 @@ def google_auth(request):
                     "id": user.id,
                     "email": user.email,
                     "name": user.get_full_name() or user.first_name,
+                    "is_startup": user.is_startup,
                     "user_role": getattr(user, "user_role", ""),
                     "profile_completed": getattr(user, "profile_completed", False),
                 },
