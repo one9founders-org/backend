@@ -164,12 +164,16 @@ class ToolSubmissionAdmin(admin.ModelAdmin):
     actions = ["approve_submissions"]
 
     def approve_submissions(self, request, queryset):
-        approved = 0
+        created_count = 0
+        updated_count = 0
         failed = 0
         for submission in queryset.filter(status="pending"):
             try:
-                submission.approve_and_create_tool()
-                approved += 1
+                _tool, created = submission.approve_and_create_tool()
+                if created:
+                    created_count += 1
+                else:
+                    updated_count += 1
             except Exception as e:
                 failed += 1
                 self.message_user(
@@ -177,9 +181,14 @@ class ToolSubmissionAdmin(admin.ModelAdmin):
                     f"Failed to approve '{submission.name}': {e}",
                     level="error",
                 )
-        if approved:
-            self.message_user(request, f"{approved} submission(s) approved.")
-        if not approved and not failed:
+        parts = []
+        if created_count:
+            parts.append(f"{created_count} new tool(s) created")
+        if updated_count:
+            parts.append(f"{updated_count} existing tool(s) updated")
+        if parts:
+            self.message_user(request, f"Approved: {', '.join(parts)}.")
+        if not parts and not failed:
             self.message_user(
                 request, "No pending submissions in the selection.", level="warning"
             )

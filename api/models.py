@@ -399,7 +399,11 @@ class ToolSubmission(models.Model):
         super().save(*args, **kwargs)
 
     def approve_and_create_tool(self):
-        """Convert submission to Tool, updating if one with the same name exists."""
+        """Convert submission to Tool, updating if one with the same name exists.
+
+        Returns a tuple of (tool, created) where *created* is True when a
+        brand-new Tool was inserted and False when an existing one was updated.
+        """
         defaults = {
             "description": self.description,
             "short_description": self.short_description
@@ -419,11 +423,15 @@ class ToolSubmission(models.Model):
             "startup_friendly": self.enriched_data.get("startup_friendly", False),
         }
         tool, created = Tool.objects.update_or_create(name=self.name, defaults=defaults)
-        tool.categories.set(self.categories.all())
+        if self.categories.exists():
+            if created:
+                tool.categories.set(self.categories.all())
+            else:
+                tool.categories.add(*self.categories.all())
         self.status = "approved"
         self.approved_tool = tool
         self.save()
-        return tool
+        return tool, created
 
     def __str__(self):
         return f"{self.name} - {self.status}"
