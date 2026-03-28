@@ -262,24 +262,24 @@ def get_current_user(request):
 def complete_profile(request):
     user = request.user
     data = request.data
-    user_role = data.get("user_role", "").strip().lower()
+    user_role = (data.get("user_role") or "").strip().lower()
     is_founder = user_role in FOUNDER_ROLES
 
     user.user_role = user_role
-    user.referral_source = data.get("referral_source", "").strip()
+    user.referral_source = (data.get("referral_source") or "").strip()
     user.profile_completed = True
+    user.is_startup = is_founder
 
     if is_founder:
-        user.is_startup = True
-        user.startup_name = data.get("startup_name", "").strip()
-        user.startup_website = data.get("website", "").strip() or None
-        user.startup_stage = data.get("startup_stage", "").strip()
-        user.team_size = data.get("team_size", "").strip()
+        user.startup_name = (data.get("startup_name") or "").strip()
+        user.startup_website = (data.get("website") or "").strip() or None
+        user.startup_stage = (data.get("startup_stage") or "").strip()
+        user.team_size = (data.get("team_size") or "").strip()
         user.industry = _parse_json_field(data.get("industry"))
         user.challenges = _parse_json_field(data.get("challenges"))
         user.ai_tasks = _parse_json_field(data.get("ai_tasks"))
-        user.time_lost_per_week = data.get("time_lost_per_week", "").strip()
-        user.ai_comfort_level = data.get("ai_comfort_level", "").strip()
+        user.time_lost_per_week = (data.get("time_lost_per_week") or "").strip()
+        user.ai_comfort_level = (data.get("ai_comfort_level") or "").strip()
 
     user.save()
     return Response({"success": True, "user_role": user.user_role})
