@@ -164,9 +164,25 @@ class ToolSubmissionAdmin(admin.ModelAdmin):
     actions = ["approve_submissions"]
 
     def approve_submissions(self, request, queryset):
+        approved = 0
+        failed = 0
         for submission in queryset.filter(status="pending"):
-            submission.approve_and_create_tool()
-        self.message_user(request, f"{queryset.count()} submissions approved")
+            try:
+                submission.approve_and_create_tool()
+                approved += 1
+            except Exception as e:
+                failed += 1
+                self.message_user(
+                    request,
+                    f"Failed to approve '{submission.name}': {e}",
+                    level="error",
+                )
+        if approved:
+            self.message_user(request, f"{approved} submission(s) approved.")
+        if not approved and not failed:
+            self.message_user(
+                request, "No pending submissions in the selection.", level="warning"
+            )
 
     approve_submissions.short_description = "Approve selected submissions"
 
