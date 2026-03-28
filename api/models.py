@@ -14,6 +14,23 @@ class User(AbstractUser):
     is_startup = models.BooleanField(
         default=False, help_text="Whether the user is a startup founder"
     )
+    user_role = models.CharField(
+        max_length=50,
+        blank=True,
+        default="",
+        help_text="founder | cofounder | investor | student | professional | other",
+    )
+    startup_name = models.CharField(max_length=255, blank=True, default="")
+    startup_website = models.URLField(blank=True, null=True)
+    startup_stage = models.CharField(max_length=100, blank=True, default="")
+    team_size = models.CharField(max_length=50, blank=True, default="")
+    industry = models.JSONField(default=list, blank=True)
+    challenges = models.JSONField(default=list, blank=True)
+    ai_tasks = models.JSONField(default=list, blank=True)
+    time_lost_per_week = models.CharField(max_length=50, blank=True, default="")
+    ai_comfort_level = models.CharField(max_length=100, blank=True, default="")
+    referral_source = models.CharField(max_length=100, blank=True, default="")
+    profile_completed = models.BooleanField(default=False)
 
     class Meta:
         db_table = "users"

@@ -2,7 +2,13 @@ from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
 from . import pipeline_views, views
-from .auth_views import get_current_user, google_auth, login_user, register_user
+from .auth_views import (
+    complete_profile,
+    get_current_user,
+    google_auth,
+    login_user,
+    register_user,
+)
 from .smart_search_views import decompose_task_search, smart_search_tools
 
 router = DefaultRouter()
@@ -78,6 +84,7 @@ urlpatterns = [
     path("auth/login/", login_user, name="api_login_user"),
     path("auth/google/", google_auth, name="api_google_auth"),
     path("auth/me/", get_current_user, name="api_current_user"),
+    path("auth/complete-profile/", complete_profile, name="complete_profile"),
     # Pipeline API
     path(
         "pipeline/ingest/", pipeline_views.ingest_scraped_data, name="pipeline-ingest"
