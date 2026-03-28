@@ -399,31 +399,39 @@ class ToolSubmission(models.Model):
         super().save(*args, **kwargs)
 
     def approve_and_create_tool(self):
-        """Convert submission to Tool"""
-        tool = Tool.objects.create(
-            name=self.name,
-            description=self.description,
-            short_description=self.short_description
+        """Convert submission to Tool, updating if one with the same name exists.
+
+        Returns a tuple of (tool, created) where *created* is True when a
+        brand-new Tool was inserted and False when an existing one was updated.
+        """
+        defaults = {
+            "description": self.description,
+            "short_description": self.short_description
             or self.enriched_data.get("short_description", ""),
-            website=self.website,
-            logo_url=self.logo_url,
-            tags=self.enriched_data.get("tags", []),
-            use_cases=self.enriched_data.get("use_cases", []),
-            features=self.enriched_data.get("features", []),
-            platforms=self.enriched_data.get("platforms", []),
-            integrations=self.enriched_data.get("integrations", []),
-            startup_benefits=self.enriched_data.get("startup_benefits", ""),
-            ideal_for=self.enriched_data.get("ideal_for", []),
-            pricing_models=self.enriched_data.get("pricing_models", []),
-            pricing_tiers=self.enriched_data.get("pricing_tiers", []),
-            free_tier_available=self.enriched_data.get("free_tier_available", False),
-            startup_friendly=self.enriched_data.get("startup_friendly", False),
-        )
-        tool.categories.set(self.categories.all())
+            "website": self.website,
+            "logo_url": self.logo_url,
+            "tags": self.enriched_data.get("tags", []),
+            "use_cases": self.enriched_data.get("use_cases", []),
+            "features": self.enriched_data.get("features", []),
+            "platforms": self.enriched_data.get("platforms", []),
+            "integrations": self.enriched_data.get("integrations", []),
+            "startup_benefits": self.enriched_data.get("startup_benefits", ""),
+            "ideal_for": self.enriched_data.get("ideal_for", []),
+            "pricing_models": self.enriched_data.get("pricing_models", []),
+            "pricing_tiers": self.enriched_data.get("pricing_tiers", []),
+            "free_tier_available": self.enriched_data.get("free_tier_available", False),
+            "startup_friendly": self.enriched_data.get("startup_friendly", False),
+        }
+        tool, created = Tool.objects.update_or_create(name=self.name, defaults=defaults)
+        if self.categories.exists():
+            if created:
+                tool.categories.set(self.categories.all())
+            else:
+                tool.categories.add(*self.categories.all())
         self.status = "approved"
         self.approved_tool = tool
         self.save()
-        return tool
+        return tool, created
 
     def __str__(self):
         return f"{self.name} - {self.status}"
