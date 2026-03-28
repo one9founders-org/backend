@@ -282,6 +282,17 @@ def complete_profile(request):
         user.ai_tasks = _parse_json_field(data.get("ai_tasks"))
         user.time_lost_per_week = (data.get("time_lost_per_week") or "").strip()
         user.ai_comfort_level = (data.get("ai_comfort_level") or "").strip()
+    else:
+        # Clear stale founder fields when switching to a non-founder role
+        user.startup_name = ""
+        user.startup_website = None
+        user.startup_stage = ""
+        user.team_size = ""
+        user.industry = []
+        user.challenges = []
+        user.ai_tasks = []
+        user.time_lost_per_week = ""
+        user.ai_comfort_level = ""
 
     user.save()
     return Response({"success": True, "user_role": user.user_role})

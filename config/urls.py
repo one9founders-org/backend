@@ -11,7 +11,13 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
-from api.auth_views import get_current_user, google_auth, login_user, register_user
+from api.auth_views import (
+    complete_profile,
+    get_current_user,
+    google_auth,
+    login_user,
+    register_user,
+)
 from rag_directory.search import global_search
 
 
@@ -46,6 +52,7 @@ urlpatterns = [
     path("auth/login/", login_user, name="login_user"),
     path("auth/google/", google_auth, name="google_auth"),
     path("auth/me/", get_current_user, name="current_user"),
+    path("auth/complete-profile/", complete_profile, name="complete_profile_root"),
     # API
     path("api/", include("api.urls")),
     # Extension API (versioned)
