@@ -38,7 +38,7 @@ def inactive_tool(db):
 class TestBasicSearch:
     def test_empty_query_returns_empty_list(self, api_client):
         response = api_client.post(
-            "/api/tools/search/",
+            "/tools/search/",
             {"query": ""},
             format="json",
         )
@@ -56,7 +56,7 @@ class TestBasicSearch:
         mock_faiss.return_value = mock_instance
 
         response = api_client.post(
-            "/api/tools/search/",
+            "/tools/search/",
             {"query": "EmailBot"},
             format="json",
         )
@@ -73,7 +73,7 @@ class TestBasicSearch:
         mock_faiss.return_value = mock_instance
 
         response = api_client.post(
-            "/api/tools/search/",
+            "/tools/search/",
             {"query": "cold emails"},
             format="json",
         )
@@ -90,7 +90,7 @@ class TestBasicSearch:
         mock_faiss.return_value = mock_instance
 
         response = api_client.post(
-            "/api/tools/search/",
+            "/tools/search/",
             {"query": "tool"},
             format="json",
         )
@@ -106,7 +106,7 @@ class TestSmartSearch:
     def test_smart_search_returns_200(self, mock_search, api_client):
         mock_search.return_value = [{"id": 1, "name": "TestTool", "similarity": 0.9}]
         response = api_client.post(
-            "/api/tools/smart-search/",
+            "/tools/smart-search/",
             {"query": "email tools"},
             format="json",
         )
@@ -118,7 +118,7 @@ class TestSmartSearch:
     def test_smart_search_returns_400_for_long_query(self, api_client):
         long_query = "x" * 501
         response = api_client.post(
-            "/api/tools/smart-search/",
+            "/tools/smart-search/",
             {"query": long_query},
             format="json",
         )
@@ -131,7 +131,7 @@ class TestSmartSearch:
     )
     def test_smart_search_graceful_degradation(self, mock_search, api_client):
         response = api_client.post(
-            "/api/tools/smart-search/",
+            "/tools/smart-search/",
             {"query": "email tools"},
             format="json",
         )
