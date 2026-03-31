@@ -97,6 +97,22 @@ class RSSNewsScraper:
             except Exception as e:
                 self.logger.debug(f"BeautifulSoup content parsing error: {e}")
 
+        # 6. Fallback: Request the original article and look for og:image
+        link = entry.get("link", "")
+        if link:
+            try:
+                import requests
+                headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+                # Short timeout so we don't hold up scraping too much
+                res = requests.get(link, headers=headers, timeout=5)
+                if res.status_code == 200:
+                    soup = BeautifulSoup(res.text, "html.parser")
+                    meta_img = soup.find("meta", property="og:image")
+                    if meta_img and meta_img.get("content"):
+                        return meta_img["content"]
+            except Exception as e:
+                self.logger.debug(f"Failed to fetch og:image from {link}: {e}")
+
         return ""
 
     def parse_date(self, entry: Any) -> str:

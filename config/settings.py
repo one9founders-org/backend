@@ -4,9 +4,9 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-load_dotenv()
-
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+load_dotenv(BASE_DIR / ".env")
 
 SECRET_KEY = os.getenv("SECRET_KEY")
 
@@ -39,8 +39,13 @@ INSTALLED_APPS = [
     "django_summernote",
     "storages",
     "django_filters",
+    "django_apscheduler",
     "api",
-    "education",
+    # "education",
+    "agents",
+    "rag_directory",
+    "research_papers",
+    "sentiment",
 ]
 
 MIDDLEWARE = [
@@ -167,7 +172,6 @@ REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_RATES": {
         "anon": "100/hour",
         "user": "1000/hour",
-        "extension": "60/min",
     },
 }
 
@@ -180,11 +184,10 @@ CORS_ALLOWED_ORIGINS = [
 CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^https://one9founders-git-.*-one9founders-projects\.vercel\.app$",
     r"^https://one9founders-.*-one9founders-projects\.vercel\.app$",
-    r"^chrome-extension://.*$",
 ]
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_ALL_ORIGINS = DEBUG
-CORS_ALLOWED_HEADERS = [
+CORS_ALLOW_HEADERS = [
     "accept",
     "accept-encoding",
     "authorization",
@@ -195,7 +198,6 @@ CORS_ALLOWED_HEADERS = [
     "x-csrftoken",
     "x-requested-with",
     "x-session-id",
-    "x-extension-key",
 ]
 CORS_ALLOWED_METHODS = [
     "DELETE",
@@ -212,27 +214,14 @@ AUTHENTICATION_BACKENDS = [
 ]
 
 
-# Cache Configuration (LocMemCache for dev, switch to Redis/ElastiCache for prod)
-CACHES = {
-    "default": {
-        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
-        "LOCATION": "smart-search-cache",
-        "TIMEOUT": 3600,  # 1 hour default
-        "OPTIONS": {
-            "MAX_ENTRIES": 1000,
-        },
-    }
-}
-
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
 
 # Google reCAPTCHA v3 Configuration
 RECAPTCHA_SITE_KEY = os.getenv("RECAPTCHA_SITE_KEY", "")
 RECAPTCHA_SECRET_KEY = os.getenv("RECAPTCHA_SECRET_KEY", "")
 RECAPTCHA_SCORE_THRESHOLD = float(os.getenv("RECAPTCHA_SCORE_THRESHOLD", "0.5"))
-
-# Chrome Extension API Key
-EXTENSION_API_KEY = os.getenv("EXTENSION_API_KEY", "")
 
 
 # Logging Configuration
