@@ -49,6 +49,7 @@ from .models import (
 from .serializers import (
     CategorySerializer,
     DealSerializer,
+    FounderSurveySerializer,
     GuideDetailSerializer,
     GuideListSerializer,
     LabDetailSerializer,
@@ -341,6 +342,22 @@ def add_tool(request):
     if serializer.is_valid():
         tool = serializer.save()
         return Response(ToolDetailSerializer(tool).data, status=status.HTTP_201_CREATED)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def submit_founder_survey(request):
+    serializer = FounderSurveySerializer(data=request.data)
+    if serializer.is_valid():
+        ip = request.META.get("HTTP_X_FORWARDED_FOR", "").split(",")[
+            0
+        ].strip() or request.META.get("REMOTE_ADDR")
+        try:
+            serializer.save(ip_address=ip or None)
+        except Exception:
+            serializer.save(ip_address=None)
+        return Response({"status": "ok"}, status=status.HTTP_201_CREATED)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 

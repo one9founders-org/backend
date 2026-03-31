@@ -6,6 +6,7 @@ from import_export.admin import ImportExportModelAdmin
 from .models import (
     Category,
     Deal,
+    FounderSurvey,
     Guide,
     Lab,
     News,
@@ -194,6 +195,23 @@ class ToolSubmissionAdmin(admin.ModelAdmin):
             )
 
     approve_submissions.short_description = "Approve selected submissions"
+
+
+@admin.register(FounderSurvey)
+class FounderSurveyAdmin(admin.ModelAdmin):
+    list_display = [
+        "name",
+        "startup",
+        "stage",
+        "area",
+        "pain_score",
+        "willingness_to_pay",
+        "created_at",
+    ]
+    list_filter = ["stage", "area", "willingness_to_pay", "pain_score"]
+    search_fields = ["name", "startup", "contact", "time_wasting_task"]
+    readonly_fields = ["created_at", "ip_address"]
+    ordering = ["-created_at"]
 
 
 admin.site.register(UserFavorite)
