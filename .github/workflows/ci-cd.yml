@@ -142,8 +142,10 @@ jobs:
           timeout: 120s
           script: |
             set -e
-            cd /var/www/one9founders
+            cd /var/www/one9founders           
+            git stash
             git pull origin main
+
 
             # Record git SHA for Sentry release tracking
             sed -i '/^GIT_SHA=/d' .env
@@ -164,5 +166,8 @@ jobs:
             # This downloads the S3 index on the next cold start automatically.
             # Only rebuilds if tools have changed — the command is idempotent.
             docker compose exec -T web python manage.py build_faiss_index
+            # Trigger an initial news scrape immediately after deploy
+            docker compose exec -T web python manage.py run_news_pipeline
+
 
             echo "Deploy complete."
