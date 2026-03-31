@@ -1,6 +1,8 @@
 import logging
+
 from django.core.management.base import BaseCommand
 from django.utils import timezone
+
 from api.pipeline_engine import PipelineOrchestrator, ingest_scraper_output
 from scrapers.rss_news.scraper import RSSNewsScraper
 
