@@ -199,7 +199,7 @@ CORS_ALLOWED_ORIGIN_REGEXES = [
 ]
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_ALL_ORIGINS = DEBUG
-CORS_ALLOWED_HEADERS = [
+CORS_ALLOW_HEADERS = [
     "accept",
     "accept-encoding",
     "authorization",
