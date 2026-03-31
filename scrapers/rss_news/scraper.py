@@ -1,4 +1,3 @@
-import logging
 import sys
 import time
 from datetime import datetime, timezone
@@ -11,8 +10,8 @@ from bs4 import BeautifulSoup
 # Add the project root to sys.path to import utils
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from utils.logger import setup_logging
-from utils.output import OutputWriter, normalize_item
+from utils.logger import setup_logging  # noqa: E402
+from utils.output import OutputWriter, normalize_item  # noqa: E402
 
 # RSS Feeds to scrape
 RSS_SOURCES = {
@@ -104,7 +103,10 @@ class RSSNewsScraper:
                 import requests
 
                 headers = {
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+                    "User-Agent": (
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                        "AppleWebKit/537.36"
+                    )
                 }
                 # Short timeout so we don't hold up scraping too much
                 res = requests.get(link, headers=headers, timeout=5)

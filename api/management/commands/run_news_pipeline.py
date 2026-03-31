@@ -64,7 +64,8 @@ class Command(BaseCommand):
             if run.status == "completed":
                 self.stdout.write(
                     self.style.SUCCESS(
-                        f"Pipeline Run Completed: {run.items_succeeded} succeeded, {run.items_failed} failed"
+                        f"Pipeline Completed: {run.items_succeeded} succeeded, "
+                        f"{run.items_failed} failed"
                     )
                 )
             else:
