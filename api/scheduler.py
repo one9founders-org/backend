@@ -6,21 +6,24 @@ from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
+
 def run_news_pipeline_job():
     """Job to trigger the news automation pipeline every 2 hours."""
     logger.info("Scheduler: Starting scheduled news pipeline run...")
     try:
         # Call the management command we created earlier
-        call_command('run_news_pipeline', limit=10, publish_limit=5)
+        call_command("run_news_pipeline", limit=10, publish_limit=5)
         logger.info("Scheduler: News pipeline run completed successfully.")
     except Exception as e:
         logger.error(f"Scheduler: Error running news pipeline: {e}")
+
 
 def start():
     """Initialize and start the background scheduler."""
     # Prevent multiple schedulers in dev with auto-reload or multi-worker production
     import os
-    if settings.DEBUG and os.environ.get('RUN_MAIN') != 'true':
+
+    if settings.DEBUG and os.environ.get("RUN_MAIN") != "true":
         return
 
     scheduler = BackgroundScheduler(timezone=settings.TIME_ZONE)
@@ -30,9 +33,9 @@ def start():
     # Using 'interval' instead of 'cron' for simplicity and immediate first run
     scheduler.add_job(
         run_news_pipeline_job,
-        trigger='interval',
+        trigger="interval",
         minutes=120,
-        id='news_pipeline_job',
+        id="news_pipeline_job",
         max_instances=1,
         replace_existing=True,
     )

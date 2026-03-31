@@ -102,7 +102,10 @@ class RSSNewsScraper:
         if link:
             try:
                 import requests
-                headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+
+                headers = {
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+                }
                 # Short timeout so we don't hold up scraping too much
                 res = requests.get(link, headers=headers, timeout=5)
                 if res.status_code == 200:

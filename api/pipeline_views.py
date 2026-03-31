@@ -234,7 +234,14 @@ def ingest_scraped_data(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    valid_sources = ["producthunt", "taaft", "futurepedia", "huggingface", "rss_news", "manual"]
+    valid_sources = [
+        "producthunt",
+        "taaft",
+        "futurepedia",
+        "huggingface",
+        "rss_news",
+        "manual",
+    ]
     if source not in valid_sources:
         return Response(
             {"error": f"Invalid source. Must be one of: {valid_sources}"},
