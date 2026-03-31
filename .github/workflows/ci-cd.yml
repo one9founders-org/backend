@@ -158,6 +158,9 @@ jobs:
             sed -i '/^GIT_SHA=/d' .env
             echo "GIT_SHA=$(git rev-parse --short HEAD)" >> .env
 
+            # Clean up old Docker images/volumes on the server to free space
+            docker system prune -f
+            
             # Rebuild and restart containers
             docker compose down
             DOCKER_BUILDKIT=1 docker compose build --build-arg BUILDKIT_INLINE_CACHE=1
