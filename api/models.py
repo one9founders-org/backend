@@ -870,6 +870,7 @@ class FounderSurvey(models.Model):
     ip_address = models.GenericIPAddressField(null=True, blank=True)
 
     class Meta:
+        db_table = "founder_surveys"
         ordering = ["-created_at"]
         verbose_name = "Founder Survey Response"
         verbose_name_plural = "Founder Survey Responses"
