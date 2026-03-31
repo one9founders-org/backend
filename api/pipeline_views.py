@@ -234,7 +234,7 @@ def ingest_scraped_data(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    valid_sources = ["producthunt", "taaft", "futurepedia", "huggingface", "manual"]
+    valid_sources = ["producthunt", "taaft", "futurepedia", "huggingface", "rss_news", "manual"]
     if source not in valid_sources:
         return Response(
             {"error": f"Invalid source. Must be one of: {valid_sources}"},
@@ -475,7 +475,7 @@ def run_scraper(request):
     limit = int(request.data.get("limit", 50))
     days_back = float(request.data.get("days_back", 1))
 
-    valid_sources = ["producthunt", "taaft", "futurepedia", "huggingface"]
+    valid_sources = ["producthunt", "taaft", "futurepedia", "huggingface", "rss_news"]
     if not source or source not in valid_sources:
         return Response(
             {"error": f"Invalid source. Must be one of: {valid_sources}"},
@@ -520,6 +520,12 @@ def run_scraper(request):
             from scrapers.futurepedia.scraper import FuturepediaScraper
 
             scraper = FuturepediaScraper(headless=True, limit_per_category=limit)
+            items = scraper.scrape()
+
+        elif source == "rss_news":
+            from scrapers.rss_news.scraper import RSSNewsScraper
+
+            scraper = RSSNewsScraper()
             items = scraper.scrape()
 
         added, skipped = ingest_scraper_output(source, items, batch_id)
