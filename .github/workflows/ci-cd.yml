@@ -129,12 +129,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Free disk space
+      - name: Free disk space (Nuclear Cleanup)
         run: |
           sudo rm -rf /usr/share/dotnet
           sudo rm -rf /usr/local/lib/android
           sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/share/boost
+          sudo rm -rf /opt/hostedtoolcache
           sudo docker image prune -a --force
+          sudo docker system prune -af
+          df -h
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -146,7 +150,7 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           port: 22
-          timeout: 600s
+          timeout: 900s
           script: |
             set -e
             cd /var/www/one9founders           
@@ -163,7 +167,7 @@ jobs:
             
             # Rebuild and restart containers
             docker compose down
-            DOCKER_BUILDKIT=1 docker compose build --build-arg BUILDKIT_INLINE_CACHE=1
+            DOCKER_BUILDKIT=1 docker compose build --build-arg BUILDKIT_INLINE_CACHE=1 --progress=plain
             docker compose up -d
 
             # Run migrations
