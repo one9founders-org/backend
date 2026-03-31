@@ -55,6 +55,7 @@ urlpatterns = [
     path(
         "newsletter/subscribe/", views.subscribe_newsletter, name="newsletter-subscribe"
     ),
+    path("founder-survey/", views.submit_founder_survey, name="founder-survey"),
     # Tracking endpoints
     path("track/usage/", views.track_tool_usage, name="track-tool-usage"),
     path("track/click/", views.track_tool_click, name="track-tool-click"),
