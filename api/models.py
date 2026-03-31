@@ -458,3 +458,30 @@ class News(models.Model):
         db_table = "news"
         verbose_name_plural = "News"
         ordering = ["-published_at"]
+
+
+class FounderSurvey(models.Model):
+    name = models.CharField(max_length=200, blank=True)
+    startup = models.CharField(max_length=300, blank=True)
+    stage = models.CharField(max_length=50, blank=True)
+    time_wasting_task = models.TextField()
+    area = models.CharField(max_length=100, blank=True)
+    hours_per_week = models.CharField(max_length=20, blank=True)
+    pain_score = models.CharField(max_length=5, blank=True)
+    tried_to_solve = models.TextField(blank=True)
+    freed_time_use = models.TextField(blank=True)
+    willingness_to_pay = models.CharField(max_length=100, blank=True)
+    contact = models.CharField(max_length=200, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "Founder Survey Response"
+        verbose_name_plural = "Founder Survey Responses"
+
+    def __str__(self):
+        return (
+            f"{self.name or 'Anonymous'} \u2013 "
+            f"{self.startup or 'Unknown startup'} ({self.created_at.date()})"
+        )

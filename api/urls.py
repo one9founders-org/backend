@@ -20,6 +20,7 @@ urlpatterns = [
     path(
         "newsletter/subscribe/", views.subscribe_newsletter, name="newsletter-subscribe"
     ),
+    path("founder-survey/", views.submit_founder_survey, name="founder-survey"),
     # Authentication
     path("auth/register/", register_user, name="register_user"),
     path("auth/login/", login_user, name="login_user"),

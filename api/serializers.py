@@ -4,6 +4,7 @@ from rest_framework import serializers
 from .models import (
     Category,
     Deal,
+    FounderSurvey,
     News,
     NewsletterSubscription,
     Review,
@@ -173,6 +174,24 @@ class ToolSubmissionSerializer(serializers.ModelSerializer):
             "created_at",
         ]
         read_only_fields = ["created_at"]
+
+
+class FounderSurveySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = FounderSurvey
+        fields = [
+            "name",
+            "startup",
+            "stage",
+            "time_wasting_task",
+            "area",
+            "hours_per_week",
+            "pain_score",
+            "tried_to_solve",
+            "freed_time_use",
+            "willingness_to_pay",
+            "contact",
+        ]
 
 
 class UserFavoriteSerializer(serializers.ModelSerializer):
