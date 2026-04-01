@@ -1,6 +1,8 @@
 # exclude sensitive environment variables and Python virtual environment folder
 .env
 /myenv
+venv/
+.venv/
 
 # exclude files and folders related to version control
 .git/
