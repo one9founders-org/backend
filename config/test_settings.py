@@ -6,8 +6,12 @@ DEBUG = True
 
 DATABASES = {
     "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "test_db.sqlite3",
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": os.getenv("DATABASE_NAME", "test_one9founders"),
+        "USER": os.getenv("DATABASE_USER", "one9testuser"),
+        "PASSWORD": os.getenv("DATABASE_PASSWORD", "one9testpass"),
+        "HOST": os.getenv("DATABASE_HOST", "localhost"),
+        "PORT": os.getenv("DATABASE_PORT", "5432"),
     }
 }
 
