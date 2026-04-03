@@ -21,14 +21,15 @@ cryptography==43.0.3
 # ─── AI / ML ────────────────────────────────────────────────────────────────
 # Machine Learning & AI
 --find-links https://download.pytorch.org/whl/cpu
+numpy==1.26.4
 torch==2.1.2
 torchvision==0.16.2
 torchaudio==2.1.2
 sentence-transformers==3.0.1
+transformers==4.38.2
 faiss-cpu==1.9.0
 openai>=1.0.0
 anthropic>=0.40.0
-numpy
 scikit-learn
 nltk
 newspaper3k

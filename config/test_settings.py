@@ -1,41 +1,35 @@
-# flake8: noqa
+from config.settings import *  # noqa: F401, F403
 
-import os
+# Override test-specific settings
+DEBUG = True
 
-from .settings import *
-
-# Test database
 DATABASES = {
     "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": "test_one9founders",
-        "USER": "one9testuser",
-        "PASSWORD": "one9testpass",
-        "HOST": "localhost",
-        "PORT": "5432",
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": BASE_DIR / "test_db.sqlite3",
     }
 }
 
-# Use in-memory cache for tests
+# Simplify password hashing for faster tests
+PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
+
+# Use a fast local cache instead of production Redis
 CACHES = {
     "default": {
         "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
     }
 }
 
-# Disable logging during tests
-LOGGING_CONFIG = None
+# Disable Sentry for tests
+SENTRY_DSN = ""
 
-# Use console email backend for tests
-EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+# Disable S3 and use local storage for tests
+DEFAULT_FILE_STORAGE = "django.core.files.storage.FileSystemStorage"
+MEDIA_ROOT = BASE_DIR / "test_media"
 
-# Disable CSRF for API tests
-REST_FRAMEWORK["DEFAULT_AUTHENTICATION_CLASSES"] = []
+# Disable FAISS S3 uploading/downloading in tests
+S3_FAISS_BUCKET_NAME = None
+S3_INDEX_FILE_PATH = None
 
-# Test-specific settings
-PASSWORD_HASHERS = [
-    "django.contrib.auth.hashers.MD5PasswordHasher",
-]
-
-# Use API key from environment
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+# Ensure the news pipeline doesn't actually try to scrape external RSS in basic tests
+SKIP_NEWS_SCRAPING = True
