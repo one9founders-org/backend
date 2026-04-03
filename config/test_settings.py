@@ -1,4 +1,5 @@
 from config.settings import *  # noqa: F401, F403
+from config.settings import BASE_DIR
 
 # Override test-specific settings
 DEBUG = True
