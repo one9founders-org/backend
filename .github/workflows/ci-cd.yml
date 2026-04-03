@@ -177,10 +177,9 @@ jobs:
             docker compose exec -T web python manage.py collectstatic --noinput
 
             # FIX: Rebuild FAISS index and upload to S3 so search works after deploy
-            # This downloads the S3 index on the next cold start automatically.
-            # Only rebuilds if tools have changed — the command is idempotent.
             docker compose exec -T web python manage.py build_faiss_index
-            # Trigger an initial news scrape immediately after deploy
+
+            # REFRESH: Manually trigger the news pipeline to fetch fresh news for today
             docker compose exec -T web python manage.py run_news_pipeline
 
 
