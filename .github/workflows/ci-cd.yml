@@ -154,8 +154,8 @@ jobs:
           script: |
             set -e
             cd /var/www/one9founders           
-            git stash
-            git pull origin main
+            git fetch origin main
+            git reset --hard origin/main
 
 
             # Record git SHA for Sentry release tracking
@@ -163,7 +163,7 @@ jobs:
             echo "GIT_SHA=$(git rev-parse --short HEAD)" >> .env
 
             # Clean up old Docker images/volumes on the server to free space
-            docker system prune -f
+            docker system prune -af
             
             # Rebuild and restart containers
             docker compose down
