@@ -151,6 +151,11 @@ AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
 AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 AWS_STORAGE_BUCKET_NAME = "files.one9founders.com"
 AWS_S3_REGION_NAME = os.getenv("AWS_S3_REGION_NAME", "ap-south-1")
+
+# Bucket used to persist the FAISS search index across deploys.
+# Decoupled from the media bucket so the index can live in an accessible bucket
+# even if the media bucket is unavailable. Falls back to the media bucket.
+S3_FAISS_BUCKET_NAME = os.getenv("S3_FAISS_BUCKET_NAME", AWS_STORAGE_BUCKET_NAME)
 AWS_S3_CUSTOM_DOMAIN = "files.one9founders.com"
 AWS_DEFAULT_ACL = None
 AWS_S3_OBJECT_PARAMETERS = {

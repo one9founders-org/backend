@@ -44,6 +44,14 @@ def _get_s3_client():
     )
 
 
+def _faiss_bucket():
+    """Bucket used to persist the FAISS index (decoupled from media bucket)."""
+    return (
+        getattr(settings, "S3_FAISS_BUCKET_NAME", None)
+        or settings.AWS_STORAGE_BUCKET_NAME
+    )
+
+
 def _download_index_from_s3() -> bool:
     """Download FAISS index + metadata from S3 to local cache.
 
@@ -51,7 +59,7 @@ def _download_index_from_s3() -> bool:
     """
     try:
         s3 = _get_s3_client()
-        bucket = settings.AWS_STORAGE_BUCKET_NAME
+        bucket = _faiss_bucket()
         os.makedirs(FAISS_INDEX_DIR, exist_ok=True)
 
         s3.download_file(bucket, S3_INDEX_KEY, FAISS_INDEX_PATH)
@@ -67,7 +75,7 @@ def _upload_index_to_s3() -> bool:
     """Upload freshly built FAISS index + metadata to S3. Returns True on success."""
     try:
         s3 = _get_s3_client()
-        bucket = settings.AWS_STORAGE_BUCKET_NAME
+        bucket = _faiss_bucket()
 
         s3.upload_file(FAISS_INDEX_PATH, bucket, S3_INDEX_KEY)
         s3.upload_file(FAISS_METADATA_PATH, bucket, S3_METADATA_KEY)
