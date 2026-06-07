@@ -87,6 +87,12 @@ DATABASES = {
         "PASSWORD": os.getenv("DATABASE_PASSWORD"),
         "HOST": os.getenv("DATABASE_HOST"),
         "PORT": os.getenv("DATABASE_PORT", "5432"),
+        # Fail fast on an unreachable DB instead of hanging gunicorn workers
+        # (an unreachable DB previously pinned every worker until SIGKILL -> 502).
+        "CONN_MAX_AGE": int(os.getenv("DATABASE_CONN_MAX_AGE", "60")),
+        "OPTIONS": {
+            "connect_timeout": int(os.getenv("DATABASE_CONNECT_TIMEOUT", "5")),
+        },
     }
 }
 
