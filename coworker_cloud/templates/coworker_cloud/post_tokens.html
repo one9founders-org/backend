@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Returning to OpenWorker…</title>
+  <style>
+    body {
+      font-family: ui-sans-serif, system-ui, sans-serif;
+      display: grid;
+      place-items: center;
+      min-height: 100vh;
+      margin: 0;
+      background: #f4f1ea;
+      color: #0f1419;
+    }
+  </style>
+</head>
+<body>
+  <p>Finishing connection — returning to OpenWorker…</p>
+  <form id="f" method="POST" action="{{ sidecar_redirect }}">
+    {% for key, value in fields.items %}
+      <input type="hidden" name="{{ key }}" value="{{ value }}" />
+    {% endfor %}
+  </form>
+  <script>document.getElementById("f").submit();</script>
+</body>
+</html>

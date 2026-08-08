@@ -69,6 +69,8 @@ urlpatterns = [
     path("v1/papers/", include("research_papers.urls")),
     # Global Search
     path("v1/search/", global_search, name="global-search"),
+    # One9Founders Cloud (OpenWorker sign-in + managed OAuth broker)
+    path("", include("coworker_cloud.urls")),
 ]
 
 if settings.DEBUG:
