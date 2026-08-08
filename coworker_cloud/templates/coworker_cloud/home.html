@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>One9Founders Cloud</title>
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      font-family: Georgia, serif;
+      background: #f4f1ea;
+      color: #0f1419;
+      padding: 24px;
+    }
+    main { max-width: 520px; }
+    h1 { font-size: 2rem; margin: 0 0 12px; }
+    p { color: #5b6570; line-height: 1.5; font-family: ui-sans-serif, system-ui, sans-serif; }
+    code {
+      display: block;
+      background: #fffdf8;
+      border: 1px solid #e4ddd0;
+      padding: 14px 16px;
+      font-size: 12.5px;
+      white-space: pre-wrap;
+      margin-top: 20px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>One9Founders Cloud</h1>
+    <p>
+      OpenWorker-compatible sign-in and OAuth broker. Point a local OpenWorker
+      <code style="display:inline;padding:2px 6px;">config.toml</code> here so
+      account data stays with One9Founders.
+    </p>
+    <code>cloud_base_url = "{{ public_url }}"
+cloud_auth_domain = "{{ auth_domain }}"
+cloud_client_id = "{{ client_id }}"
+cloud_audience = "{{ public_url }}"</code>
+  </main>
+</body>
+</html>

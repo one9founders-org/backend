@@ -6,16 +6,24 @@ from config.settings import BASE_DIR
 # Override test-specific settings
 DEBUG = True
 
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": os.getenv("DATABASE_NAME", "test_one9founders"),
-        "USER": os.getenv("DATABASE_USER", "one9testuser"),
-        "PASSWORD": os.getenv("DATABASE_PASSWORD", "one9testpass"),
-        "HOST": os.getenv("DATABASE_HOST", "localhost"),
-        "PORT": os.getenv("DATABASE_PORT", "5432"),
+if os.getenv("USE_SQLITE_TESTS") == "1":
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": ":memory:",
+        }
     }
-}
+else:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": os.getenv("DATABASE_NAME", "test_one9founders"),
+            "USER": os.getenv("DATABASE_USER", "one9testuser"),
+            "PASSWORD": os.getenv("DATABASE_PASSWORD", "one9testpass"),
+            "HOST": os.getenv("DATABASE_HOST", "localhost"),
+            "PORT": os.getenv("DATABASE_PORT", "5432"),
+        }
+    }
 
 # Simplify password hashing for faster tests
 PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]

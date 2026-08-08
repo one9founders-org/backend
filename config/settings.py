@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     "storages",
     "django_filters",
     "api",
+    "coworker_cloud",
     "education",
     "agents",
     "rag_directory",
@@ -299,8 +300,10 @@ LOGGING = {
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=60),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
-    "ROTATE_REFRESH_TOKENS": True,
-    "BLACKLIST_AFTER_ROTATION": True,
+    # Rotation without token_blacklist app would break refresh; keep rotation off
+    # until rest_framework_simplejwt.token_blacklist is installed + migrated.
+    "ROTATE_REFRESH_TOKENS": False,
+    "BLACKLIST_AFTER_ROTATION": False,
     "UPDATE_LAST_LOGIN": True,
     "ALGORITHM": "HS256",
     "SIGNING_KEY": SECRET_KEY,
@@ -347,3 +350,15 @@ if SENTRY_DSN:
 SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
 X_FRAME_OPTIONS = "DENY"
+
+# One9Founders Cloud — OpenWorker-compatible OAuth broker
+# Point OpenWorker config.toml cloud_* fields at this service.
+COWORKER_CLOUD_CLIENT_ID = os.getenv(
+    "COWORKER_CLOUD_CLIENT_ID", "one9founders-openworker-dev"
+)
+COWORKER_CLOUD_PUBLIC_URL = os.getenv(
+    "COWORKER_CLOUD_PUBLIC_URL", "http://127.0.0.1:8000"
+).rstrip("/")
+COWORKER_CLOUD_AUDIENCE = os.getenv(
+    "COWORKER_CLOUD_AUDIENCE", COWORKER_CLOUD_PUBLIC_URL
+)
