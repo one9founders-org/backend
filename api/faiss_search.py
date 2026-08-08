@@ -214,7 +214,10 @@ class FAISSSearchService:
 
         logger.info("Generating FAISS embeddings for %d tools …", len(texts))
         embeddings = self.model.encode(
-            texts, show_progress_bar=True, normalize_embeddings=True
+            texts,
+            batch_size=8,
+            show_progress_bar=True,
+            normalize_embeddings=True,
         )
         embeddings = np.array(embeddings, dtype=np.float32)
 
