@@ -23,7 +23,6 @@ from coworker_cloud.views_broker import (
     _loopback_port_from_state,
 )
 
-
 User = get_user_model()
 
 CLIENT_ID = "one9founders-openworker-dev"
@@ -238,7 +237,10 @@ class TestBrokerApi:
     def test_oauth_start_rejects_unsigned(self, api):
         r = api.post(
             "/v1/oauth/google/start",
-            data='{"connector":"gmail","redirect":"http://127.0.0.1:8765/oauth/callback","app_state":"s1"}',
+            data=(
+                '{"connector":"gmail",'
+                '"redirect":"http://127.0.0.1:8765/oauth/callback","app_state":"s1"}'
+            ),
             content_type="application/json",
         )
         assert r.status_code == 401
@@ -246,7 +248,10 @@ class TestBrokerApi:
     def test_oauth_start_rejects_bad_redirect(self, api, bearer):
         r = api.post(
             "/v1/oauth/google/start",
-            data='{"connector":"gmail","redirect":"http://evil.com/oauth/callback","app_state":"s1"}',
+            data=(
+                '{"connector":"gmail",'
+                '"redirect":"http://evil.com/oauth/callback","app_state":"s1"}'
+            ),
             content_type="application/json",
             HTTP_AUTHORIZATION=f"Bearer {bearer}",
         )
