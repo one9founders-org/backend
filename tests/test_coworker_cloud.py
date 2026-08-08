@@ -7,7 +7,7 @@ from datetime import timedelta
 from unittest.mock import MagicMock, patch
 
 import pytest
-from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
 from django.test import Client
 from django.utils import timezone
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -23,6 +23,8 @@ from coworker_cloud.views_broker import (
     _loopback_port_from_state,
 )
 
+
+User = get_user_model()
 
 CLIENT_ID = "one9founders-openworker-dev"
 PUBLIC = "http://127.0.0.1:8000"
