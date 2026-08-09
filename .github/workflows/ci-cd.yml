@@ -187,16 +187,15 @@ jobs:
             # Collect static files
             docker compose exec -T web python manage.py collectstatic --noinput
 
-            # FIX: Rebuild FAISS index and upload to S3 so search works after deploy.
-            # Best-effort: this box has OOM'd on the encode step before (exit 137).
+            # FIX: Rebuild FAISS index and upload to S3, and refresh news — both
+            # best-effort and detached (docker compose exec -d), NOT awaited.
             # The site is already live at this point (containers up, migrations run,
-            # static collected) — don't let a reindex crash mark the whole deploy
-            # failed or block the news pipeline below.
-            docker compose exec -T web python manage.py build_faiss_index || \
-              echo "::warning::build_faiss_index failed — stale index served until next successful run"
-
-            # REFRESH: Manually trigger the news pipeline to fetch fresh news for today
-            docker compose exec -T web python manage.py run_news_pipeline || \
-              echo "::warning::run_news_pipeline failed — news left unrefreshed until next successful run"
+            # static collected). Encoding all ~26k tools takes far longer than this
+            # SSH step's timeout, and previously OOM'd (exit 137) on this box — either
+            # way, waiting on it here risked killing the whole SSH session (and thus
+            # skipping the step after it) instead of just leaving a stale index/news
+            # until the job's next successful run.
+            docker compose exec -d web python manage.py build_faiss_index
+            docker compose exec -d web python manage.py run_news_pipeline
 
             echo "Deploy complete."
