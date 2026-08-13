@@ -51,10 +51,9 @@ class CategorySerializer(serializers.ModelSerializer):
         return obj.tools.filter(is_active=True).count()
 
 
-class ToolAssessmentSerializerMixin:
+class ToolAssessmentSerializerMixin(serializers.Serializer):
     rating_status = serializers.SerializerMethodField()
     security_status = serializers.SerializerMethodField()
-    overall_score = serializers.FloatField(allow_null=True, required=False)
 
     def get_rating_status(self, obj):
         return obj.get_rating_status()
