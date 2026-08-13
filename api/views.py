@@ -19,6 +19,7 @@ from django.http import JsonResponse
 from django.utils import timezone
 from openai import OpenAI
 from rest_framework import status, viewsets
+from rest_framework.authentication import SessionAuthentication
 from rest_framework.decorators import (
     action,
     api_view,
@@ -26,10 +27,11 @@ from rest_framework.decorators import (
     permission_classes,
 )
 from rest_framework.pagination import PageNumberPagination
-from rest_framework.permissions import AllowAny, IsAdminUser
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework_simplejwt.authentication import JWTAuthentication
 
+from .authentication import OptionalJWTAuthentication
 from .models import (
     Category,
     Deal,
@@ -46,6 +48,7 @@ from .models import (
     ToolUsage,
     Workshop,
 )
+from .permissions import IsStaffOrNotFound, IsStaffOrReadOnly
 from .serializers import (
     CategorySerializer,
     DealSerializer,
@@ -137,12 +140,13 @@ def _run_search(query: str):
 
 class ToolViewSet(viewsets.ModelViewSet):
     queryset = Tool.objects.filter(is_active=True).prefetch_related("categories")
-    permission_classes = [AllowAny]
+    authentication_classes = [OptionalJWTAuthentication, SessionAuthentication]
+    permission_classes = [IsStaffOrReadOnly]
     lookup_field = "slug"
     pagination_class = CustomPageNumberPagination
 
     def get_serializer_class(self):
-        if self.action == "retrieve":
+        if self.action in ("retrieve", "create", "update", "partial_update"):
             return ToolDetailSerializer
         return ToolListSerializer
 
@@ -168,6 +172,10 @@ class ToolViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(is_featured=True)
         if startup_friendly:
             queryset = queryset.filter(startup_friendly=True)
+
+        ordering = self.request.query_params.get("ordering")
+        if ordering:
+            queryset = queryset.order_by(*ordering.split(","))
 
         return queryset.distinct()
 
@@ -286,8 +294,15 @@ def subscribe_newsletter(request):
 class ToolSubmissionViewSet(viewsets.ModelViewSet):
     queryset = ToolSubmission.objects.all().order_by("-created_at")
     serializer_class = ToolSubmissionSerializer
-    permission_classes = [AllowAny]
-    authentication_classes = [JWTAuthentication]
+    authentication_classes = [OptionalJWTAuthentication, SessionAuthentication]
+    permission_classes = [IsStaffOrNotFound]
+
+    def get_permissions(self):
+        # Public tool-submit form may create a submission. Listing, editing,
+        # deleting, and approving (which writes the tools table) are staff-only.
+        if self.action == "create":
+            return [AllowAny()]
+        return [IsStaffOrNotFound()]
 
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -335,8 +350,8 @@ def search_tools(request):
 
 
 @api_view(["POST"])
-@permission_classes([AllowAny])
-@authentication_classes([JWTAuthentication])
+@permission_classes([IsStaffOrNotFound])
+@authentication_classes([OptionalJWTAuthentication, SessionAuthentication])
 def add_tool(request):
     serializer = ToolDetailSerializer(data=request.data)
     if serializer.is_valid():
@@ -362,7 +377,8 @@ def submit_founder_survey(request):
 
 
 @api_view(["POST"])
-@permission_classes([IsAdminUser])
+@permission_classes([IsStaffOrNotFound])
+@authentication_classes([OptionalJWTAuthentication, SessionAuthentication])
 def sync_lacreme(request):
     from .lacreme_scraper import run
 
@@ -523,6 +539,22 @@ def trending_tools(request):
     )
 
     return Response(TrendingToolSerializer(tools, many=True).data)
+
+
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def tool_directory_stats(request):
+    """Live directory totals — the same count the paginated listing uses."""
+    qs = Tool.objects.filter(is_active=True)
+    return Response(
+        {
+            "count": qs.count(),
+            "fully_assessed_count": qs.filter(criteria_completed=10).count(),
+            "provisionally_assessed_count": qs.filter(
+                criteria_completed__gte=6, criteria_completed__lt=10
+            ).count(),
+        }
+    )
 
 
 @api_view(["GET"])

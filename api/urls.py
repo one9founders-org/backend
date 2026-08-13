@@ -61,6 +61,7 @@ urlpatterns = [
     path("track/click/", views.track_tool_click, name="track-tool-click"),
     path("track/search/", views.track_search_query, name="track-search-query"),
     path("tools/trending/", views.trending_tools, name="trending-tools"),
+    path("tools/stats/", views.tool_directory_stats, name="tool-directory-stats"),
     path(
         "tools/<int:tool_id>/usage-count/",
         views.tool_usage_count,

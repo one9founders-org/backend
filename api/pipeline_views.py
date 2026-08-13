@@ -9,10 +9,18 @@ from datetime import timedelta
 from django.db.models import Count, Q
 from django.utils import timezone
 from rest_framework import status, viewsets
-from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.authentication import SessionAuthentication
+from rest_framework.decorators import (
+    action,
+    api_view,
+    authentication_classes,
+    permission_classes,
+)
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
+from .authentication import OptionalJWTAuthentication
+from .permissions import IsStaffOrNotFound
 from .pipeline_engine import PipelineOrchestrator, ingest_scraper_output
 from .pipeline_models import (
     NewsDraft,
@@ -31,6 +39,7 @@ from .pipeline_serializers import (
     ScrapedItemSerializer,
 )
 
+_ADMIN_AUTH = [OptionalJWTAuthentication, SessionAuthentication]
 logger = logging.getLogger(__name__)
 
 
@@ -39,7 +48,8 @@ class ScrapedItemViewSet(viewsets.ReadOnlyModelViewSet):
 
     queryset = ScrapedItem.objects.all()
     serializer_class = ScrapedItemSerializer
-    permission_classes = [AllowAny]
+    authentication_classes = _ADMIN_AUTH
+    permission_classes = [IsStaffOrNotFound]
 
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -64,7 +74,8 @@ class QualifiedNewsItemViewSet(viewsets.ModelViewSet):
 
     queryset = QualifiedNewsItem.objects.all().select_related("scraped_item")
     serializer_class = QualifiedNewsItemSerializer
-    permission_classes = [AllowAny]
+    authentication_classes = _ADMIN_AUTH
+    permission_classes = [IsStaffOrNotFound]
 
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -113,7 +124,8 @@ class NewsDraftViewSet(viewsets.ModelViewSet):
 
     queryset = NewsDraft.objects.all().select_related("qualified_item__scraped_item")
     serializer_class = NewsDraftSerializer
-    permission_classes = [AllowAny]
+    authentication_classes = _ADMIN_AUTH
+    permission_classes = [IsStaffOrNotFound]
 
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -167,7 +179,8 @@ class PublishedArticleViewSet(viewsets.ReadOnlyModelViewSet):
 
     queryset = PublishedArticle.objects.all().select_related("news", "draft")
     serializer_class = PublishedArticleSerializer
-    permission_classes = [AllowAny]
+    authentication_classes = _ADMIN_AUTH
+    permission_classes = [IsStaffOrNotFound]
 
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -189,7 +202,8 @@ class PipelineRunViewSet(viewsets.ReadOnlyModelViewSet):
 
     queryset = PipelineRun.objects.all()
     serializer_class = PipelineRunSerializer
-    permission_classes = [AllowAny]
+    authentication_classes = _ADMIN_AUTH
+    permission_classes = [IsStaffOrNotFound]
 
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -298,7 +312,8 @@ def run_pipeline(request):
 
 
 @api_view(["GET"])
-@permission_classes([AllowAny])
+@authentication_classes(_ADMIN_AUTH)
+@permission_classes([IsStaffOrNotFound])
 def pipeline_stats(request):
     """Get pipeline statistics and status."""
     today = timezone.now().date()
@@ -356,7 +371,8 @@ def pipeline_stats(request):
 
 
 @api_view(["GET", "POST"])
-@permission_classes([AllowAny])
+@authentication_classes(_ADMIN_AUTH)
+@permission_classes([IsStaffOrNotFound])
 def pipeline_config(request):
     """Get or update pipeline configuration."""
     if request.method == "GET":
@@ -383,7 +399,8 @@ def pipeline_config(request):
 
 
 @api_view(["POST"])
-@permission_classes([AllowAny])
+@authentication_classes(_ADMIN_AUTH)
+@permission_classes([IsStaffOrNotFound])
 def toggle_publishing(request):
     """Toggle the publishing kill-switch."""
     enabled = request.data.get("enabled", True)

@@ -139,6 +139,35 @@ class Tool(models.Model):
     is_featured = models.BooleanField(default=False, db_index=True)
     is_active = models.BooleanField(default=True, db_index=True)
 
+    # Editorial assessment (distinct from user-review `rating`)
+    criteria_completed = models.PositiveSmallIntegerField(
+        default=0,
+        help_text="Count of the 10 methodology criteria scored for this tool (0-10)",
+    )
+    overall_score = models.DecimalField(
+        max_digits=3,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Editorial score 0-5. Only set when criteria_completed >= 6.",
+    )
+    security_criterion_score = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        help_text=(
+            "Score for Security & Data Privacy criterion, 0-20. " "Null = not assessed."
+        ),
+    )
+    last_assessed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When scoring criteria were last updated.",
+    )
+    language_review_needed = models.BooleanField(
+        default=False,
+        help_text="True when description failed the English-language lint.",
+    )
+
     # Display order for homepage ranking (lower = higher priority)
     display_order = models.IntegerField(
         default=9999,
@@ -175,7 +204,64 @@ class Tool(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    def get_rating_status(self):
+        from .ratings import get_rating_status
+
+        return get_rating_status(self.criteria_completed)
+
+    def get_security_status(self):
+        from .ratings import get_security_status
+
+        return get_security_status(self.security_criterion_score)
+
     def save(self, *args, **kwargs):
+        from django.utils import timezone
+
+        from .language import description_needs_review, known_english_translation
+        from .ratings import coerce_overall_score
+
+        self.criteria_completed = max(0, min(10, int(self.criteria_completed or 0)))
+        self.overall_score = coerce_overall_score(
+            self.criteria_completed, self.overall_score
+        )
+
+        has_assessment_data = (
+            self.criteria_completed > 0
+            or self.overall_score is not None
+            or self.security_criterion_score is not None
+        )
+        if self.pk:
+            previous = (
+                Tool.objects.filter(pk=self.pk)
+                .values(
+                    "criteria_completed",
+                    "overall_score",
+                    "security_criterion_score",
+                )
+                .first()
+            )
+            if previous and (
+                previous["criteria_completed"] != self.criteria_completed
+                or previous["overall_score"] != self.overall_score
+                or previous["security_criterion_score"] != self.security_criterion_score
+            ):
+                self.last_assessed_at = timezone.now()
+        elif has_assessment_data:
+            self.last_assessed_at = timezone.now()
+
+        known = known_english_translation(self.description)
+        if known:
+            self.description = known
+            self.language_review_needed = False
+        elif description_needs_review(self.description) or description_needs_review(
+            self.short_description
+        ):
+            self.language_review_needed = True
+            if not self.pk:
+                self.is_active = False
+        else:
+            self.language_review_needed = False
+
         if not self.slug:
             from django.utils.text import slugify
 
@@ -384,6 +470,20 @@ class ToolSubmission(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def save(self, *args, **kwargs):
+        from .language import description_needs_review, known_english_translation
+
+        known = known_english_translation(self.description)
+        if known:
+            self.description = known
+        elif description_needs_review(self.description) or description_needs_review(
+            self.short_description
+        ):
+            note = "Flagged: non-English description pending review."
+            if note not in (self.admin_notes or ""):
+                self.admin_notes = (
+                    f"{self.admin_notes}\n{note}".strip() if self.admin_notes else note
+                )
+
         # Auto-enrich on creation
         if not self.pk and not self.enriched_data:
             try:

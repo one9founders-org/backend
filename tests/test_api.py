@@ -44,19 +44,15 @@ class TestToolAPI:
         assert response.status_code == status.HTTP_200_OK
         assert len(response.data) >= 0
 
-    def test_add_tool(self, api_client):
-        category = CategoryFactory()
+    def test_add_tool_requires_staff(self, api_client):
         url = reverse("tool-add")
         data = {
             "name": "New Tool",
             "description": "A new AI tool",
             "website": "https://example.com",
-            "categories": [category.id],
         }
         response = api_client.post(url, data, format="json")
-
-        assert response.status_code == status.HTTP_201_CREATED
-        assert response.data["name"] == "New Tool"
+        assert response.status_code == status.HTTP_404_NOT_FOUND
 
 
 @pytest.mark.django_db

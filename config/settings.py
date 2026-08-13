@@ -251,6 +251,10 @@ RECAPTCHA_SCORE_THRESHOLD = float(os.getenv("RECAPTCHA_SCORE_THRESHOLD", "0.5"))
 # Chrome Extension API Key
 EXTENSION_API_KEY = os.getenv("EXTENSION_API_KEY", "")
 
+# Shared secret for n8n / scraper pipeline ingest (optional).
+# When unset, pipeline write endpoints require a staff JWT.
+PIPELINE_API_KEY = os.getenv("PIPELINE_API_KEY", "")
+
 
 # Logging Configuration
 LOGGING = {

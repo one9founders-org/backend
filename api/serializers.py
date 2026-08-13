@@ -51,7 +51,19 @@ class CategorySerializer(serializers.ModelSerializer):
         return obj.tools.filter(is_active=True).count()
 
 
-class ToolListSerializer(serializers.ModelSerializer):
+class ToolAssessmentSerializerMixin:
+    rating_status = serializers.SerializerMethodField()
+    security_status = serializers.SerializerMethodField()
+    overall_score = serializers.FloatField(allow_null=True, required=False)
+
+    def get_rating_status(self, obj):
+        return obj.get_rating_status()
+
+    def get_security_status(self, obj):
+        return obj.get_security_status()
+
+
+class ToolListSerializer(ToolAssessmentSerializerMixin, serializers.ModelSerializer):
     categories = CategorySerializer(many=True, read_only=True)
     similarity = serializers.FloatField(read_only=True, required=False)
     pricing_inr = serializers.SerializerMethodField()
@@ -86,6 +98,14 @@ class ToolListSerializer(serializers.ModelSerializer):
             "gst_applicable",
             "pricing_inr",
             "pricing_inr_with_gst",
+            "criteria_completed",
+            "overall_score",
+            "security_criterion_score",
+            "last_assessed_at",
+            "rating_status",
+            "security_status",
+            "created_at",
+            "updated_at",
         ]
 
     def _get_exchange_rate(self):
@@ -110,11 +130,12 @@ class ToolListSerializer(serializers.ModelSerializer):
 
     def get_pricing_inr(self, obj):
         if obj.pricing_inr_override is not None:
-            return round(float(obj.pricing_inr_override))
-        if obj.pricing_from is not None:
-            rate = self._get_exchange_rate()
-            return round(float(obj.pricing_from) * rate)
-        return None
+            value = round(float(obj.pricing_inr_override))
+        elif obj.pricing_from is not None:
+            value = round(float(obj.pricing_from) * self._get_exchange_rate())
+        else:
+            return None
+        return value if value > 0 else None
 
     def get_pricing_inr_with_gst(self, obj):
         inr_price = self.get_pricing_inr(obj)
@@ -124,7 +145,7 @@ class ToolListSerializer(serializers.ModelSerializer):
         return inr_price
 
 
-class ToolDetailSerializer(serializers.ModelSerializer):
+class ToolDetailSerializer(ToolAssessmentSerializerMixin, serializers.ModelSerializer):
     categories = serializers.PrimaryKeyRelatedField(
         many=True, queryset=Category.objects.all(), required=False
     )
@@ -141,6 +162,9 @@ class ToolDetailSerializer(serializers.ModelSerializer):
             "rating",
             "review_count",
             "views_count",
+            "rating_status",
+            "security_status",
+            "last_assessed_at",
         ]
 
     def _get_exchange_rate(self):
@@ -165,11 +189,12 @@ class ToolDetailSerializer(serializers.ModelSerializer):
 
     def get_pricing_inr(self, obj):
         if obj.pricing_inr_override is not None:
-            return round(float(obj.pricing_inr_override))
-        if obj.pricing_from is not None:
-            rate = self._get_exchange_rate()
-            return round(float(obj.pricing_from) * rate)
-        return None
+            value = round(float(obj.pricing_inr_override))
+        elif obj.pricing_from is not None:
+            value = round(float(obj.pricing_from) * self._get_exchange_rate())
+        else:
+            return None
+        return value if value > 0 else None
 
     def get_pricing_inr_with_gst(self, obj):
         inr_price = self.get_pricing_inr(obj)
@@ -360,7 +385,9 @@ class ToolClickSerializer(serializers.ModelSerializer):
         read_only_fields = ["created_at"]
 
 
-class TrendingToolSerializer(serializers.ModelSerializer):
+class TrendingToolSerializer(
+    ToolAssessmentSerializerMixin, serializers.ModelSerializer
+):
     categories = CategorySerializer(many=True, read_only=True)
     usage_count = serializers.IntegerField(read_only=True)
     click_count = serializers.IntegerField(read_only=True)
@@ -381,6 +408,12 @@ class TrendingToolSerializer(serializers.ModelSerializer):
             "usage_count",
             "click_count",
             "is_featured",
+            "criteria_completed",
+            "overall_score",
+            "security_criterion_score",
+            "last_assessed_at",
+            "rating_status",
+            "security_status",
         ]
 
 

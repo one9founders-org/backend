@@ -16,6 +16,18 @@ User = get_user_model()
 FOUNDER_ROLES = {"founder", "cofounder"}
 
 
+def _user_payload(user):
+    return {
+        "id": user.id,
+        "email": user.email,
+        "name": user.get_full_name() or user.first_name,
+        "is_startup": user.is_startup,
+        "user_role": getattr(user, "user_role", ""),
+        "profile_completed": getattr(user, "profile_completed", False),
+        "is_staff": bool(user.is_staff),
+    }
+
+
 def verify_turnstile(token):
     """Verify Cloudflare Turnstile token"""
     secret = os.getenv("CLOUDFLARE_TURNSTILE_SECRET")
@@ -109,14 +121,7 @@ def register_user(request):
             {
                 "access": str(refresh.access_token),
                 "refresh": str(refresh),
-                "user": {
-                    "id": user.id,
-                    "email": user.email,
-                    "name": user.get_full_name() or user.first_name,
-                    "is_startup": user.is_startup,
-                    "user_role": user.user_role,
-                    "profile_completed": user.profile_completed,
-                },
+                "user": _user_payload(user),
             },
             status=status.HTTP_201_CREATED,
         )
@@ -150,14 +155,7 @@ def login_user(request):
                 {
                     "access": str(refresh.access_token),
                     "refresh": str(refresh),
-                    "user": {
-                        "id": user.id,
-                        "email": user.email,
-                        "name": user.get_full_name() or user.first_name,
-                        "is_startup": user.is_startup,
-                        "user_role": user.user_role,
-                        "profile_completed": user.profile_completed,
-                    },
+                    "user": _user_payload(user),
                 }
             )
         else:
@@ -229,14 +227,7 @@ def google_auth(request):
             {
                 "access": str(refresh.access_token),
                 "refresh": str(refresh),
-                "user": {
-                    "id": user.id,
-                    "email": user.email,
-                    "name": user.get_full_name() or user.first_name,
-                    "is_startup": user.is_startup,
-                    "user_role": getattr(user, "user_role", ""),
-                    "profile_completed": getattr(user, "profile_completed", False),
-                },
+                "user": _user_payload(user),
             }
         )
     except Exception as e:
@@ -246,17 +237,7 @@ def google_auth(request):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def get_current_user(request):
-    user = request.user
-    return Response(
-        {
-            "id": user.id,
-            "email": user.email,
-            "name": user.get_full_name() or user.first_name,
-            "is_startup": user.is_startup,
-            "user_role": getattr(user, "user_role", ""),
-            "profile_completed": getattr(user, "profile_completed", False),
-        }
-    )
+    return Response(_user_payload(request.user))
 
 
 @api_view(["POST"])
