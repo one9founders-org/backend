@@ -39,4 +39,6 @@ urlpatterns = [
     path("v1/oauth/<str:provider>/refresh/", views_broker.oauth_refresh),
     path("v1/oauth/google/callback", views_broker.oauth_google_callback),
     path("v1/oauth/google/callback/", views_broker.oauth_google_callback),
+    path("v1/oauth/<str:provider>/callback", views_broker.oauth_provider_callback),
+    path("v1/oauth/<str:provider>/callback/", views_broker.oauth_provider_callback),
 ]

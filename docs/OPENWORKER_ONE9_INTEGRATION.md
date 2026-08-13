@@ -89,7 +89,8 @@ sequenceDiagram
 |---------|------------|
 | Account Google sign-in | ✅ |
 | Gmail / Calendar / Drive one-click | ✅ (One9 Google project) |
-| Slack / GitHub / Notion / HubSpot managed | ⏳ stubs (501) |
+| Notion / Outlook / HubSpot managed one-click | ✅ (no-relay providers) |
+| Slack / GitHub managed one-click | ⏳ stub (501) — needs the relay below |
 | Slack/GitHub inbound relay WS | ❌ out of scope |
 | Persona gallery | ❌ not on One9 broker |
 | One9-hosted LLMs | ❌ out of scope |
@@ -104,9 +105,27 @@ GOOGLE_CLIENT_SECRET=...
 COWORKER_CLOUD_CLIENT_ID=one9founders-openworker-dev   # public PKCE client id
 COWORKER_CLOUD_PUBLIC_URL=https://api.one9founders.com # or http://127.0.0.1:8000
 COWORKER_CLOUD_AUDIENCE=https://api.one9founders.com
+
+# Managed connectors (no-relay providers)
+NOTION_CLIENT_ID=...
+NOTION_CLIENT_SECRET=...
+MICROSOFT_CLIENT_ID=...
+MICROSOFT_CLIENT_SECRET=...
+HUBSPOT_CLIENT_ID=...
+HUBSPOT_CLIENT_SECRET=...
 ```
 
 Local defaults are already in `.env.example`.
+
+### Registering each provider's app
+
+Each provider's redirect URI for both local dev and prod:
+`{PUBLIC_URL}/v1/oauth/{provider}/callback`
+(e.g. `https://api.one9founders.com/v1/oauth/notion/callback`, `.../oauth/microsoft/callback`, `.../oauth/hubspot/callback`)
+
+- **Notion**: [notion.so/my-integrations](https://www.notion.so/my-integrations) → create a **public** integration (not internal — public integrations support OAuth) → add the redirect URI.
+- **Microsoft (Outlook)**: [Azure Portal → App registrations](https://portal.azure.com) → New registration → **Authentication** tab → add the redirect URI as a Web platform → **Certificates & secrets** → new client secret.
+- **HubSpot**: [developers.hubspot.com](https://developers.hubspot.com) → create a public app → **Auth** tab → add the redirect URI and the scopes listed in `coworker_cloud/providers.py`.
 
 ---
 

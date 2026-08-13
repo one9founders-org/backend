@@ -336,3 +336,187 @@ class TestBrokerApi:
         assert r.json()["access_token"] == "new-access"
         conn.refresh_from_db()
         assert conn.access_token == "new-access"
+
+
+class TestSimpleOAuthProviders:
+    """Notion / Microsoft (Outlook) / HubSpot — the no-relay managed connectors."""
+
+    def test_oauth_start_rejects_unknown_provider(self, api, bearer):
+        r = api.post(
+            "/v1/oauth/slack/start",
+            data=(
+                '{"connector":"slack",'
+                '"redirect":"http://127.0.0.1:8765/oauth/callback","app_state":"s1"}'
+            ),
+            content_type="application/json",
+            HTTP_AUTHORIZATION=f"Bearer {bearer}",
+        )
+        assert r.status_code == 501
+
+    def test_oauth_start_notion_happy(self, api, bearer):
+        with patch.dict("os.environ", {"NOTION_CLIENT_ID": "notion-cid"}):
+            r = api.post(
+                "/v1/oauth/notion/start",
+                data=(
+                    '{"connector":"notion",'
+                    '"redirect":"http://127.0.0.1:8765/oauth/callback",'
+                    '"app_state":"s1"}'
+                ),
+                content_type="application/json",
+                HTTP_AUTHORIZATION=f"Bearer {bearer}",
+            )
+        assert r.status_code == 200
+        body = r.json()
+        assert "api.notion.com/v1/oauth/authorize" in body["authorize_url"]
+        assert "owner=user" in body["authorize_url"]
+        assert ManagedOAuthPending.objects.count() == 1
+
+    def test_oauth_start_microsoft_happy(self, api, bearer):
+        with patch.dict("os.environ", {"MICROSOFT_CLIENT_ID": "ms-cid"}):
+            r = api.post(
+                "/v1/oauth/microsoft/start",
+                data=(
+                    '{"connector":"outlook",'
+                    '"redirect":"http://127.0.0.1:8765/oauth/callback",'
+                    '"app_state":"s1"}'
+                ),
+                content_type="application/json",
+                HTTP_AUTHORIZATION=f"Bearer {bearer}",
+            )
+        assert r.status_code == 200
+        assert "login.microsoftonline.com" in r.json()["authorize_url"]
+
+    def test_oauth_start_hubspot_happy(self, api, bearer):
+        with patch.dict("os.environ", {"HUBSPOT_CLIENT_ID": "hs-cid"}):
+            r = api.post(
+                "/v1/oauth/hubspot/start",
+                data=(
+                    '{"connector":"hubspot",'
+                    '"redirect":"http://127.0.0.1:8765/oauth/callback",'
+                    '"app_state":"s1"}'
+                ),
+                content_type="application/json",
+                HTTP_AUTHORIZATION=f"Bearer {bearer}",
+            )
+        assert r.status_code == 200
+        assert "app.hubspot.com/oauth/authorize" in r.json()["authorize_url"]
+
+    @patch("requests.post")
+    def test_notion_callback_uses_basic_auth_and_workspace_identity(
+        self, mock_post, api, user
+    ):
+        pending = ManagedOAuthPending.objects.create(
+            user=user,
+            provider="notion",
+            connector="notion",
+            app_state="s1",
+            sidecar_redirect="http://127.0.0.1:8765/oauth/callback",
+            expires_at=timezone.now() + timedelta(minutes=5),
+        )
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {
+            "access_token": "notion-token",
+            "workspace_name": "Acme Workspace",
+            "workspace_id": "ws_123",
+            "owner": {"user": {"person": {"email": "founder@acme.com"}}},
+        }
+        mock_post.return_value = mock_resp
+
+        with patch.dict(
+            "os.environ",
+            {"NOTION_CLIENT_ID": "cid", "NOTION_CLIENT_SECRET": "sec"},
+        ):
+            r = api.get(f"/v1/oauth/notion/callback?state={pending.id}&code=abc")
+
+        assert r.status_code == 200
+        # Basic auth (client_id, client_secret), no client_id/secret leaked into body.
+        _, kwargs = mock_post.call_args
+        assert kwargs["auth"] == ("cid", "sec")
+        assert "client_id" not in kwargs["data"]
+        conn = CloudConnection.objects.get(connector="notion")
+        assert conn.account == "founder@acme.com"
+        assert conn.account_id == "ws_123"
+        assert conn.refresh_token == ""  # Notion tokens don't expire/refresh
+
+    @patch("requests.get")
+    @patch("requests.post")
+    def test_microsoft_callback_resolves_identity_via_graph(
+        self, mock_post, mock_get, api, user
+    ):
+        pending = ManagedOAuthPending.objects.create(
+            user=user,
+            provider="microsoft",
+            connector="outlook",
+            app_state="s1",
+            sidecar_redirect="http://127.0.0.1:8765/oauth/callback",
+            expires_at=timezone.now() + timedelta(minutes=5),
+        )
+        token_resp = MagicMock()
+        token_resp.status_code = 200
+        token_resp.json.return_value = {
+            "access_token": "ms-token",
+            "refresh_token": "ms-refresh",
+            "expires_in": 3600,
+        }
+        mock_post.return_value = token_resp
+        graph_resp = MagicMock()
+        graph_resp.status_code = 200
+        graph_resp.json.return_value = {"mail": "founder@one9.com", "id": "aad-123"}
+        mock_get.return_value = graph_resp
+
+        with patch.dict(
+            "os.environ",
+            {"MICROSOFT_CLIENT_ID": "cid", "MICROSOFT_CLIENT_SECRET": "sec"},
+        ):
+            r = api.get(f"/v1/oauth/microsoft/callback?state={pending.id}&code=abc")
+
+        assert r.status_code == 200
+        # body auth (not basic) for Microsoft's token endpoint.
+        _, kwargs = mock_post.call_args
+        assert kwargs["data"]["client_id"] == "cid"
+        conn = CloudConnection.objects.get(connector="outlook")
+        assert conn.account == "founder@one9.com"
+        assert conn.account_id == "aad-123"
+        assert conn.refresh_token == "ms-refresh"
+
+    def test_hubspot_refresh_not_yet_connected_returns_404(self, api, bearer):
+        r = api.post(
+            "/v1/oauth/hubspot/refresh",
+            data='{"connection_id":"00000000-0000-0000-0000-000000000000"}',
+            content_type="application/json",
+            HTTP_AUTHORIZATION=f"Bearer {bearer}",
+        )
+        assert r.status_code == 404
+
+    @patch("requests.post")
+    def test_hubspot_refresh_happy(self, mock_post, api, user, bearer):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {
+            "access_token": "hs-new-access",
+            "refresh_token": "hs-new-refresh",
+            "expires_in": 21600,
+        }
+        mock_post.return_value = mock_resp
+        conn = CloudConnection.objects.create(
+            user=user,
+            provider="hubspot",
+            connector="hubspot",
+            status="connected",
+            refresh_token="hs-old-refresh",
+        )
+        with patch.dict(
+            "os.environ",
+            {"HUBSPOT_CLIENT_ID": "cid", "HUBSPOT_CLIENT_SECRET": "sec"},
+        ):
+            r = api.post(
+                "/v1/oauth/hubspot/refresh",
+                data=f'{{"connection_id":"{conn.id}"}}',
+                content_type="application/json",
+                HTTP_AUTHORIZATION=f"Bearer {bearer}",
+            )
+        assert r.status_code == 200
+        assert r.json()["access_token"] == "hs-new-access"
+        conn.refresh_from_db()
+        assert conn.refresh_token == "hs-new-refresh"
