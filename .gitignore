@@ -19,6 +19,11 @@ coverage/
 *.egg-info/
 dist/
 
+# Windows One9 worker installer artifacts (publish to S3, do not commit)
+/downloads/openworker/*.exe
+/downloads/openworker/*.msi
+/downloads/openworker/*.nsis
+
 # Test artifacts
 htmlcov/
 .coverage

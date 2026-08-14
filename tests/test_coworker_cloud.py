@@ -520,3 +520,47 @@ class TestSimpleOAuthProviders:
         assert r.json()["access_token"] == "hs-new-access"
         conn.refresh_from_db()
         assert conn.refresh_token == "hs-new-refresh"
+
+
+class TestWindowsWorkerDownload:
+    def test_landing_page(self, api):
+        r = api.get("/openworker/")
+        assert r.status_code == 200
+        assert b"One9 Worker for Windows" in r.content
+        assert b"One9Founders Cloud" in r.content
+        assert b"/v1/openworker/download/windows" in r.content
+
+    def test_releases_json(self, api):
+        r = api.get("/v1/openworker/releases")
+        assert r.status_code == 200
+        body = r.json()
+        assert body["cloud"] == "One9Founders Cloud"
+        assert body["windows"]["filename"] == "One9Worker-Setup.exe"
+        assert body["windows"]["url"].endswith("/v1/openworker/download/windows")
+
+    def test_download_serves_local_exe(self, api, settings, tmp_path):
+        settings.OPENWORKER_LOCAL_DOWNLOAD_DIR = tmp_path
+        settings.OPENWORKER_WINDOWS_FILENAME = "One9Worker-Setup.exe"
+        exe = tmp_path / "One9Worker-Setup.exe"
+        exe.write_bytes(b"MZ-fake-installer")
+        r = api.get("/v1/openworker/download/windows")
+        assert r.status_code == 200
+        assert r["Content-Disposition"].startswith("attachment;")
+        assert b"MZ-fake-installer" in b"".join(r.streaming_content)
+
+    def test_download_redirects_when_url_configured(self, api, settings, tmp_path):
+        settings.OPENWORKER_LOCAL_DOWNLOAD_DIR = tmp_path
+        settings.OPENWORKER_WINDOWS_DOWNLOAD_URL = (
+            "https://files.one9founders.com/openworker/windows/One9Worker-Setup.exe"
+        )
+        r = api.get("/v1/openworker/download/windows")
+        assert r.status_code in (301, 302)
+        assert r["Location"].endswith("One9Worker-Setup.exe")
+
+    def test_download_404_in_debug_without_file(self, api, settings, tmp_path):
+        settings.DEBUG = True
+        settings.OPENWORKER_LOCAL_DOWNLOAD_DIR = tmp_path
+        settings.OPENWORKER_WINDOWS_DOWNLOAD_URL = ""
+        r = api.get("/v1/openworker/download/windows")
+        assert r.status_code == 404
+

@@ -177,6 +177,49 @@ Restart `openworker-server` after edits. UI should say **One9Founders Cloud**.
 
 ---
 
+## Windows download (One9 website)
+
+This repo's `openworker/` folder is the Windows One9 worker (OpenWorker desktop
+client pointed at One9Founders Cloud). Do **not** copy the whole source tree
+into Django — PyInstaller `packaging/dist` is huge. The backend **hosts the
+built EXE**.
+
+1. Build on a Windows machine:
+
+   ```powershell
+   cd openworker
+   .\packaging\build_windows.ps1
+   ```
+
+   Installers land under `openworker\surfaces\gui\src-tauri\target\release\bundle\nsis\`.
+
+2. Publish so Windows users can download from the site:
+
+   ```powershell
+   cd backend
+   python manage.py publish_openworker_windows path\to\OpenWorker_x64-setup.exe
+   ```
+
+   That copies it to `backend/downloads/openworker/One9Worker-Setup.exe` and
+   uploads to `s3://files.one9founders.com/openworker/windows/One9Worker-Setup.exe`.
+
+3. Website / API URLs:
+
+   | What | URL |
+   |------|-----|
+   | Landing page | `https://api.one9founders.com/openworker/` |
+   | Download EXE | `https://api.one9founders.com/v1/openworker/download/windows` |
+   | JSON for the Next.js site | `https://api.one9founders.com/v1/openworker/releases` |
+   | Direct S3 | `https://files.one9founders.com/openworker/windows/One9Worker-Setup.exe` |
+
+   Point the one9founders.com **Download for Windows** button at
+   `/v1/openworker/download/windows` (or consume `/v1/openworker/releases`).
+
+The packaged EXE injects `COWORKER_CLOUD_*` so Sign in always opens
+**One9Founders Cloud** (Google via `api.one9founders.com`), not OpenWorker Cloud.
+
+---
+
 ## Migrate + run (local)
 
 ```bash
@@ -208,6 +251,10 @@ npm run dev
 - [ ] Confirm CSRF trusted origins include `https://api.one9founders.com`
 - [ ] Deploy frontend `/openworker` page
 - [ ] Ship or document One9 `config.toml` / branded build defaults
+- [ ] Build Windows EXE (`openworker/packaging/build_windows.ps1`) and publish:
+      `python manage.py publish_openworker_windows path\to\setup.exe`
+- [ ] Website Download button → `https://api.one9founders.com/v1/openworker/download/windows`
+  (landing page also lives at `https://api.one9founders.com/openworker/`)
 - [ ] Smoke: sign-in → `/v1/me` email in app → Gmail one-click or manual
 - [ ] Admin: user + optional `CloudConnection`; **no** chat rows in One9
 - [ ] Monitor `/oauth/token` and `/v1/oauth/google/*` error rates

@@ -1,10 +1,29 @@
 from django.urls import path
 
-from . import views_broker, views_oidc
+from . import views_broker, views_download, views_oidc
 
 urlpatterns = [
     # Human landing
     path("cloud/", views_broker.cloud_home, name="coworker_cloud_home"),
+    path("openworker/", views_download.openworker_landing, name="openworker_download_page"),
+    path(
+        "v1/openworker/releases",
+        views_download.openworker_releases,
+        name="openworker_releases",
+    ),
+    path(
+        "v1/openworker/releases/",
+        views_download.openworker_releases,
+    ),
+    path(
+        "v1/openworker/download/windows",
+        views_download.download_windows,
+        name="openworker_download_windows",
+    ),
+    path(
+        "v1/openworker/download/windows/",
+        views_download.download_windows,
+    ),
     # Auth0-shaped OIDC (OpenWorker cloud_auth_domain points here)
     path("authorize", views_oidc.authorize, name="coworker_cloud_authorize"),
     path("authorize/", views_oidc.authorize),

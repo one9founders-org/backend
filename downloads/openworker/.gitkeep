@@ -1,0 +1,2 @@
+# Drop One9Worker-Setup.exe here for local `runserver` downloads.
+# Production: python manage.py publish_openworker_windows path\to\setup.exe

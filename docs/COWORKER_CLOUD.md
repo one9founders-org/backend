@@ -14,6 +14,9 @@ keys still never leave the desktop; this service only handles:
 | Path | Role |
 |------|------|
 | `GET /cloud/` | Human landing + config snippet |
+| `GET /openworker/` | Windows One9 worker download page |
+| `GET /v1/openworker/releases` | JSON download URLs for one9founders.com |
+| `GET /v1/openworker/download/windows` | Windows setup EXE (local file or S3 redirect) |
 | `GET /authorize` | One9-branded sign-in page (Auth0-shaped) |
 | `POST /oauth/token` | PKCE code → JWT (Auth0-shaped) |
 | `GET /v1/auth/callback` | Bounce to `127.0.0.1:{port}/auth/callback` |
@@ -63,6 +66,16 @@ cloud_audience = "https://api.one9founders.com"
 ```
 
 Restart `openworker-server` after editing config.
+
+## Windows installer
+
+```bash
+# after packaging/build_windows.ps1
+python manage.py publish_openworker_windows path/to/setup.exe
+# local-only (no S3):  python manage.py publish_openworker_windows path/to/setup.exe --no-upload
+```
+
+Then open `/openworker/` or `GET /v1/openworker/download/windows`.
 
 ## Migrate + run
 

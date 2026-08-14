@@ -368,3 +368,18 @@ COWORKER_CLOUD_PUBLIC_URL = os.getenv(
 COWORKER_CLOUD_AUDIENCE = os.getenv(
     "COWORKER_CLOUD_AUDIENCE", COWORKER_CLOUD_PUBLIC_URL
 )
+
+# Windows One9 worker installer (built from the OpenWorker desktop client).
+# Drop a local EXE at downloads/openworker/One9Worker-Setup.exe for dev, or
+# publish to S3 with: python manage.py publish_openworker_windows <path-to-exe>
+OPENWORKER_WINDOWS_FILENAME = os.getenv(
+    "OPENWORKER_WINDOWS_FILENAME", "One9Worker-Setup.exe"
+)
+OPENWORKER_WINDOWS_S3_KEY = os.getenv(
+    "OPENWORKER_WINDOWS_S3_KEY", "openworker/windows/One9Worker-Setup.exe"
+)
+OPENWORKER_WINDOWS_DOWNLOAD_URL = os.getenv(
+    "OPENWORKER_WINDOWS_DOWNLOAD_URL", ""
+).rstrip("/")
+OPENWORKER_WINDOWS_VERSION = os.getenv("OPENWORKER_WINDOWS_VERSION", "0.1.7")
+OPENWORKER_LOCAL_DOWNLOAD_DIR = BASE_DIR / "downloads" / "openworker"
