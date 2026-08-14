@@ -563,4 +563,3 @@ class TestWindowsWorkerDownload:
         settings.OPENWORKER_WINDOWS_DOWNLOAD_URL = ""
         r = api.get("/v1/openworker/download/windows")
         assert r.status_code == 404
-
