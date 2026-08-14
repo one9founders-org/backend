@@ -381,9 +381,12 @@ OPENWORKER_WINDOWS_S3_BUCKET = os.getenv(
 OPENWORKER_WINDOWS_S3_KEY = os.getenv(
     "OPENWORKER_WINDOWS_S3_KEY", "windows/One9Worker-Setup.exe"
 )
-OPENWORKER_WINDOWS_DOWNLOAD_URL = (
-    os.getenv("OPENWORKER_WINDOWS_DOWNLOAD_URL")
-    or "https://one9founders-openworker-downloads.s3.ap-south-1.amazonaws.com/windows/One9Worker-Setup.exe"
+OPENWORKER_WINDOWS_DOWNLOAD_URL = os.getenv(
+    "OPENWORKER_WINDOWS_DOWNLOAD_URL",
+    (
+        "https://github.com/one9founders-org/backend/releases/download/"
+        "windows-worker-v0.1.7/One9Worker-Setup.exe"
+    ),
 ).rstrip("/")
 OPENWORKER_WINDOWS_VERSION = os.getenv("OPENWORKER_WINDOWS_VERSION", "0.1.7")
 OPENWORKER_LOCAL_DOWNLOAD_DIR = BASE_DIR / "downloads" / "openworker"

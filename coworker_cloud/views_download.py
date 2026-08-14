@@ -24,17 +24,10 @@ def _direct_url() -> str:
     configured = getattr(settings, "OPENWORKER_WINDOWS_DOWNLOAD_URL", "") or ""
     if configured:
         return configured
-    bucket = getattr(
-        settings,
-        "OPENWORKER_WINDOWS_S3_BUCKET",
-        "one9founders-openworker-downloads",
+    return (
+        "https://github.com/one9founders-org/backend/releases/download/"
+        "windows-worker-v0.1.7/One9Worker-Setup.exe"
     )
-    key = getattr(
-        settings,
-        "OPENWORKER_WINDOWS_S3_KEY",
-        "windows/One9Worker-Setup.exe",
-    )
-    return f"https://{bucket}.s3.ap-south-1.amazonaws.com/{key}"
 
 
 def _api_download_url(request) -> str:
