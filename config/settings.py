@@ -192,8 +192,10 @@ REST_FRAMEWORK = {
         "rest_framework.throttling.UserRateThrottle",
     ],
     "DEFAULT_THROTTLE_RATES": {
-        "anon": "100/hour",
-        "user": "1000/hour",
+        # Directory SSG and browsing issue many GETs from a few IPs (Vercel/Cloudflare).
+        # Keep smart-search scopes tighter; this is the global API budget.
+        "anon": "1000/hour",
+        "user": "5000/hour",
         "smart_search_anon": "30/hour",
         "smart_search_user": "200/hour",
     },
