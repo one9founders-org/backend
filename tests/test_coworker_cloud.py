@@ -551,11 +551,12 @@ class TestWindowsWorkerDownload:
     def test_download_redirects_when_url_configured(self, api, settings, tmp_path):
         settings.OPENWORKER_LOCAL_DOWNLOAD_DIR = tmp_path
         settings.OPENWORKER_WINDOWS_DOWNLOAD_URL = (
-            "https://files.one9founders.com/openworker/windows/One9Worker-Setup.exe"
+            "https://one9founders-openworker-downloads.s3.ap-south-1.amazonaws.com/"
+            "windows/One9Worker-Setup.exe"
         )
         r = api.get("/v1/openworker/download/windows")
         assert r.status_code in (301, 302)
-        assert r["Location"].endswith("One9Worker-Setup.exe")
+        assert r["Location"].endswith("windows/One9Worker-Setup.exe")
 
     def test_download_404_in_debug_without_file(self, api, settings, tmp_path):
         settings.DEBUG = True

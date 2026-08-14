@@ -201,7 +201,7 @@ built EXE**.
    ```
 
    That copies it to `backend/downloads/openworker/One9Worker-Setup.exe` and
-   uploads to `s3://files.one9founders.com/openworker/windows/One9Worker-Setup.exe`.
+   uploads to `s3://one9founders-openworker-downloads/windows/One9Worker-Setup.exe`.
 
 3. Website / API URLs:
 
@@ -210,7 +210,7 @@ built EXE**.
    | Landing page | `https://api.one9founders.com/openworker/` |
    | Download EXE | `https://api.one9founders.com/v1/openworker/download/windows` |
    | JSON for the Next.js site | `https://api.one9founders.com/v1/openworker/releases` |
-   | Direct S3 | `https://files.one9founders.com/openworker/windows/One9Worker-Setup.exe` |
+   | Direct S3 | `https://one9founders-openworker-downloads.s3.ap-south-1.amazonaws.com/windows/One9Worker-Setup.exe` |
 
    Point the one9founders.com **Download for Windows** button at
    `/v1/openworker/download/windows` (or consume `/v1/openworker/releases`).

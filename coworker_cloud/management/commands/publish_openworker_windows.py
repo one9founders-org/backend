@@ -12,7 +12,7 @@ from django.core.management.base import BaseCommand, CommandError
 class Command(BaseCommand):
     help = (
         "Copy the Windows NSIS setup EXE into downloads/openworker/ and upload "
-        "it to S3 (files.one9founders.com) for https://one9founders.com/openworker."
+        "it to the public OpenWorker downloads bucket for one9founders.com/worker."
     )
 
     def add_arguments(self, parser):
@@ -43,10 +43,12 @@ class Command(BaseCommand):
             )
             return
 
-        bucket = settings.AWS_STORAGE_BUCKET_NAME
+        bucket = getattr(
+            settings,
+            "OPENWORKER_WINDOWS_S3_BUCKET",
+            "one9founders-openworker-downloads",
+        )
         key = settings.OPENWORKER_WINDOWS_S3_KEY
-        if not bucket:
-            raise CommandError("AWS_STORAGE_BUCKET_NAME is not set")
         if not settings.AWS_ACCESS_KEY_ID:
             raise CommandError("AWS_ACCESS_KEY_ID is not set")
 
@@ -54,7 +56,7 @@ class Command(BaseCommand):
 
         s3 = boto3.client(
             "s3",
-            region_name=settings.AWS_S3_REGION_NAME,
+            region_name=getattr(settings, "AWS_S3_REGION_NAME", None) or "ap-south-1",
             aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
             aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
         )
@@ -63,10 +65,15 @@ class Command(BaseCommand):
             "ContentDisposition": f'attachment; filename="{settings.OPENWORKER_WINDOWS_FILENAME}"',
             "CacheControl": "max-age=300",
         }
-        s3.upload_file(str(dest), bucket, key, ExtraArgs=extra)
+        try:
+            s3.upload_file(
+                str(dest), bucket, key, ExtraArgs={**extra, "ACL": "public-read"}
+            )
+        except Exception:
+            s3.upload_file(str(dest), bucket, key, ExtraArgs=extra)
         public = (
             settings.OPENWORKER_WINDOWS_DOWNLOAD_URL
-            or f"https://{settings.AWS_S3_CUSTOM_DOMAIN}/{key}"
+            or f"https://{bucket}.s3.ap-south-1.amazonaws.com/{key}"
         )
         self.stdout.write(self.style.SUCCESS(f"Uploaded s3://{bucket}/{key}"))
         self.stdout.write(f"Public file: {public}")

@@ -24,16 +24,23 @@ def _direct_url() -> str:
     configured = getattr(settings, "OPENWORKER_WINDOWS_DOWNLOAD_URL", "") or ""
     if configured:
         return configured
-    domain = getattr(settings, "AWS_S3_CUSTOM_DOMAIN", "files.one9founders.com")
+    bucket = getattr(
+        settings,
+        "OPENWORKER_WINDOWS_S3_BUCKET",
+        "one9founders-openworker-downloads",
+    )
     key = getattr(
         settings,
         "OPENWORKER_WINDOWS_S3_KEY",
-        "openworker/windows/One9Worker-Setup.exe",
+        "windows/One9Worker-Setup.exe",
     )
-    return f"https://{domain}/{key}"
+    return f"https://{bucket}.s3.ap-south-1.amazonaws.com/{key}"
 
 
 def _api_download_url(request) -> str:
+    public = (getattr(settings, "COWORKER_CLOUD_PUBLIC_URL", "") or "").rstrip("/")
+    if public.startswith("http"):
+        return f"{public}/v1/openworker/download/windows"
     return request.build_absolute_uri("/v1/openworker/download/windows")
 
 
@@ -44,7 +51,9 @@ def _release_payload(request) -> dict:
         "name": "One9 Worker",
         "cloud": "One9Founders Cloud",
         "windows": {
-            "available": bool(local) or configured or not getattr(settings, "DEBUG", False),
+            "available": bool(local)
+            or configured
+            or not getattr(settings, "DEBUG", False),
             "os": "Windows 10/11 (x64)",
             "filename": _filename(),
             "version": getattr(settings, "OPENWORKER_WINDOWS_VERSION", "0.1.7"),
