@@ -10,8 +10,8 @@ from api.hygiene.websearch import is_configured as search_configured
 class Command(BaseCommand):
     help = (
         "Re-verify and revise tool rows: classify, check links, resolve "
-        "logos, confirm against Google, re-tag, and re-rank. Writes nothing "
-        "without --apply."
+        "logos, score popularity from free signals, re-tag, and re-rank. "
+        "Writes nothing without --apply."
     )
 
     def add_arguments(self, parser):
@@ -63,9 +63,17 @@ class Command(BaseCommand):
         parser.add_argument("--no-link", action="store_true", help="Skip link checks.")
         parser.add_argument("--no-logo", action="store_true", help="Skip logo lookup.")
         parser.add_argument(
-            "--no-search",
+            "--no-signals",
             action="store_true",
-            help="Skip Google verification (saves paid quota).",
+            help="Skip the free popularity signals (Tranco, Wikidata, HN).",
+        )
+        parser.add_argument(
+            "--search",
+            action="store_true",
+            help=(
+                "Also run paid Google verification. Off by default; the free "
+                "signals cover ranking without it."
+            ),
         )
         parser.add_argument(
             "--no-llm",
@@ -86,7 +94,8 @@ class Command(BaseCommand):
         stages = Stages(
             link=not options["no_link"],
             logo=not options["no_logo"],
-            search=not options["no_search"],
+            signals=not options["no_signals"],
+            search=options["search"],
             llm=not options["no_llm"],
         )
 

@@ -5,7 +5,8 @@ import collections
 from django.core.management.base import BaseCommand
 from django.db.models import Count, Q
 
-from api.hygiene.classify import classify, normalized_name
+from api.hygiene.classify import PRODUCT, classify, host_of, normalized_name
+from api.hygiene.signals import lookup_tranco, open_tranco
 from api.models import Tool
 
 
@@ -48,6 +49,7 @@ class Command(BaseCommand):
         flags = collections.Counter()
         names = collections.Counter()
         tag_vocab = collections.Counter()
+        product_hosts: list[str] = []
         zero_signal = 0
 
         for tool in queryset.iterator(chunk_size=500):
@@ -66,6 +68,10 @@ class Command(BaseCommand):
 
             entry_type, name_flags = classify(tool.name, tool.website or "")
             entry_types[entry_type] += 1
+            if entry_type == PRODUCT:
+                host = host_of(tool.website or "")
+                if host:
+                    product_hosts.append(host)
             for flag in name_flags:
                 flags[flag] += 1
             names[normalized_name(tool.name)] += 1
@@ -103,6 +109,7 @@ class Command(BaseCommand):
             f"\n-- Ranking signal --\n"
             f"  no reviews and no views {zero_signal:>6,}  {_pct(zero_signal, total)}"
         )
+        self._write_tranco_coverage(write, product_hosts, entry_types[PRODUCT])
 
         untagged = empty["tags"]
         write(
@@ -156,4 +163,38 @@ class Command(BaseCommand):
             f"  link unreachable       {counts['unreachable']:>7,}\n"
             f"  link parked            {counts['parked']:>7,}\n"
             f"  link malformed         {counts['malformed']:>7,}\n"
+        )
+
+    def _write_tranco_coverage(
+        self, write, product_hosts: list[str], product_rows: int
+    ):
+        """Local sqlite lookup -- still no network."""
+        connection = open_tranco()
+        if connection is None:
+            write(
+                "\n-- Tranco coverage --\n"
+                "  database missing; run manage.py refresh_tranco"
+            )
+            return
+
+        unique_hosts = list(dict.fromkeys(product_hosts))
+        ranked = 0
+        inherited = 0
+        try:
+            for host in unique_hosts:
+                rank, was_inherited = lookup_tranco(host, connection)
+                if rank:
+                    ranked += 1
+                    if was_inherited:
+                        inherited += 1
+        finally:
+            connection.close()
+
+        write(
+            f"\n-- Tranco coverage (live-classified products) --\n"
+            f"  product rows            {product_rows:>7,}\n"
+            f"  unique product hosts    {len(unique_hosts):>7,}\n"
+            f"  hosts with a rank       {ranked:>7,}  "
+            f"{_pct(ranked, len(unique_hosts))}\n"
+            f"  of which inherited      {inherited:>7,}\n"
         )
