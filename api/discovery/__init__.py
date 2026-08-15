@@ -1,0 +1,7 @@
+# None = no cap. Re-set to an int (e.g. 40) once the directory is populated.
+MAX_NEW_TOOLS_PER_RUN = None
+SIMILARITY_REJECT_RATIO = 0.35
+REFRESH_NOOP_RATIO = 0.9
+MIN_DESCRIPTION_WORDS = 30
+MAX_DESCRIPTION_WORDS = 120
+TARGET_DESCRIPTION_WORDS = (40, 80)

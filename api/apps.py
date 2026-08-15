@@ -6,6 +6,8 @@ class ApiConfig(AppConfig):
     name = "api"
 
     def ready(self):
+        from . import signals  # noqa: F401
+
         # Start the background news scheduler when the app is ready
         try:
             from . import scheduler

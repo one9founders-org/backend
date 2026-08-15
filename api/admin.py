@@ -6,6 +6,7 @@ from import_export.admin import ImportExportModelAdmin
 from .models import (
     Category,
     Deal,
+    DiscoveryRun,
     FounderSurvey,
     Guide,
     Lab,
@@ -94,6 +95,22 @@ class ToolAdmin(ImportExportModelAdmin):
     filter_horizontal = ["categories"]
     raw_id_fields = ["alternatives"]
     exclude = ["embedding"]
+
+
+@admin.register(DiscoveryRun)
+class DiscoveryRunAdmin(admin.ModelAdmin):
+    list_display = ["created_at", "run_type", "status", "tool_name", "url"]
+    list_filter = ["run_type", "status", "created_at"]
+    search_fields = ["tool_name", "url", "reasons"]
+    readonly_fields = [
+        "run_type",
+        "tool_name",
+        "url",
+        "status",
+        "reasons",
+        "created_at",
+    ]
+    ordering = ["-created_at"]
 
 
 @admin.register(Review)
