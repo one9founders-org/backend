@@ -61,18 +61,48 @@ crontab -l 2>/dev/null | grep -n discover || echo "no discovery cron"
 echo "===== RUNNING DISCOVERY ====="
 docker compose exec -T web ps aux | grep -E 'run_tool_discovery|discover' | grep -v grep || echo "no discovery process"
 
-echo "===== TOOLS NOT NULL NO DEFAULT ====="
+echo "===== FIX ORPHAN NOT NULL ====="
 docker compose exec -T web python manage.py shell -c '
 from django.db import connection
+from api.models import Tool
+
+model_cols = {field.column for field in Tool._meta.local_fields}
+qn = connection.ops.quote_name
 with connection.cursor() as cursor:
-    cursor.execute("""
-        SELECT column_name, data_type
+    cursor.execute(
+        """
+        SELECT column_name
         FROM information_schema.columns
-        WHERE table_name = %s
+        WHERE table_schema = %s
+          AND table_name = %s
           AND is_nullable = %s
           AND column_default IS NULL
         ORDER BY column_name
-    """, ["tools", "NO"])
+        """,
+        ["public", "tools", "NO"],
+    )
+    orphans = [name for (name,) in cursor.fetchall() if name not in model_cols]
+    if not orphans:
+        print("no_orphan_not_null")
+    for name in orphans:
+        cursor.execute(
+            "ALTER TABLE %s ALTER COLUMN %s DROP NOT NULL"
+            % (qn("tools"), qn(name))
+        )
+        print("dropped_not_null", name)
+    cursor.execute(
+        """
+        SELECT column_name, data_type
+        FROM information_schema.columns
+        WHERE table_schema = %s
+          AND table_name = %s
+          AND is_nullable = %s
+          AND column_default IS NULL
+        ORDER BY column_name
+        """,
+        ["public", "tools", "NO"],
+    )
+    print("remaining_not_null_no_default")
     for name, dtype in cursor.fetchall():
         print(name, dtype)
 '
@@ -95,9 +125,9 @@ docker compose exec -T web python manage.py discover_candidates
 
 if [ "${DISCOVERY_ACTION:-inspect-and-run}" = "inspect-and-run" ]; then
   echo "===== START RUN ====="
-  docker compose exec -T web bash -lc 'nohup python manage.py run_tool_discovery > /tmp/tool-discovery.log 2>&1 &'
-  sleep 3
+  docker compose exec -T web bash -lc 'pkill -f run_tool_discovery || true'
+  docker compose exec -d web python manage.py run_tool_discovery
+  sleep 5
   docker compose exec -T web ps aux | grep run_tool_discovery | grep -v grep || echo "process not visible yet"
-  docker compose exec -T web tail -n 40 /tmp/tool-discovery.log || true
   echo "Started detached run_tool_discovery"
 fi
