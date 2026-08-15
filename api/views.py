@@ -32,6 +32,7 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.authentication import JWTAuthentication
 
 from .authentication import OptionalJWTAuthentication
+from .hygiene.visibility import publishable_queryset
 from .models import (
     Category,
     Deal,
@@ -126,10 +127,13 @@ def _run_search(query: str):
         logger.warning("FAISS search error: %s — falling back to text search.", e)
 
     # Text search fallback
-    tools = Tool.objects.filter(
-        Q(name__icontains=query) | Q(description__icontains=query),
-        is_active=True,
-    ).prefetch_related("categories")[:20]
+    tools = (
+        publishable_queryset()
+        .filter(
+            Q(name__icontains=query) | Q(description__icontains=query),
+        )
+        .prefetch_related("categories")[:20]
+    )
     logger.debug("Text search fallback: %d results for '%s'", tools.count(), query)
     return ToolListSerializer(tools, many=True).data
 
@@ -140,7 +144,7 @@ def _run_search(query: str):
 
 
 class ToolViewSet(viewsets.ModelViewSet):
-    queryset = Tool.objects.filter(is_active=True).prefetch_related("categories")
+    queryset = publishable_queryset().prefetch_related("categories")
     authentication_classes = [OptionalJWTAuthentication, SessionAuthentication]
     permission_classes = [IsStaffOrReadOnly]
     lookup_field = "slug"
@@ -527,7 +531,7 @@ def trending_tools(request):
     since = timezone.now() - timedelta(days=days)
 
     tools = (
-        Tool.objects.filter(is_active=True)
+        publishable_queryset()
         .annotate(
             usage_count=Count(
                 "usages", filter=Q(usages__created_at__gte=since), distinct=True

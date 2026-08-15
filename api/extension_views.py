@@ -12,7 +12,8 @@ from rest_framework.decorators import (
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
-from .models import Tool, ToolSubmission
+from .hygiene.visibility import publishable_q, publishable_queryset
+from .models import ToolSubmission
 
 logger = logging.getLogger(__name__)
 
@@ -58,9 +59,11 @@ def extension_lookup(request):
 
     # Search for a tool whose website contains the domain
     # Use DB-level filter to narrow candidates, then verify exact domain match
-    candidates = Tool.objects.filter(
-        is_active=True, website__icontains=domain
-    ).prefetch_related("categories", "alternatives")
+    candidates = (
+        publishable_queryset()
+        .filter(website__icontains=domain)
+        .prefetch_related("categories", "alternatives")
+    )
 
     matched_tool = None
     for tool in candidates:
@@ -75,7 +78,7 @@ def extension_lookup(request):
     # Build the response matching what the extension expects
     categories = list(matched_tool.categories.values_list("name", flat=True))
     alternatives = list(
-        matched_tool.alternatives.filter(is_active=True).values("name", "slug")[:5]
+        matched_tool.alternatives.filter(publishable_q()).values("name", "slug")[:5]
     )
 
     # Determine pricing label
@@ -121,7 +124,7 @@ def extension_suggest(request):
 
     # Check if this domain already exists as a tool
     domain_lower = domain.lower().removeprefix("www.")
-    candidates = Tool.objects.filter(is_active=True, website__icontains=domain_lower)
+    candidates = publishable_queryset().filter(website__icontains=domain_lower)
     for tool in candidates:
         tool_domain = _extract_domain(tool.website).lower()
         if tool_domain == domain_lower:

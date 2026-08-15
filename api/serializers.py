@@ -48,7 +48,9 @@ class CategorySerializer(serializers.ModelSerializer):
         ]
 
     def get_tool_count(self, obj):
-        return obj.tools.filter(is_active=True).count()
+        from .hygiene.visibility import publishable_q
+
+        return obj.tools.filter(publishable_q()).count()
 
 
 class ToolAssessmentSerializerMixin(serializers.Serializer):
@@ -88,6 +90,8 @@ class ToolListSerializer(ToolAssessmentSerializerMixin, serializers.ModelSeriali
             "rating",
             "review_count",
             "views_count",
+            "entry_type",
+            "popularity_score",
             "verified",
             "is_featured",
             "startup_friendly",

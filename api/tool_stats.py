@@ -1,6 +1,7 @@
 from django.core.cache import cache
 from django.db.models import Count, F
 
+from .hygiene.visibility import publishable_queryset
 from .models import Tool
 
 TOOL_STATS_CACHE_KEY = "tool_stats"
@@ -13,9 +14,9 @@ def bust_tool_stats_cache():
 
 def compute_tool_directory_stats():
     """Each value is one aggregate query — no per-row Python loops."""
-    qs = Tool.objects.filter(is_active=True)
+    qs = publishable_queryset()
     by_category = list(
-        Tool.objects.filter(categories__isnull=False)
+        qs.filter(categories__isnull=False)
         .values(category=F("categories__name"))
         .annotate(count=Count("id", distinct=True))
         .order_by("-count", "category")

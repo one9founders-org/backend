@@ -87,7 +87,7 @@ def smart_search(query: str, top_k: int = 20) -> list:
         logger.warning("FAISS step failed: %s", e)
 
     # Step 2: SQL text search fallback
-    from api.models import Tool
+    from api.hygiene.visibility import publishable_queryset
     from api.serializers import ToolListSerializer
 
     search_terms = list(
@@ -110,7 +110,8 @@ def smart_search(query: str, top_k: int = 20) -> list:
         )
 
     sql_qs = (
-        Tool.objects.filter(sql_filter, is_active=True)
+        publishable_queryset()
+        .filter(sql_filter)
         .exclude(id__in=seen_ids)
         .prefetch_related("categories")[:top_k]
     )

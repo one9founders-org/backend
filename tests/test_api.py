@@ -121,7 +121,6 @@ class TestToolDirectoryStatsAPI:
         assert response.data["total_tools"] == 3
         assert response.data["by_category"] == [
             {"category": "Writing", "count": 2},
-            {"category": "Image", "count": 1},
         ]
 
     def test_serves_cached_payload(self, api_client):

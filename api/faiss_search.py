@@ -151,16 +151,16 @@ class FAISSSearchService:
 
     def build_index(self, upload_to_s3: bool = True) -> int:
         """
-        Build FAISS index from all active tools.
+        Build FAISS index from publishable tools.
         Saves locally and, if upload_to_s3=True, pushes to S3.
         Returns count of indexed tools.
         """
-        from api.models import Tool
+        from api.hygiene.visibility import publishable_queryset
 
         self._ensure_model()
 
         tools = list(
-            Tool.objects.filter(is_active=True).values(
+            publishable_queryset().values(
                 "id",
                 "name",
                 "short_description",
@@ -288,11 +288,12 @@ class FAISSSearchService:
         if not matched_tool_ids:
             return []
 
+        from api.hygiene.visibility import publishable_queryset
         from api.models import Tool
         from api.serializers import ToolListSerializer
 
-        tools = Tool.objects.filter(
-            id__in=matched_tool_ids, is_active=True
+        tools = publishable_queryset(
+            Tool.objects.filter(id__in=matched_tool_ids)
         ).prefetch_related("categories")
 
         results = list(ToolListSerializer(tools, many=True).data)
