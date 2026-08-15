@@ -42,6 +42,7 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           port: 22
-          timeout: 300s
+          timeout: 60s
+          command_timeout: 8m
           envs: HYGIENE_ACTION,HYGIENE_LIMIT
           script_path: scripts/inspect_and_run_hygiene.sh

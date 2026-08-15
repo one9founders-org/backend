@@ -6,6 +6,9 @@ ACTION="${HYGIENE_ACTION:-scheduled}"
 LIMIT="${HYGIENE_LIMIT:-4000}"
 
 echo "===== CONTAINERS ====="
+# If a previous deploy died after compose down, bring existing images back
+# before we try to exec into them.
+docker compose up -d --no-build || docker compose up -d || true
 docker compose ps
 
 echo "===== ENV PRESENT (names only) ====="
