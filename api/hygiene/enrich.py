@@ -27,8 +27,9 @@ DEFAULT_MODEL = "gpt-4o-mini"
 
 SYSTEM_PROMPT = """You write factual entries for a software tool directory.
 
-You will be given evidence gathered from a tool's own website and from a \
-web search. Use ONLY that evidence. You have no other knowledge of the tool.
+You will be given evidence gathered from a tool's own website and from \
+independent sources (Wikidata, Hacker News, and optionally a web search). \
+Use ONLY that evidence. You have no other knowledge of the tool.
 
 Rules:
 - Never invent features, pricing, integrations, or customers.
@@ -70,6 +71,7 @@ def build_evidence_payload(
     facts,
     search: SearchEvidence | None,
     candidate_tags: list[str],
+    signals=None,
 ) -> dict:
     """Assemble everything the model is allowed to reason from."""
     payload = {
@@ -88,6 +90,15 @@ def build_evidence_payload(
             "listed_in_directories": search.directory_hits,
             "result_titles": search.titles[:6],
             "result_snippets": search.snippets[:6],
+        }
+    if signals is not None:
+        # Wikidata's description is written by people with no stake in the
+        # product, which makes it the best non-marketing evidence available.
+        payload["independent_sources"] = {
+            "wikidata_description": signals.wikidata_description,
+            "listed_on_wikidata": bool(signals.wikidata_id),
+            "hacker_news_stories": signals.hn_story_count,
+            "domain_popularity_rank": signals.tranco_rank,
         }
     payload["allowed_tags"] = list(ALL_TAGS)
     payload["suggested_tags"] = candidate_tags
@@ -111,6 +122,7 @@ def enrich(
     website: str,
     facts,
     search: SearchEvidence | None = None,
+    signals=None,
 ) -> dict:
     """Return an enriched record dict, or {'insufficient_evidence': True}."""
     seed_text = " ".join(
@@ -122,11 +134,14 @@ def enrich(
                 getattr(facts, "meta_description", "") or "",
                 getattr(facts, "source_text", "") or "",
                 " ".join((search.snippets if search else [])[:4]),
+                getattr(signals, "wikidata_description", "") or "",
             ],
         )
     )
     candidate_tags = infer_tags(seed_text)
-    payload = build_evidence_payload(name, website, facts, search, candidate_tags)
+    payload = build_evidence_payload(
+        name, website, facts, search, candidate_tags, signals
+    )
 
     try:
         response = _client().chat.completions.create(

@@ -4,13 +4,15 @@ Order matters and is cheap-to-expensive on purpose, so most rows are
 resolved before any paid API is touched:
 
     classify (free) -> link check (free) -> logo (free)
-        -> Google verify (paid) -> LLM enrich (paid) -> rank
+        -> Tranco/Wikidata/HN (free) -> LLM enrich (paid) -> rank
+    Google search is opt-in only (--search) and is not required.
 
 Every stage is skippable, nothing writes unless apply=True, and each run
 emits a JSON log that revert_hygiene can replay backwards.
 """
 
 import logging
+import sqlite3
 from dataclasses import asdict, dataclass, field
 from datetime import timedelta
 
@@ -28,6 +30,9 @@ from .enrich import enrich
 from .linkcheck import BROKEN, MALFORMED, UNREACHABLE, check_url
 from .logos import resolve_logo
 from .rank import RankInputs, completeness_score, display_order_for, score
+from .signals import external_score as free_external_score
+from .signals import gather as gather_signals
+from .signals import open_tranco
 from .taxonomy import balance, migrate_legacy_tags
 from .websearch import is_configured as search_configured
 from .websearch import search_footprint_score, verify_tool
@@ -64,7 +69,8 @@ DEAD_STATUSES = {BROKEN, UNREACHABLE, MALFORMED}
 class Stages:
     link: bool = True
     logo: bool = True
-    search: bool = True
+    signals: bool = True  # free: Tranco + Wikidata + Hacker News
+    search: bool = False  # paid: Google Programmable Search, opt-in only
     llm: bool = True
 
 
@@ -125,7 +131,11 @@ def select_tools(
     return queryset
 
 
-def process_tool(tool: Tool, stages: Stages) -> ToolOutcome:
+def process_tool(
+    tool: Tool,
+    stages: Stages,
+    connection: "sqlite3.Connection | None" = None,
+) -> ToolOutcome:
     """Gather every revision for one row. Never writes."""
     outcome = ToolOutcome(tool_id=tool.id, name=tool.name)
     website = tool.website or ""
@@ -183,16 +193,29 @@ def process_tool(tool: Tool, stages: Stages) -> ToolOutcome:
 
     facts = fetch_facts(resolved_url)
 
-    evidence = None
+    # Free signals first. These cover the popularity and notability
+    # questions without any paid quota, so the search stage below is only
+    # worth running when it is explicitly enabled and configured.
+    signals = None
     external = 0.0
+    if stages.signals:
+        signals = gather_signals(tool.name, resolved_url, connection=connection)
+        external = free_external_score(signals)
+        outcome.notes.extend(signals.notes)
+        if signals.tranco_rank:
+            outcome.notes.append(f"tranco rank {signals.tranco_rank}")
+
+    evidence = None
     if stages.search and search_configured():
         evidence = verify_tool(tool.name, resolved_url)
-        external = search_footprint_score(evidence)
+        # Paid search only ever raises the score; it never overrides a
+        # free signal that already found the tool.
+        external = max(external, search_footprint_score(evidence))
         if evidence.ok and not evidence.official_site_matched:
             outcome.notes.append("google did not surface the listed website")
 
     if stages.llm:
-        enriched = enrich(tool.name, resolved_url, facts, evidence)
+        enriched = enrich(tool.name, resolved_url, facts, evidence, signals)
         if enriched.get("insufficient_evidence"):
             outcome.notes.append("insufficient evidence; content left unchanged")
         else:
@@ -278,6 +301,16 @@ def run(
     if stages.search and not search_configured():
         logger.warning("GOOGLE_SEARCH_API_KEY/CX are not set; search stage will no-op.")
         stages.search = False
+
+    # One read-only handle for the whole run; the lookup is per-tool but
+    # opening the file per tool would dominate the runtime.
+    connection = open_tranco() if stages.signals else None
+    if stages.signals and connection is None:
+        logger.warning(
+            "Tranco lookup unavailable; popularity will fall back to "
+            "Wikidata and Hacker News only."
+        )
+
     tools = list(
         select_tools(
             limit=limit,
@@ -301,7 +334,7 @@ def run(
             )
         try:
             before_search = stages.search
-            outcome = process_tool(tool, stages)
+            outcome = process_tool(tool, stages, connection)
             outcomes.append(outcome)
             if before_search and not outcome.skipped:
                 searches_used += 1
@@ -318,6 +351,9 @@ def run(
                 len(tools),
                 applied,
             )
+
+    if connection is not None:
+        connection.close()
 
     if apply and applied:
         bust_tool_stats_cache()

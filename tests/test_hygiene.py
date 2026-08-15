@@ -1,3 +1,5 @@
+import sqlite3
+
 import pytest
 
 from api.hygiene.classify import (
@@ -16,8 +18,18 @@ from api.hygiene.classify import (
     normalized_name,
 )
 from api.hygiene.linkcheck import PARKED_CODES, is_malformed
+from api.hygiene.pipeline import Stages
 from api.hygiene.rank import RankInputs, completeness_score, display_order_for
 from api.hygiene.rank import score as rank_score
+from api.hygiene.signals import (
+    Signals,
+    external_score,
+    fetch_wikidata,
+    hn_score,
+    is_shared_host,
+    lookup_tranco,
+)
+from api.hygiene.signals import rank_score as tranco_rank_score
 from api.hygiene.taxonomy import (
     VOCABULARY,
     balance,
@@ -156,6 +168,82 @@ class TestRanking:
 
     def test_display_order_inverts_score(self):
         assert display_order_for(1.0) < display_order_for(0.0)
+
+
+class TestFreeSignals:
+    @staticmethod
+    def _db():
+        connection = sqlite3.connect(":memory:")
+        connection.execute("CREATE TABLE ranks (domain TEXT PRIMARY KEY, rank INTEGER)")
+        connection.executemany(
+            "INSERT INTO ranks VALUES (?, ?)",
+            [("github.io", 117), ("t.me", 108), ("figma.com", 400), ("acme.com", 5000)],
+        )
+        return connection
+
+    def test_exact_domain_rank_is_used(self):
+        rank, inherited = lookup_tranco("figma.com", self._db())
+        assert (rank, inherited) == (400, False)
+
+    def test_shared_hosting_never_inherits_the_platform_rank(self):
+        """A GitHub Pages demo must not inherit github.io's global rank."""
+        rank, inherited = lookup_tranco("someuser.github.io", self._db())
+        assert rank is None
+        assert inherited is False
+
+        rank, _ = lookup_tranco("zoefit_bot.t.me", self._db())
+        assert rank is None
+
+    def test_ordinary_subdomains_still_inherit_but_are_marked(self):
+        rank, inherited = lookup_tranco("app.acme.com", self._db())
+        assert rank == 5000
+        assert inherited is True
+
+    def test_inherited_ranks_score_lower_than_direct_ones(self):
+        assert tranco_rank_score(400, inherited=True) < tranco_rank_score(400)
+        assert tranco_rank_score(None) == 0.0
+
+    def test_better_ranks_score_higher(self):
+        assert tranco_rank_score(500) > tranco_rank_score(80_000)
+        assert tranco_rank_score(80_000) > tranco_rank_score(900_000)
+
+    def test_is_shared_host_matches_platform_subdomains(self):
+        assert is_shared_host("foo.vercel.app")
+        assert is_shared_host("github.io")
+        assert not is_shared_host("figma.com")
+
+    def test_hn_score_needs_stories(self):
+        assert hn_score(0, 0) == 0.0
+        assert hn_score(5, 900) > hn_score(1, 20)
+
+    def test_external_score_penalises_shared_hosting(self):
+        hosted = Signals(tranco_rank=5_000, shared_hosting=True)
+        owned = Signals(tranco_rank=5_000)
+        assert external_score(hosted) < external_score(owned)
+
+    def test_wikidata_requires_a_website_to_disambiguate(self):
+        """Without a site to match P856 against, "Perplexity" resolves to a
+        1990 video game. Refuse to guess rather than return a wrong entity."""
+        assert fetch_wikidata("Perplexity", "") == ("", "")
+        assert fetch_wikidata("", "https://perplexity.ai") == ("", "")
+
+    def test_external_score_is_bounded(self):
+        assert external_score(Signals()) == 0.0
+        best = external_score(
+            Signals(
+                tranco_rank=50,
+                wikidata_id="Q123",
+                hn_story_count=20,
+                hn_points=5000,
+            )
+        )
+        assert 0.0 < best <= 1.0
+
+    def test_paid_search_is_off_unless_opted_in(self):
+        stages = Stages()
+        assert stages.signals is True
+        assert stages.search is False
+        assert stages.llm is True
 
 
 class TestSearchEvidence:
