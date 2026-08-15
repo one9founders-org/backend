@@ -6,6 +6,9 @@ from django.db import models
 from django_summernote.fields import SummernoteTextField
 from pgvector.django import VectorField
 
+from .hygiene.classify import ENTRY_TYPE_CHOICES
+from .hygiene.linkcheck import LINK_STATUS_CHOICES
+
 logger = logging.getLogger(__name__)
 
 
@@ -172,6 +175,49 @@ class Tool(models.Model):
     language_review_needed = models.BooleanField(
         default=False,
         help_text="True when description failed the English-language lint.",
+    )
+
+    # Directory hygiene (see api/hygiene/)
+    entry_type = models.CharField(
+        max_length=20,
+        choices=ENTRY_TYPE_CHOICES,
+        default="product",
+        db_index=True,
+        help_text=(
+            "What this row actually is: a product with its own site, or a "
+            "listing on someone else's platform (ChatGPT store, app store)."
+        ),
+    )
+    hygiene_flags = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Name/content quality flags raised by the hygiene pass.",
+    )
+    link_status = models.CharField(
+        max_length=20,
+        choices=LINK_STATUS_CHOICES,
+        default="unchecked",
+        db_index=True,
+        help_text="Result of the last website reachability check.",
+    )
+    link_checked_at = models.DateTimeField(null=True, blank=True)
+    link_final_url = models.URLField(
+        max_length=500,
+        blank=True,
+        help_text="Where the website URL actually resolved to, after redirects.",
+    )
+    popularity_score = models.DecimalField(
+        max_digits=6,
+        decimal_places=4,
+        default=0,
+        db_index=True,
+        help_text="0-1 blended popularity score used for ranking.",
+    )
+    last_hygiene_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="When the hygiene pass last revised this row.",
     )
 
     # Display order for homepage ranking (lower = higher priority)

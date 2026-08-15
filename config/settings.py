@@ -245,6 +245,12 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
 
+# Directory hygiene pass (api/hygiene/).
+# Google Programmable Search: $5 per 1,000 queries, 10,000/day cap.
+GOOGLE_SEARCH_API_KEY = os.getenv("GOOGLE_SEARCH_API_KEY", "")
+GOOGLE_SEARCH_CX = os.getenv("GOOGLE_SEARCH_CX", "")
+HYGIENE_ENRICH_MODEL = os.getenv("HYGIENE_ENRICH_MODEL", "gpt-4o-mini")
+
 # Google reCAPTCHA v3 Configuration
 RECAPTCHA_SITE_KEY = os.getenv("RECAPTCHA_SITE_KEY", "")
 RECAPTCHA_SECRET_KEY = os.getenv("RECAPTCHA_SECRET_KEY", "")
