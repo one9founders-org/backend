@@ -65,11 +65,11 @@ class Migration(migrations.Migration):
                 "indexes": [
                     models.Index(
                         fields=["run_type", "status"],
-                        name="discovery_r_run_typ_idx",
+                        name="discovery_r_run_typ_371eab_idx",
                     ),
                     models.Index(
                         fields=["-created_at"],
-                        name="discovery_r_created_idx",
+                        name="discovery_r_created_42ee10_idx",
                     ),
                 ],
             },
