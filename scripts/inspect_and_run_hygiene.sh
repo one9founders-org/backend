@@ -39,8 +39,10 @@ start_detached() {
   local label="$1"
   shift
   echo "===== START ${label} ====="
-  docker compose exec -T web bash -lc "nohup bash -c 'python manage.py $* && python manage.py build_faiss_index' > /tmp/hygiene-pass.log 2>&1 &"
-  sleep 3
+  # exec -d keeps the process in the container after this SSH session ends.
+  # nohup inside `compose exec -T` is reaped when the exec exits.
+  docker compose exec -d web bash -lc "python manage.py $* > /tmp/hygiene-pass.log 2>&1 && python manage.py build_faiss_index >> /tmp/hygiene-pass.log 2>&1"
+  sleep 5
   docker compose exec -T web ps aux | grep -E 'hygiene_pass|build_faiss_index' | grep -v grep || echo "process not visible yet"
   docker compose exec -T web tail -n 40 /tmp/hygiene-pass.log || true
 }
@@ -75,13 +77,9 @@ case "${ACTION}" in
     ;;
   scheduled)
     echo "===== START scheduled chain ====="
-    docker compose exec -T web bash -lc "nohup bash -c '
-      python manage.py hygiene_pass --only-unchecked --limit 2500 --no-search --no-llm --apply
-      python manage.py hygiene_pass --entry-type product --stale-days 14 --limit ${LIMIT} --search-budget ${LIMIT} --apply
-      python manage.py build_faiss_index
-    ' > /tmp/hygiene-pass.log 2>&1 &"
-    sleep 3
-    docker compose exec -T web ps aux | grep hygiene_pass | grep -v grep || echo "process not visible yet"
+    docker compose exec -d web bash -lc "python manage.py hygiene_pass --only-unchecked --limit 2500 --no-search --no-llm --apply > /tmp/hygiene-pass.log 2>&1 && python manage.py hygiene_pass --entry-type product --stale-days 14 --limit ${LIMIT} --search-budget ${LIMIT} --apply >> /tmp/hygiene-pass.log 2>&1 && python manage.py build_faiss_index >> /tmp/hygiene-pass.log 2>&1"
+    sleep 5
+    docker compose exec -T web ps aux | grep -E 'hygiene_pass|build_faiss_index' | grep -v grep || echo "process not visible yet"
     docker compose exec -T web tail -n 40 /tmp/hygiene-pass.log || true
     ;;
   *)
