@@ -49,6 +49,10 @@ case "${ACTION}" in
   inspect|audit)
     echo "Inspect/audit only; no hygiene process started."
     ;;
+  free-dry)
+    echo "===== FREE DRY RUN (200 rows, no search, no LLM) ====="
+    docker compose exec -T web python manage.py hygiene_pass --limit 200 --no-search --no-llm
+    ;;
   inspect-and-free|free)
     start_detached "free-unchecked" \
       hygiene_pass --only-unchecked --limit "${LIMIT}" --no-search --no-llm --apply
