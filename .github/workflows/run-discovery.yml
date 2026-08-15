@@ -27,6 +27,6 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           port: 22
-          timeout: 300s
+          timeout: 420s
           envs: DISCOVERY_ACTION
           script_path: scripts/inspect_and_run_discovery.sh
