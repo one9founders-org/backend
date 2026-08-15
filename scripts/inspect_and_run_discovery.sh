@@ -61,6 +61,22 @@ crontab -l 2>/dev/null | grep -n discover || echo "no discovery cron"
 echo "===== RUNNING DISCOVERY ====="
 docker compose exec -T web ps aux | grep -E 'run_tool_discovery|discover' | grep -v grep || echo "no discovery process"
 
+echo "===== TOOLS NOT NULL NO DEFAULT ====="
+docker compose exec -T web python manage.py shell -c '
+from django.db import connection
+with connection.cursor() as cursor:
+    cursor.execute("""
+        SELECT column_name, data_type
+        FROM information_schema.columns
+        WHERE table_name = %s
+          AND is_nullable = %s
+          AND column_default IS NULL
+        ORDER BY column_name
+    """, ["tools", "NO"])
+    for name, dtype in cursor.fetchall():
+        print(name, dtype)
+'
+
 echo "===== DISCOVERY DB ====="
 docker compose exec -T web python manage.py shell -c '
 from django.db.models import Count
