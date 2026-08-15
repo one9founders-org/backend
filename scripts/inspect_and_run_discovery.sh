@@ -58,9 +58,7 @@ except Exception as exc:
 
 crontab -l 2>/dev/null | grep -n discover || echo "no discovery cron"
 
-echo "===== STOP OLD DISCOVERY ====="
-docker compose exec -T web bash -lc 'pkill -f run_tool_discovery || true'
-sleep 2
+echo "===== RUNNING DISCOVERY ====="
 docker compose exec -T web ps aux | grep -E 'run_tool_discovery|discover' | grep -v grep || echo "no discovery process"
 
 echo "===== FIX ORPHAN NOT NULL ====="
@@ -127,6 +125,7 @@ docker compose exec -T web python manage.py discover_candidates
 
 if [ "${DISCOVERY_ACTION:-inspect-and-run}" = "inspect-and-run" ]; then
   echo "===== START RUN ====="
+  docker compose exec -T web bash -lc 'pkill -f run_tool_discovery || true'
   docker compose exec -d web python manage.py run_tool_discovery
   sleep 5
   docker compose exec -T web ps aux | grep run_tool_discovery | grep -v grep || echo "process not visible yet"
