@@ -246,10 +246,16 @@ ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
 
 # Directory hygiene pass (api/hygiene/).
-# Google Programmable Search: $5 per 1,000 queries, 10,000/day cap.
+# Popularity ranking uses the free Tranco list; refresh with
+# `manage.py refresh_tranco` (monthly is plenty -- ranks move slowly).
+TRANCO_DB_PATH = os.getenv("TRANCO_DB_PATH", str(BASE_DIR / "data" / "tranco.sqlite3"))
+HYGIENE_ENRICH_MODEL = os.getenv("HYGIENE_ENRICH_MODEL", "gpt-4o-mini")
+
+# Optional paid fallback. Google Programmable Search is $5 per 1,000
+# queries with a 10,000/day cap. The free signals cover ranking without
+# it, so `hygiene_pass` only uses this when passed --search.
 GOOGLE_SEARCH_API_KEY = os.getenv("GOOGLE_SEARCH_API_KEY", "")
 GOOGLE_SEARCH_CX = os.getenv("GOOGLE_SEARCH_CX", "")
-HYGIENE_ENRICH_MODEL = os.getenv("HYGIENE_ENRICH_MODEL", "gpt-4o-mini")
 
 # Google reCAPTCHA v3 Configuration
 RECAPTCHA_SITE_KEY = os.getenv("RECAPTCHA_SITE_KEY", "")

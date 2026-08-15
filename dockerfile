@@ -22,7 +22,7 @@ RUN pip install --upgrade pip && \
 # Copy application code (changes most frequently)
 COPY . .
 
-# Create staticfiles directory
-RUN mkdir -p /app/backend/staticfiles
+# Create staticfiles directory and the Tranco lookup dir (named volume at runtime)
+RUN mkdir -p /app/backend/staticfiles /app/backend/data
 
 CMD ["gunicorn", "--config", "gunicorn.conf.py", "config.wsgi:application"]

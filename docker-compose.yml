@@ -6,6 +6,8 @@ services:
     volumes:
       - static_volume:/app/backend/staticfiles
       - media_volume:/app/backend/media
+      # Survives `git reset --hard` and image rebuilds. Holds tranco.sqlite3.
+      - hygiene_data:/app/backend/data
     expose:
       - "8000"
     env_file:
@@ -37,3 +39,4 @@ services:
 volumes:
   static_volume:
   media_volume:
+  hygiene_data:
