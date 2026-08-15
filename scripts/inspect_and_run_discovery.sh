@@ -2,6 +2,10 @@
 set -euo pipefail
 cd /var/www/one9founders
 
+echo "===== START CONTAINERS ====="
+docker compose up -d
+sleep 8
+
 echo "===== CONTAINERS ====="
 docker compose ps
 
