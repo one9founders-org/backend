@@ -39,8 +39,9 @@ LINK_STATUS_CHOICES = [
 ]
 
 # 402 in the wild almost always means an expired/parked domain, not a real
-# paywall on a marketing site.
-PARKED_CODES = frozenset({402, 403, 410})
+# paywall on a marketing site. 410 is gone. 403 is bot-protection on live
+# products (Midjourney, Character.AI, etc.) and must not hide them.
+PARKED_CODES = frozenset({402, 410})
 
 # Listing URLs that carry no item id are useless -- they resolve to a
 # store's front page rather than the tool.
@@ -124,6 +125,9 @@ def check_url(url: str) -> LinkResult:
 
     if code in PARKED_CODES:
         status = PARKED
+    elif code == 403:
+        # WAF/bot wall: the product is alive, it just won't talk to us.
+        status = REDIRECTED if host_changed else OK
     elif code >= 400:
         status = BROKEN
     elif host_changed:

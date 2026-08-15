@@ -15,7 +15,7 @@ from api.hygiene.classify import (
     name_flags,
     normalized_name,
 )
-from api.hygiene.linkcheck import is_malformed
+from api.hygiene.linkcheck import PARKED_CODES, is_malformed
 from api.hygiene.rank import RankInputs, completeness_score, display_order_for
 from api.hygiene.rank import score as rank_score
 from api.hygiene.taxonomy import (
@@ -90,6 +90,11 @@ class TestLinkChecks:
 
     def test_normal_urls_pass(self):
         assert is_malformed("https://figma.com") == ""
+
+    def test_bot_walls_are_not_treated_as_parked(self):
+        assert 403 not in PARKED_CODES
+        assert 402 in PARKED_CODES
+        assert 410 in PARKED_CODES
 
 
 class TestTaxonomy:
