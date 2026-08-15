@@ -1,0 +1,46 @@
+name: Run directory hygiene
+
+on:
+  schedule:
+    # 06:00 UTC = 11:30 IST, after overnight discovery (02:15 IST).
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+    inputs:
+      action:
+        description: inspect/audit only, or start a hygiene run on the server
+        required: true
+        default: inspect-and-free
+        type: choice
+        options:
+          - inspect
+          - audit
+          - inspect-and-free
+          - full-free
+          - paid-dry
+          - paid-sample
+          - inspect-and-paid
+          - scheduled
+      limit:
+        description: Row cap for free/paid runs (Google daily cap is 10,000)
+        required: false
+        default: "4000"
+
+jobs:
+  hygiene:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Inspect and optionally start hygiene
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          HYGIENE_ACTION: ${{ github.event.inputs.action || 'scheduled' }}
+          HYGIENE_LIMIT: ${{ github.event.inputs.limit || '4000' }}
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
+          timeout: 300s
+          envs: HYGIENE_ACTION,HYGIENE_LIMIT
+          script_path: scripts/inspect_and_run_hygiene.sh

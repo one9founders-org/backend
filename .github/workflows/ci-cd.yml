@@ -218,4 +218,11 @@ jobs:
             fi
             docker compose exec -d web python manage.py run_tool_discovery
 
+            if ! grep -qE '^GOOGLE_SEARCH_API_KEY=.+' .env; then
+              echo "WARNING: GOOGLE_SEARCH_API_KEY missing on the server; hygiene search will no-op."
+            fi
+            if ! grep -qE '^GOOGLE_SEARCH_CX=.+' .env; then
+              echo "WARNING: GOOGLE_SEARCH_CX missing on the server; hygiene search will no-op."
+            fi
+
             echo "Deploy complete."
