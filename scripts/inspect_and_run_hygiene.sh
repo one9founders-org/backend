@@ -42,10 +42,9 @@ start_detached() {
   # Same pattern as deploy's run_tool_discovery: compose exec -d is the
   # process that survives after this SSH session. Logging goes to the
   # container's stdout (docker compose logs web).
-  docker compose exec -d web python manage.py "$@"
+  docker compose exec --detach -T web python manage.py "$@"
   sleep 5
   docker compose exec -T web ps aux | grep -E 'manage.py|hygiene_pass' | grep -v grep || echo "process not visible yet"
-  docker compose logs --tail 30 web || true
 }
 
 case "${ACTION}" in
@@ -77,11 +76,8 @@ case "${ACTION}" in
       hygiene_pass --entry-type product --stale-days 14 --limit "${LIMIT}" --search-budget "${LIMIT}" --apply
     ;;
   scheduled)
-    echo "===== START scheduled chain ====="
-    docker compose exec -d web python manage.py hygiene_pass --only-unchecked --limit 2500 --no-search --no-llm --apply
-    sleep 2
-    docker compose exec -T web ps aux | grep -E 'manage.py|hygiene_pass' | grep -v grep || echo "process not visible yet"
-    docker compose logs --tail 20 web || true
+    start_detached "scheduled-unchecked" \
+      hygiene_pass --only-unchecked --limit 2500 --no-search --no-llm --apply
     ;;
   *)
     echo "Unknown HYGIENE_ACTION=${ACTION}" >&2

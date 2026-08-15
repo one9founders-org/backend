@@ -14,7 +14,6 @@ import logging
 from dataclasses import asdict, dataclass, field
 from datetime import timedelta
 
-from django.db import transaction
 from django.db.models import F, Q
 from django.utils import timezone
 
@@ -292,7 +291,8 @@ def run(
 
     outcomes: list[ToolOutcome] = []
     searches_used = 0
-    for tool in tools:
+    applied = 0
+    for index, tool in enumerate(tools, start=1):
         if stages.search and searches_used >= search_budget:
             stages.search = False
             logger.warning(
@@ -305,19 +305,24 @@ def run(
             outcomes.append(outcome)
             if before_search and not outcome.skipped:
                 searches_used += 1
+            # Apply as we go so a killed run still keeps finished rows.
+            # --only-unchecked then resumes from the rest.
+            if apply and outcome.changes and apply_outcome(outcome):
+                applied += 1
         except Exception:
             logger.exception("Hygiene pass failed for tool id=%s", tool.id)
+        if index % 50 == 0:
+            logger.info(
+                "Hygiene progress %s/%s applied=%s",
+                index,
+                len(tools),
+                applied,
+            )
+
+    if apply and applied:
+        bust_tool_stats_cache()
 
     changed = [o for o in outcomes if o.changes]
-    applied = 0
-    if apply:
-        with transaction.atomic():
-            for outcome in changed:
-                if apply_outcome(outcome):
-                    applied += 1
-        if applied:
-            bust_tool_stats_cache()
-
     payload = {
         "kind": "hygiene",
         "ran_at": timezone.now().isoformat(),
