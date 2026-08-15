@@ -39,12 +39,13 @@ start_detached() {
   local label="$1"
   shift
   echo "===== START ${label} ====="
-  # exec -d keeps the process in the container after this SSH session ends.
-  # nohup inside `compose exec -T` is reaped when the exec exits.
-  docker compose exec -d web bash -lc "python manage.py $* > /tmp/hygiene-pass.log 2>&1 && python manage.py build_faiss_index >> /tmp/hygiene-pass.log 2>&1"
+  # Same pattern as deploy's run_tool_discovery: compose exec -d is the
+  # process that survives after this SSH session. Logging goes to the
+  # container's stdout (docker compose logs web).
+  docker compose exec -d web python manage.py "$@"
   sleep 5
-  docker compose exec -T web ps aux | grep -E 'hygiene_pass|build_faiss_index' | grep -v grep || echo "process not visible yet"
-  docker compose exec -T web tail -n 40 /tmp/hygiene-pass.log || true
+  docker compose exec -T web ps aux | grep -E 'manage.py|hygiene_pass' | grep -v grep || echo "process not visible yet"
+  docker compose logs --tail 30 web || true
 }
 
 case "${ACTION}" in
@@ -77,10 +78,10 @@ case "${ACTION}" in
     ;;
   scheduled)
     echo "===== START scheduled chain ====="
-    docker compose exec -d web bash -lc "python manage.py hygiene_pass --only-unchecked --limit 2500 --no-search --no-llm --apply > /tmp/hygiene-pass.log 2>&1 && python manage.py hygiene_pass --entry-type product --stale-days 14 --limit ${LIMIT} --search-budget ${LIMIT} --apply >> /tmp/hygiene-pass.log 2>&1 && python manage.py build_faiss_index >> /tmp/hygiene-pass.log 2>&1"
-    sleep 5
-    docker compose exec -T web ps aux | grep -E 'hygiene_pass|build_faiss_index' | grep -v grep || echo "process not visible yet"
-    docker compose exec -T web tail -n 40 /tmp/hygiene-pass.log || true
+    docker compose exec -d web python manage.py hygiene_pass --only-unchecked --limit 2500 --no-search --no-llm --apply
+    sleep 2
+    docker compose exec -T web ps aux | grep -E 'manage.py|hygiene_pass' | grep -v grep || echo "process not visible yet"
+    docker compose logs --tail 20 web || true
     ;;
   *)
     echo "Unknown HYGIENE_ACTION=${ACTION}" >&2
