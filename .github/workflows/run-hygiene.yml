@@ -4,6 +4,8 @@ on:
   schedule:
     # 06:00 UTC = 11:30 IST, after overnight discovery (02:15 IST).
     - cron: "0 6 * * *"
+    # Monthly Tranco refresh, then the same stale pass.
+    - cron: "15 6 1 * *"
   workflow_dispatch:
     inputs:
       action:
@@ -14,17 +16,18 @@ on:
         options:
           - inspect
           - audit
+          - refresh-tranco
           - free-dry
           - inspect-and-free
           - full-free
-          - paid-dry
-          - paid-sample
-          - inspect-and-paid
+          - llm-dry
+          - llm-sample
+          - llm
           - scheduled
       limit:
-        description: Row cap for free/paid runs (Google daily cap is 10,000)
+        description: Row cap for a run (stale/new rows; no Google quota)
         required: false
-        default: "4000"
+        default: "2500"
 
 jobs:
   hygiene:
@@ -36,13 +39,13 @@ jobs:
         uses: appleboy/ssh-action@v1.2.0
         env:
           HYGIENE_ACTION: ${{ github.event.inputs.action || 'scheduled' }}
-          HYGIENE_LIMIT: ${{ github.event.inputs.limit || '4000' }}
+          HYGIENE_LIMIT: ${{ github.event.inputs.limit || '2500' }}
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           port: 22
           timeout: 60s
-          command_timeout: 8m
+          command_timeout: 15m
           envs: HYGIENE_ACTION,HYGIENE_LIMIT
           script_path: scripts/inspect_and_run_hygiene.sh

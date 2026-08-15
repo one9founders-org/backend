@@ -17,9 +17,10 @@ from pathlib import Path
 text = Path('.env').read_text()
 for key in (
     'OPENAI_API_KEY',
+    'TRANCO_DB_PATH',
+    'HYGIENE_ENRICH_MODEL',
     'GOOGLE_SEARCH_API_KEY',
     'GOOGLE_SEARCH_CX',
-    'HYGIENE_ENRICH_MODEL',
 ):
     present = any(
         line.startswith(key + '=') and line.split('=', 1)[1].strip()
@@ -42,45 +43,57 @@ start_detached() {
   local label="$1"
   shift
   echo "===== START ${label} ====="
-  # Same pattern as deploy's run_tool_discovery: compose exec -d is the
-  # process that survives after this SSH session. Logging goes to the
-  # container's stdout (docker compose logs web).
   docker compose exec --detach -T web python manage.py "$@"
   sleep 5
-  docker compose exec -T web ps aux | grep -E 'manage.py|hygiene_pass' | grep -v grep || echo "process not visible yet"
+  docker compose exec -T web ps aux | grep -E 'manage.py|hygiene_pass|refresh_tranco' | grep -v grep || echo "process not visible yet"
+}
+
+refresh_tranco_if_due() {
+  # Monthly, or whenever the action is explicitly refresh-tranco.
+  if [ "${ACTION}" = "refresh-tranco" ] || [ "$(date -u +%d)" = "01" ]; then
+    echo "===== REFRESH TRANCO ====="
+    docker compose exec -T web python manage.py refresh_tranco
+  fi
 }
 
 case "${ACTION}" in
   inspect|audit)
     echo "Inspect/audit only; no hygiene process started."
     ;;
+  refresh-tranco)
+    docker compose exec -T web python manage.py refresh_tranco
+    ;;
   free-dry)
-    echo "===== FREE DRY RUN (200 rows, no search, no LLM) ====="
-    docker compose exec -T web python manage.py hygiene_pass --limit 200 --no-search --no-llm
+    echo "===== FREE DRY RUN (200 rows, no LLM) ====="
+    docker compose exec -T web python manage.py hygiene_pass --limit 200 --no-llm
     ;;
   inspect-and-free|free)
+    refresh_tranco_if_due
     start_detached "free-unchecked" \
-      hygiene_pass --only-unchecked --limit "${LIMIT}" --no-search --no-llm --apply
+      hygiene_pass --only-unchecked --limit "${LIMIT}" --no-llm --apply
     ;;
   full-free)
+    echo "===== REFRESH TRANCO ====="
+    docker compose exec -T web python manage.py refresh_tranco
     start_detached "full-free" \
-      hygiene_pass --limit 0 --no-search --no-llm --apply
+      hygiene_pass --limit 0 --no-llm --apply
     ;;
-  paid-dry)
-    echo "===== PAID DRY RUN (25 products) ====="
+  paid-dry|llm-dry)
+    echo "===== LLM DRY RUN (25 products) ====="
     docker compose exec -T web python manage.py hygiene_pass --limit 25 --entry-type product
     ;;
-  paid-sample)
-    start_detached "paid-sample" \
+  paid-sample|llm-sample)
+    start_detached "llm-sample" \
       hygiene_pass --limit 25 --entry-type product --apply
     ;;
-  inspect-and-paid|paid)
-    start_detached "paid-stale-products" \
-      hygiene_pass --entry-type product --stale-days 14 --limit "${LIMIT}" --search-budget "${LIMIT}" --apply
+  inspect-and-paid|paid|llm)
+    start_detached "llm-stale-products" \
+      hygiene_pass --entry-type product --stale-days 30 --limit "${LIMIT}" --apply
     ;;
   scheduled)
-    start_detached "scheduled-unchecked" \
-      hygiene_pass --only-unchecked --limit 2500 --no-search --no-llm --apply
+    refresh_tranco_if_due
+    start_detached "scheduled-stale" \
+      hygiene_pass --stale-days 30 --limit "${LIMIT}" --no-llm --apply
     ;;
   *)
     echo "Unknown HYGIENE_ACTION=${ACTION}" >&2

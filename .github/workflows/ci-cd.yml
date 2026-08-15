@@ -179,11 +179,12 @@ jobs:
               echo "DISCOVERY_TRIGGER_SECRET=$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')" >> .env
               echo "Generated DISCOVERY_TRIGGER_SECRET on the server."
             fi
+            if ! grep -qE '^TRANCO_DB_PATH=' .env; then
+              echo "TRANCO_DB_PATH=/app/backend/data/tranco.sqlite3" >> .env
+            fi
 
-            # Clean up old Docker images/volumes on the server to free space
-            docker system prune -af
-            
-            # Rebuild and restart containers
+            # Rebuild and restart. Do not `docker system prune -af` first:
+            # a hung SSH step after prune left the box with no images.
             docker compose down
             DOCKER_BUILDKIT=1 docker compose build --build-arg BUILDKIT_INLINE_CACHE=1 --progress=plain
             docker compose up -d
@@ -217,12 +218,5 @@ jobs:
               ) | crontab -
             fi
             docker compose exec -d web python manage.py run_tool_discovery
-
-            if ! grep -qE '^GOOGLE_SEARCH_API_KEY=.+' .env; then
-              echo "WARNING: GOOGLE_SEARCH_API_KEY missing on the server; hygiene search will no-op."
-            fi
-            if ! grep -qE '^GOOGLE_SEARCH_CX=.+' .env; then
-              echo "WARNING: GOOGLE_SEARCH_CX missing on the server; hygiene search will no-op."
-            fi
 
             echo "Deploy complete."
