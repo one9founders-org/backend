@@ -1,8 +1,10 @@
 import pytest
+from django.core.cache import cache
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient
 
+from api.tool_stats import TOOL_STATS_CACHE_KEY
 from tests.factories import (
     CategoryFactory,
     NewsletterSubscriptionFactory,
@@ -81,6 +83,78 @@ class TestReviewAPI:
 
         assert response.status_code == status.HTTP_201_CREATED
         assert response.data["rating"] == 5
+
+
+@pytest.mark.django_db
+class TestToolDirectoryStatsAPI:
+    def setup_method(self):
+        cache.clear()
+
+    def test_includes_existing_and_new_totals(self, api_client):
+        writing = CategoryFactory(name="Writing", slug="writing")
+        image = CategoryFactory(name="Image", slug="image")
+        ToolFactory(
+            name="Writer One",
+            categories=[writing],
+            criteria_completed=10,
+            is_active=True,
+        )
+        ToolFactory(
+            name="Writer Two",
+            categories=[writing],
+            criteria_completed=7,
+            is_active=True,
+        )
+        ToolFactory(
+            name="Hidden Imager",
+            categories=[image],
+            criteria_completed=0,
+            is_active=False,
+        )
+
+        response = api_client.get(reverse("tool-directory-stats"))
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["count"] == 2
+        assert response.data["fully_assessed_count"] == 1
+        assert response.data["provisionally_assessed_count"] == 1
+        assert response.data["total_tools"] == 3
+        assert response.data["by_category"] == [
+            {"category": "Writing", "count": 2},
+            {"category": "Image", "count": 1},
+        ]
+
+    def test_serves_cached_payload(self, api_client):
+        cache.set(
+            TOOL_STATS_CACHE_KEY,
+            {
+                "count": 99,
+                "fully_assessed_count": 10,
+                "provisionally_assessed_count": 20,
+                "total_tools": 100,
+                "by_category": [{"category": "Cached", "count": 99}],
+            },
+            3600,
+        )
+
+        response = api_client.get(reverse("tool-directory-stats"))
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["total_tools"] == 100
+        assert response.data["by_category"] == [{"category": "Cached", "count": 99}]
+
+    def test_tool_save_busts_cache(self, api_client):
+        writing = CategoryFactory(name="Writing", slug="writing")
+        ToolFactory(name="First", categories=[writing], is_active=True)
+
+        first = api_client.get(reverse("tool-directory-stats"))
+        assert first.data["total_tools"] == 1
+
+        ToolFactory(name="Second", categories=[writing], is_active=True)
+
+        second = api_client.get(reverse("tool-directory-stats"))
+        assert second.data["total_tools"] == 2
+        assert second.data["by_category"] == [{"category": "Writing", "count": 2}]
 
 
 @pytest.mark.django_db

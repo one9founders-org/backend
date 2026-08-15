@@ -69,6 +69,7 @@ from .serializers import (
     WorkshopDetailSerializer,
     WorkshopListSerializer,
 )
+from .tool_stats import get_tool_directory_stats
 
 logger = logging.getLogger(__name__)
 
@@ -545,16 +546,7 @@ def trending_tools(request):
 @permission_classes([AllowAny])
 def tool_directory_stats(request):
     """Live directory totals — the same count the paginated listing uses."""
-    qs = Tool.objects.filter(is_active=True)
-    return Response(
-        {
-            "count": qs.count(),
-            "fully_assessed_count": qs.filter(criteria_completed=10).count(),
-            "provisionally_assessed_count": qs.filter(
-                criteria_completed__gte=6, criteria_completed__lt=10
-            ).count(),
-        }
-    )
+    return Response(get_tool_directory_stats())
 
 
 @api_view(["GET"])

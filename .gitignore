@@ -38,3 +38,6 @@ safety-report.json
 
 # FAISS index files
 faiss_index/
+
+# Tool enrichment apply/revert audit logs
+/enrichment-logs/

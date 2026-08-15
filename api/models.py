@@ -163,6 +163,12 @@ class Tool(models.Model):
         blank=True,
         help_text="When scoring criteria were last updated.",
     )
+    last_enriched_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="When automated discovery last refreshed this tool's description.",
+    )
     language_review_needed = models.BooleanField(
         default=False,
         help_text="True when description failed the English-language lint.",
@@ -981,3 +987,38 @@ class FounderSurvey(models.Model):
             f"{self.name or 'Anonymous'} \u2013 "
             f"{self.startup or 'Unknown startup'} ({date_str})"
         )
+
+
+class DiscoveryRun(models.Model):
+    """Audit trail for automated tool discovery / description refresh."""
+
+    RUN_TYPE_CHOICES = [
+        ("new", "New"),
+        ("refresh", "Refresh"),
+    ]
+    STATUS_CHOICES = [
+        ("published", "Published"),
+        ("rejected", "Rejected"),
+        ("error", "Error"),
+        ("updated", "Updated"),
+        ("refresh_rejected", "Refresh rejected"),
+        ("deferred", "Deferred over cap"),
+    ]
+
+    run_type = models.CharField(max_length=20, choices=RUN_TYPE_CHOICES, db_index=True)
+    tool_name = models.CharField(max_length=255)
+    url = models.URLField(max_length=500, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, db_index=True)
+    reasons = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        db_table = "discovery_runs"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["run_type", "status"]),
+            models.Index(fields=["-created_at"]),
+        ]
+
+    def __str__(self):
+        return f"{self.run_type} {self.status}: {self.tool_name}"

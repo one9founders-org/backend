@@ -167,6 +167,17 @@ class PaperStatsView(APIView):
         papers_today = Paper.objects.filter(created_at__gte=today_start).count()
         papers_this_week = Paper.objects.filter(created_at__gte=week_start).count()
 
+        unique_authors = set()
+        for names in Paper.objects.values_list("authors", flat=True).iterator(
+            chunk_size=1000
+        ):
+            if not names:
+                continue
+            for name in names:
+                if isinstance(name, str) and name.strip():
+                    unique_authors.add(name.strip())
+        total_authors = len(unique_authors)
+
         # Top tags from recent papers
         recent_papers = Paper.objects.filter(
             created_at__gte=week_start, is_enriched=True
@@ -181,6 +192,7 @@ class PaperStatsView(APIView):
         return Response(
             {
                 "total_papers": total_papers,
+                "total_authors": total_authors,
                 "papers_today": papers_today,
                 "papers_this_week": papers_this_week,
                 "top_tags": top_tags,

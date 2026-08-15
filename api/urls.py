@@ -9,6 +9,7 @@ from .auth_views import (
     login_user,
     register_user,
 )
+from .discovery.views import run_discovery_trigger
 from .smart_search_views import decompose_task_search, smart_search_tools
 
 router = DefaultRouter()
@@ -52,6 +53,11 @@ urlpatterns = [
     ),
     path("tools/add/", views.add_tool, name="tool-add"),
     path("internal/sync-lacreme/", views.sync_lacreme, name="sync-lacreme"),
+    path(
+        "internal/run-discovery/",
+        run_discovery_trigger,
+        name="run-discovery-trigger",
+    ),
     path(
         "newsletter/subscribe/", views.subscribe_newsletter, name="newsletter-subscribe"
     ),

@@ -173,6 +173,13 @@ jobs:
             sed -i '/^GIT_SHA=/d' .env
             echo "GIT_SHA=$(git rev-parse --short HEAD)" >> .env
 
+            # Needed by POST /internal/run-discovery/ (X-Trigger-Secret).
+            # Generate before compose up so the new container sees it.
+            if ! grep -qE '^DISCOVERY_TRIGGER_SECRET=.+' .env; then
+              echo "DISCOVERY_TRIGGER_SECRET=$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')" >> .env
+              echo "Generated DISCOVERY_TRIGGER_SECRET on the server."
+            fi
+
             # Clean up old Docker images/volumes on the server to free space
             docker system prune -af
             
@@ -200,5 +207,15 @@ jobs:
             # until the job's next successful run.
             docker compose exec -d web python manage.py build_faiss_index
             docker compose exec -d web python manage.py run_news_pipeline
+
+            # Uncapped discovery in the background so new tools land overnight
+            # without blocking this SSH session. Nightly cron keeps it going.
+            if ! crontab -l 2>/dev/null | grep -q 'run_tool_discovery'; then
+              (
+                crontab -l 2>/dev/null || true
+                echo '15 2 * * * cd /var/www/one9founders && docker compose exec -T web python manage.py run_tool_discovery >> /var/log/tool-discovery.log 2>&1'
+              ) | crontab -
+            fi
+            docker compose exec -d web python manage.py run_tool_discovery
 
             echo "Deploy complete."
