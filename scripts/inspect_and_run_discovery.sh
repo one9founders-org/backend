@@ -17,7 +17,41 @@ for key in ('OPENAI_API_KEY', 'GITHUB_TOKEN', 'DISCOVERY_TRIGGER_SECRET'):
     print(key, 'yes' if present else 'NO')
 "
 
-echo "===== CRON ====="
+echo "===== OPENAI KEY CHECK ====="
+python3 -c "
+from pathlib import Path
+text = Path('.env').read_text()
+key = ''
+for line in text.splitlines():
+    if line.startswith('OPENAI_API_KEY='):
+        key = line.split('=', 1)[1].strip().strip('\"').strip(\"'\")
+        break
+print('present', bool(key))
+print('prefix', (key[:8] + '...') if key else 'missing')
+print('suffix', ('...' + key[-4:]) if len(key) >= 4 else 'missing')
+print('length', len(key))
+print('kind', 'project' if key.startswith('sk-proj-') else 'legacy' if key.startswith('sk-') else 'unknown')
+"
+
+echo "===== OPENAI LIVE PING ====="
+docker compose exec -T web python -c '
+from django.conf import settings
+from openai import OpenAI
+key = settings.OPENAI_API_KEY or ""
+print("django_key_suffix", ("..." + key[-4:]) if len(key) >= 4 else "missing")
+client = OpenAI(api_key=key)
+try:
+    resp = client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=[{"role": "user", "content": "Reply with the single word pong"}],
+        max_tokens=5,
+    )
+    print("chat_ok", (resp.choices[0].message.content or "").strip())
+except Exception as exc:
+    print("chat_error", type(exc).__name__)
+    print(str(exc)[:500])
+'
+
 crontab -l 2>/dev/null | grep -n discover || echo "no discovery cron"
 
 echo "===== RUNNING DISCOVERY ====="
