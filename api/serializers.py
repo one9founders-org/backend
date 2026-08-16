@@ -6,6 +6,7 @@ from .models import (
     Deal,
     FounderSurvey,
     Guide,
+    JobStack,
     Lab,
     News,
     NewsletterSubscription,
@@ -353,6 +354,28 @@ class UserFavoriteSerializer(serializers.ModelSerializer):
         model = UserFavorite
         fields = "__all__"
         read_only_fields = ["created_at"]
+
+
+class JobStackSerializer(serializers.ModelSerializer):
+    url_path = serializers.SerializerMethodField()
+
+    class Meta:
+        model = JobStack
+        fields = [
+            "public_id",
+            "query",
+            "title",
+            "blurb",
+            "cash_out",
+            "source",
+            "lanes",
+            "created_at",
+            "url_path",
+        ]
+        read_only_fields = ["public_id", "created_at"]
+
+    def get_url_path(self, obj):
+        return f"/stack/{obj.public_id}"
 
 
 class ToolUsageSerializer(serializers.ModelSerializer):

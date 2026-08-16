@@ -1068,3 +1068,60 @@ class DiscoveryRun(models.Model):
 
     def __str__(self):
         return f"{self.run_type} {self.status}: {self.tool_name}"
+
+
+def _new_stack_public_id() -> str:
+    import secrets
+
+    alphabet = "23456789abcdefghjkmnpqrstuvwxyz"
+    return "".join(secrets.choice(alphabet) for _ in range(10))
+
+
+class JobStack(models.Model):
+    """A saved free-first stack for a founder job.
+
+    Built by the assemble agent from the live catalog, or saved by a person.
+    `public_id` is the shareable key used in /stack/<id>.
+    """
+
+    SOURCE_CHOICES = [
+        ("agent", "Agent"),
+        ("person", "Person"),
+    ]
+
+    public_id = models.CharField(max_length=12, unique=True, db_index=True)
+    query = models.CharField(max_length=500)
+    title = models.CharField(max_length=200)
+    blurb = models.TextField(blank=True)
+    cash_out = models.CharField(max_length=400, blank=True)
+    source = models.CharField(
+        max_length=12, choices=SOURCE_CHOICES, default="agent", db_index=True
+    )
+    created_by = models.ForeignKey(
+        User,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="job_stacks",
+    )
+    lanes = models.JSONField(default=list)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def save(self, *args, **kwargs):
+        if not self.public_id:
+            for _ in range(8):
+                candidate = _new_stack_public_id()
+                if not JobStack.objects.filter(public_id=candidate).exists():
+                    self.public_id = candidate
+                    break
+            else:
+                self.public_id = _new_stack_public_id()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.public_id}: {self.title or self.query}"
+
+    class Meta:
+        db_table = "job_stacks"
+        ordering = ["-created_at"]

@@ -11,6 +11,7 @@ from .auth_views import (
 )
 from .discovery.views import run_discovery_trigger
 from .smart_search_views import decompose_task_search, smart_search_tools
+from .stack_views import assemble_stack, get_stack, save_stack
 
 router = DefaultRouter()
 router.register(r"tools", views.ToolViewSet, basename="tool")
@@ -51,6 +52,9 @@ urlpatterns = [
     path(
         "tools/decompose-search/", decompose_task_search, name="tool-decompose-search"
     ),
+    path("stacks/assemble/", assemble_stack, name="stack-assemble"),
+    path("stacks/", save_stack, name="stack-save"),
+    path("stacks/<str:public_id>/", get_stack, name="stack-get"),
     path("tools/add/", views.add_tool, name="tool-add"),
     path("internal/sync-lacreme/", views.sync_lacreme, name="sync-lacreme"),
     path(
