@@ -48,6 +48,60 @@ start_detached() {
   docker compose exec -T web ps aux | grep -E 'manage.py|hygiene_pass|refresh_tranco' | grep -v grep || echo "process not visible yet"
 }
 
+# Used when the running image does not yet have purge_gpt_store.
+# Same rule as classify(): chat.openai.com / chatgpt.com only.
+purge_gpt_inline() {
+  local apply="${1:-0}"
+  docker compose exec -T -e APPLY="${apply}" web python - <<'PY'
+import json
+import os
+from pathlib import Path
+
+import django
+
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
+django.setup()
+
+from api.hygiene.classify import GPT_STORE, classify
+from api.models import Tool
+from api.tool_stats import bust_tool_stats_cache
+
+apply = os.environ.get("APPLY") == "1"
+rows = []
+for tool in Tool.objects.all().only("id", "name", "website", "slug").iterator(
+    chunk_size=500
+):
+    entry_type, _flags = classify(tool.name, tool.website or "")
+    if entry_type == GPT_STORE:
+        rows.append(
+            {
+                "id": tool.id,
+                "name": tool.name,
+                "website": tool.website,
+                "slug": tool.slug,
+            }
+        )
+
+path = Path("/app/backend/data/gpt_store_purge.json")
+path.parent.mkdir(parents=True, exist_ok=True)
+path.write_text(json.dumps({"count": len(rows), "rows": rows}))
+print(f"Listed {len(rows):,} GPT-store rows at {path}")
+if not apply:
+    print("Dry run: nothing deleted. Re-run with delete-gpt to apply.")
+else:
+    ids = [row["id"] for row in rows]
+    deleted = 0
+    batch = 200
+    for start in range(0, len(ids), batch):
+        count, _detail = Tool.objects.filter(pk__in=ids[start : start + batch]).delete()
+        deleted += count
+        if start and start % 1000 == 0:
+            print(f"  progress {start:,}/{len(ids):,}")
+    bust_tool_stats_cache()
+    print(f"Deleted {deleted:,} database rows (tools + cascaded relations).")
+PY
+}
+
 refresh_tranco_if_due() {
   # Monthly, or whenever the action is explicitly refresh-tranco.
   if [ "${ACTION}" = "refresh-tranco" ] || [ "$(date -u +%d)" = "01" ]; then
@@ -94,6 +148,16 @@ case "${ACTION}" in
     refresh_tranco_if_due
     start_detached "scheduled-stale" \
       hygiene_pass --stale-days 30 --limit "${LIMIT}" --no-llm --apply
+    ;;
+  delete-gpt-dry|purge-gpt-dry)
+    echo "===== PURGE GPT-STORE (DRY RUN) ====="
+    docker compose exec -T web python manage.py purge_gpt_store || purge_gpt_inline 0
+    ;;
+  delete-gpt|purge-gpt)
+    echo "===== PURGE GPT-STORE (APPLY) ====="
+    docker compose exec -T web python manage.py purge_gpt_store --apply || purge_gpt_inline 1
+    echo "===== REBUILD FAISS ====="
+    docker compose exec --detach -T web python manage.py build_faiss_index
     ;;
   *)
     echo "Unknown HYGIENE_ACTION=${ACTION}" >&2

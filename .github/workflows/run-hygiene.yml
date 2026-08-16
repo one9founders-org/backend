@@ -24,6 +24,8 @@ on:
           - llm-sample
           - llm
           - scheduled
+          - delete-gpt-dry
+          - delete-gpt
       limit:
         description: Row cap for a run (stale/new rows; no Google quota)
         required: false
@@ -46,6 +48,6 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           port: 22
           timeout: 60s
-          command_timeout: 15m
+          command_timeout: 25m
           envs: HYGIENE_ACTION,HYGIENE_LIMIT
           script_path: scripts/inspect_and_run_hygiene.sh
