@@ -260,3 +260,225 @@ class TestSearchEvidence:
         )
         assert search_footprint_score(strong) > search_footprint_score(weak)
         assert search_footprint_score(strong) <= 1.0
+
+
+class TestTrack:
+    def test_github_repo_is_open_source(self):
+        from api.hygiene.track import OPEN_SOURCE, classify_track
+
+        assert (
+            classify_track("LangChain", "https://github.com/langchain-ai/langchain")
+            == OPEN_SOURCE
+        )
+
+    def test_mcp_name_wins_over_github(self):
+        from api.hygiene.track import MCP_SERVER, classify_track
+
+        assert (
+            classify_track("Filesystem MCP", "https://github.com/acme/filesystem-mcp")
+            == MCP_SERVER
+        )
+
+    def test_skill_pack_is_not_an_agent(self):
+        from api.hygiene.track import AGENT_SKILL, classify_track
+
+        assert (
+            classify_track(
+                "Marketing skills",
+                "https://github.com/acme/marketing-skills",
+                "Marketing skills for Claude Code and AI agents",
+            )
+            == AGENT_SKILL
+        )
+
+    def test_hosted_saas_is_an_ai_tool(self):
+        from api.hygiene.track import AI_TOOL, classify_track
+
+        assert classify_track("Notion", "https://notion.so") == AI_TOOL
+
+    def test_agent_platform_phrase(self):
+        from api.hygiene.track import AI_AGENT, classify_track
+
+        assert (
+            classify_track(
+                "Devin",
+                "https://devin.ai",
+                "An autonomous agent that writes pull requests",
+            )
+            == AI_AGENT
+        )
+
+
+class TestAssessScoring:
+    def test_score_without_citation_is_dropped(self):
+        from api.hygiene.assess import _valid_entry
+
+        index = {
+            "https://acme.com/privacy": {
+                "url": "https://acme.com/privacy",
+                "present": True,
+            }
+        }
+        assert _valid_entry({"score": 8, "evidence_url": ""}, index) is None
+        assert (
+            _valid_entry(
+                {"score": 8, "evidence_url": "https://invented.example"}, index
+            )
+            is None
+        )
+
+    def test_cited_url_must_come_from_evidence(self):
+        from api.hygiene.assess import _valid_entry
+
+        index = {
+            "https://acme.com/privacy": {
+                "url": "https://acme.com/privacy",
+                "present": True,
+                "absence": False,
+            }
+        }
+        entry = _valid_entry(
+            {
+                "score": 7,
+                "evidence_url": "https://acme.com/privacy",
+                "reasoning": "Policy found.",
+            },
+            index,
+        )
+        assert entry["score"] == 7
+        assert entry["evidence_url"] == "https://acme.com/privacy"
+
+    def test_404_cannot_support_a_high_score(self):
+        from api.hygiene.assess import _valid_entry
+
+        index = {
+            "https://acme.com/privacy": {
+                "url": "https://acme.com/privacy",
+                "present": False,
+                "absence": True,
+                "http_status": 404,
+            }
+        }
+        assert (
+            _valid_entry(
+                {"score": 8, "evidence_url": "https://acme.com/privacy"}, index
+            )
+            is None
+        )
+        low = _valid_entry(
+            {
+                "score": 2,
+                "evidence_url": "https://acme.com/privacy",
+                "reasoning": "No policy.",
+            },
+            index,
+        )
+        assert low["score"] == 2
+
+    def test_overall_stays_null_below_six_criteria(self):
+        from api.hygiene.assess import overall_from, security_score_from
+
+        scored = {
+            "security_privacy": {"score": 8},
+            "functionality": {"score": 6},
+            "pricing_value": {"score": 5},
+        }
+        assert overall_from(scored) is None
+        assert security_score_from(scored) == 16
+
+    def test_overall_is_unweighted_mean_on_five_scale(self):
+        from api.hygiene.assess import overall_from
+
+        scored = {f"c{i}": {"score": 8} for i in range(6)}
+        assert overall_from(scored) == 4.0
+
+    def test_token_cost_matches_published_mini_rates(self):
+        from api.hygiene.assess import token_cost_usd
+
+        # 1M in + 1M out at $0.15 / $0.60
+        assert token_cost_usd(1_000_000, 1_000_000, "gpt-4o-mini") == pytest.approx(
+            0.75
+        )
+
+    def test_unknown_model_is_priced_as_gpt4o(self):
+        from api.hygiene.assess import token_cost_usd
+
+        assert token_cost_usd(1_000_000, 0, "mystery-model") == pytest.approx(2.50)
+
+    def test_assessment_detail_includes_manual_criteria_as_null(self):
+        from api.hygiene.assess import MANUAL_ONLY, assessment_detail
+
+        detail = assessment_detail(
+            {
+                "scored": {
+                    "security_privacy": {
+                        "score": 6,
+                        "evidence_url": "https://acme.com/privacy",
+                        "reasoning": "Policy present.",
+                    }
+                },
+                "unassessed": ["functionality"],
+            },
+            model="gpt-4o-mini",
+        )
+        assert detail["hands_on"] is False
+        assert detail["method"] == "published_evidence"
+        for cid in MANUAL_ONLY:
+            assert detail["criteria"][cid]["score"] is None
+            assert detail["criteria"][cid]["automated"] is False
+
+
+class TestEvidenceCollector:
+    def test_html_pass_caps_body_fetches_at_six(self, monkeypatch):
+        from api.hygiene.evidence import (
+            clear_evidence_cache,
+            collect_html_evidence,
+        )
+        from api.hygiene.linkcheck import OK, LinkResult
+
+        clear_evidence_cache()
+        calls = []
+
+        def fake_check(_url):
+            return LinkResult(status=OK, http_code=200, final_url="https://acme.com/")
+
+        def fake_fetch(url):
+            calls.append(url)
+            return {
+                "url": url,
+                "text": "hello",
+                "http_status": 200,
+                "present": True,
+                "https": True,
+                "absence": False,
+            }
+
+        monkeypatch.setattr("api.hygiene.evidence.check_url", fake_check)
+        monkeypatch.setattr("api.hygiene.evidence.fetch_page", fake_fetch)
+        evidence = collect_html_evidence("https://acme.com")
+        assert len(calls) <= 6
+        assert evidence["transport"]["https"] is True
+        assert "homepage" in evidence
+
+    def test_negative_results_are_cached(self, monkeypatch):
+        from api.hygiene.evidence import clear_evidence_cache, fetch_page
+
+        clear_evidence_cache()
+        hits = {"n": 0}
+
+        class FakeResponse:
+            status_code = 404
+            url = "https://acme.com/security"
+            text = "not found"
+
+        def fake_get(*_args, **_kwargs):
+            hits["n"] += 1
+            return FakeResponse()
+
+        monkeypatch.setattr("api.hygiene.evidence.requests.get", fake_get)
+        first = fetch_page("https://acme.com/security")
+        second = fetch_page("https://acme.com/security")
+        assert hits["n"] == 1
+        assert first["absence"] is True
+        assert second["present"] is False
+        assert "HTTP 404" in first["text"]

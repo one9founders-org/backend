@@ -78,6 +78,9 @@ class ToolAdmin(ImportExportModelAdmin):
     resource_class = ToolResource
     list_display = [
         "name",
+        "track",
+        "criteria_completed",
+        "overall_score",
         "rating",
         "review_count",
         "is_featured",
@@ -89,6 +92,7 @@ class ToolAdmin(ImportExportModelAdmin):
         "is_featured",
         "verified",
         "startup_friendly",
+        "track",
         "categories",
     ]
     search_fields = ["name", "description", "tags"]

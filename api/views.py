@@ -138,6 +138,25 @@ def _run_search(query: str):
     return ToolListSerializer(tools, many=True).data
 
 
+def _tool_ordering(raw: str) -> list:
+    """Sort by overall_score puts unrated (null) rows last, not first."""
+    fields = []
+    for part in raw.split(","):
+        name = part.strip()
+        if not name:
+            continue
+        descending = name.startswith("-")
+        field = name.lstrip("-")
+        if field == "overall_score":
+            expr = F("overall_score")
+            fields.append(
+                expr.desc(nulls_last=True) if descending else expr.asc(nulls_last=True)
+            )
+        else:
+            fields.append(name)
+    return fields
+
+
 # ---------------------------------------------------------------------------
 # ViewSets
 # ---------------------------------------------------------------------------
@@ -162,6 +181,8 @@ class ToolViewSet(viewsets.ModelViewSet):
         pricing_type = self.request.query_params.get("pricing_type")
         featured = self.request.query_params.get("featured")
         startup_friendly = self.request.query_params.get("startup_friendly")
+        rated = (self.request.query_params.get("rated") or "").strip().lower()
+        track = (self.request.query_params.get("track") or "").strip()
 
         if category:
             queryset = queryset.filter(
@@ -177,10 +198,18 @@ class ToolViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(is_featured=True)
         if startup_friendly:
             queryset = queryset.filter(startup_friendly=True)
+        if track:
+            queryset = queryset.filter(track=track)
+        if rated == "provisional":
+            queryset = queryset.filter(
+                criteria_completed__gte=6, criteria_completed__lt=10
+            )
+        elif rated == "rated":
+            queryset = queryset.filter(criteria_completed=10)
 
         ordering = self.request.query_params.get("ordering")
         if ordering:
-            queryset = queryset.order_by(*ordering.split(","))
+            queryset = queryset.order_by(*_tool_ordering(ordering))
 
         return queryset.distinct()
 

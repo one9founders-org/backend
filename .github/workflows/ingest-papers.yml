@@ -1,0 +1,61 @@
+name: Ingest research papers
+
+# The Paper model, ingest_papers, enrich_papers and sync_hf_trending all
+# already exist -- they were simply never scheduled, so the research feed
+# only ever moved when someone ran it by hand. Daily is the right cadence:
+# arXiv publishes on weekdays and HuggingFace curates a daily list.
+on:
+  schedule:
+    # 03:10 UTC = 08:40 IST, after arXiv's overnight batch has landed.
+    - cron: "10 3 * * *"
+  workflow_dispatch:
+    inputs:
+      enrich:
+        description: also run the LLM enrichment pass over new papers
+        required: true
+        default: "yes"
+        type: choice
+        options:
+          - "yes"
+          - "no"
+
+concurrency:
+  # Never let two ingests overlap; the second would fight the first for
+  # the same arxiv_id uniqueness constraint.
+  group: ingest-papers
+  cancel-in-progress: false
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Ingest and enrich on EC2
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          RUN_ENRICH: ${{ github.event.inputs.enrich || 'yes' }}
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
+          timeout: 900s
+          envs: RUN_ENRICH
+          script: |
+            set -e
+            cd /var/www/one9founders
+
+            # Bail out rather than queue behind a long-running hygiene or
+            # enrichment job -- both compete for the same OpenAI quota.
+            if docker compose exec -T web pgrep -f "hygiene_pass|assess_tools" > /dev/null 2>&1; then
+              echo "hygiene_pass or assess_tools is running; skipping today's paper ingest."
+              exit 0
+            fi
+
+            docker compose exec -T web python manage.py ingest_papers
+            docker compose exec -T web python manage.py sync_hf_trending
+
+            if [ "$RUN_ENRICH" = "yes" ]; then
+              docker compose exec -T web python manage.py enrich_papers
+            fi

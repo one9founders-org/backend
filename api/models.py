@@ -8,6 +8,7 @@ from pgvector.django import VectorField
 
 from .hygiene.classify import ENTRY_TYPE_CHOICES
 from .hygiene.linkcheck import LINK_STATUS_CHOICES
+from .hygiene.track import AI_TOOL, TRACK_CHOICES
 
 logger = logging.getLogger(__name__)
 
@@ -218,6 +219,21 @@ class Tool(models.Model):
         blank=True,
         db_index=True,
         help_text="When the hygiene pass last revised this row.",
+    )
+    track = models.CharField(
+        max_length=20,
+        choices=TRACK_CHOICES,
+        default=AI_TOOL,
+        db_index=True,
+        help_text=(
+            "Kind of directory row: hosted tool, agent, open-source repo, "
+            "skill, or MCP server."
+        ),
+    )
+    assessment_detail = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Per-criterion scores with evidence URLs from the last assessment.",
     )
 
     # Display order for homepage ranking (lower = higher priority)

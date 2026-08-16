@@ -36,8 +36,8 @@ docker compose exec -T web python manage.py audit_directory
 
 crontab -l 2>/dev/null | grep -n hygiene || echo "no hygiene cron"
 
-echo "===== RUNNING HYGIENE ====="
-docker compose exec -T web ps aux | grep -E 'hygiene_pass' | grep -v grep || echo "no hygiene process"
+echo "===== RUNNING HYGIENE / ASSESS ====="
+docker compose exec -T web ps aux | grep -E 'hygiene_pass|assess_tools|classify_tracks' | grep -v grep || echo "IDLE"
 
 start_detached() {
   local label="$1"
@@ -45,7 +45,7 @@ start_detached() {
   echo "===== START ${label} ====="
   docker compose exec --detach -T web python manage.py "$@"
   sleep 5
-  docker compose exec -T web ps aux | grep -E 'manage.py|hygiene_pass|refresh_tranco' | grep -v grep || echo "process not visible yet"
+  docker compose exec -T web ps aux | grep -E 'manage.py|hygiene_pass|refresh_tranco|assess_tools' | grep -v grep || echo "process not visible yet"
 }
 
 refresh_tranco_if_due() {
@@ -94,6 +94,25 @@ case "${ACTION}" in
     refresh_tranco_if_due
     start_detached "scheduled-stale" \
       hygiene_pass --stale-days 30 --limit "${LIMIT}" --no-llm --apply
+    ;;
+  classify-tracks)
+    echo "===== CLASSIFY TRACKS ====="
+    docker compose exec -T web python manage.py classify_tracks --apply
+    ;;
+  assess-sample)
+    echo "===== ASSESS SAMPLE (25 ai_tool, dry-run) ====="
+    docker compose exec -T web python manage.py assess_tools --limit 25 --track ai_tool --budget-usd 5
+    ;;
+  assess)
+    if docker compose exec -T web pgrep -f "hygiene_pass|assess_tools" > /dev/null 2>&1; then
+      echo "A hygiene or assess job is already running; not starting a second pass."
+      docker compose exec -T web ps aux | grep -E 'hygiene_pass|assess_tools' | grep -v grep || true
+      exit 0
+    fi
+    echo "===== CLASSIFY TRACKS (before assess) ====="
+    docker compose exec -T web python manage.py classify_tracks --apply
+    start_detached "assess-all" \
+      assess_tools --limit 0 --apply --budget-usd 40
     ;;
   *)
     echo "Unknown HYGIENE_ACTION=${ACTION}" >&2
