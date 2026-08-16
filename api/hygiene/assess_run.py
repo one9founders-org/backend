@@ -29,6 +29,7 @@ from .assess import (
     token_cost_usd,
 )
 from .evidence import collect_evidence
+from .linkcheck import BROKEN, MALFORMED, PARKED, UNREACHABLE
 from .track import TRACK_CHOICES
 
 logger = logging.getLogger(__name__)
@@ -99,6 +100,9 @@ def select_tools(
             Q(last_assessed_at__isnull=True) | Q(last_assessed_at__lt=cutoff)
         )
     queryset = queryset.exclude(Q(website__isnull=True) | Q(website=""))
+    queryset = queryset.exclude(
+        link_status__in=(BROKEN, MALFORMED, PARKED, UNREACHABLE)
+    )
     start = max(offset, 0)
     if limit:
         end = start + limit
