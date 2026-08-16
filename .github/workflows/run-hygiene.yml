@@ -23,6 +23,7 @@ on:
           - llm-dry
           - llm-sample
           - llm
+          - llm-all
           - scheduled
           - delete-gpt-dry
           - delete-gpt

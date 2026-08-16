@@ -144,6 +144,13 @@ case "${ACTION}" in
     start_detached "llm-stale-products" \
       hygiene_pass --entry-type product --stale-days 30 --limit "${LIMIT}" --apply
     ;;
+  llm-all|llm-products)
+    # Full product enrich. Do not use --stale-days or --only-unchecked:
+    # the free pass just stamped last_hygiene_at, and those are the rows
+    # we now want the LLM to rewrite. Dead links still skip the model.
+    start_detached "llm-all-products" \
+      hygiene_pass --entry-type product --limit 0 --apply
+    ;;
   scheduled)
     refresh_tranco_if_due
     start_detached "scheduled-stale" \
