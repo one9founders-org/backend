@@ -155,12 +155,23 @@ case "${ACTION}" in
 import json
 from pathlib import Path
 
-logs = sorted(Path("/app/backend/enrichment-logs").glob("*.json"))
+logs = sorted(
+    Path("/app/backend/enrichment-logs").glob("*.json"),
+    key=lambda p: p.stat().st_mtime,
+)
 if not logs:
     print("no logs")
     raise SystemExit(0)
+print("recent logs:")
+for item in logs[-6:]:
+    print(f"  {item.name}  {item.stat().st_size} bytes")
+# Prefer the newest small LLM/dry-run log if one exists; else newest.
 path = logs[-1]
-print(f"log: {path}")
+for item in reversed(logs):
+    if "batch-12" in item.name or item.stat().st_size < 500_000:
+        path = item
+        break
+print(f"showing: {path}")
 payload = json.loads(path.read_text())
 print(
     f"applied={payload.get('applied')} selected={payload.get('selected')} "
