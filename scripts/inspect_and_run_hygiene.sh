@@ -149,6 +149,49 @@ case "${ACTION}" in
     start_detached "scheduled-stale" \
       hygiene_pass --stale-days 30 --limit "${LIMIT}" --no-llm --apply
     ;;
+  show-log)
+    echo "===== LATEST HYGIENE LOG ====="
+    docker compose exec -T web python - <<'PY'
+import json
+from pathlib import Path
+
+logs = sorted(Path("/app/backend/enrichment-logs").glob("*.json"))
+if not logs:
+    print("no logs")
+    raise SystemExit(0)
+path = logs[-1]
+print(f"log: {path}")
+payload = json.loads(path.read_text())
+print(
+    f"applied={payload.get('applied')} selected={payload.get('selected')} "
+    f"with_changes={payload.get('with_changes')} updated={payload.get('updated')}"
+)
+print(f"stages={payload.get('stages')}")
+for entry in payload.get("entries") or []:
+    notes = "; ".join(entry.get("notes") or []) or "-"
+    skipped = entry.get("skipped") or ""
+    changes = entry.get("changes") or []
+    fields = ", ".join(c.get("field") for c in changes)
+    print(f"\n# {entry.get('tool_id')} {entry.get('name')}")
+    if skipped:
+        print(f"  skipped: {skipped}")
+    print(f"  notes: {notes}")
+    print(f"  fields: {fields or '(none)'}")
+    for change in changes:
+        field = change.get("field")
+        if field in {"short_description", "description", "tags", "use_cases", "pricing_type", "logo_url", "popularity_score", "entry_type"}:
+            new = change.get("new_value")
+            old = change.get("old_value")
+            if isinstance(new, list):
+                new = ", ".join(str(x) for x in new[:8])
+            if isinstance(old, list):
+                old = ", ".join(str(x) for x in old[:4])
+            text = str(new or "")
+            if len(text) > 220:
+                text = text[:217] + "..."
+            print(f"  {field}: {text}")
+PY
+    ;;
   delete-gpt-dry|purge-gpt-dry)
     echo "===== PURGE GPT-STORE (DRY RUN) ====="
     docker compose exec -T web python manage.py purge_gpt_store || purge_gpt_inline 0

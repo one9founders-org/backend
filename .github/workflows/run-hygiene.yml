@@ -26,6 +26,7 @@ on:
           - scheduled
           - delete-gpt-dry
           - delete-gpt
+          - show-log
       limit:
         description: Row cap for a run (stale/new rows; no Google quota)
         required: false
