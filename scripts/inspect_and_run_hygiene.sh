@@ -215,7 +215,7 @@ PY
     ;;
   rebuild-faiss)
     echo "===== REBUILD FAISS (publishable tools only) ====="
-    docker compose exec -T web python manage.py build_faiss_index
+    start_detached "faiss-rebuild" build_faiss_index
     ;;
   *)
     echo "Unknown HYGIENE_ACTION=${ACTION}" >&2
