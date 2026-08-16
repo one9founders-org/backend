@@ -273,6 +273,22 @@ def _tool_snapshot(tool: Tool) -> dict:
     }
 
 
+def _clamp_updates(updates: dict) -> dict:
+    """Truncate string values to each field's max_length before writing."""
+    clamped = {}
+    for field_name, value in updates.items():
+        try:
+            field = Tool._meta.get_field(field_name)
+        except Exception:
+            clamped[field_name] = value
+            continue
+        max_length = getattr(field, "max_length", None)
+        if max_length and isinstance(value, str) and len(value) > max_length:
+            value = value[:max_length]
+        clamped[field_name] = value
+    return clamped
+
+
 def apply_outcome(outcome: ToolOutcome) -> bool:
     updates = {
         change["field"]: change["new_value"]
@@ -281,6 +297,7 @@ def apply_outcome(outcome: ToolOutcome) -> bool:
     }
     if not updates:
         return False
+    updates = _clamp_updates(updates)
     Tool.objects.filter(pk=outcome.tool_id).update(**updates)
     return True
 
