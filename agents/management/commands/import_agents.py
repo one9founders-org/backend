@@ -3,61 +3,18 @@ import logging
 
 from django.core.management.base import BaseCommand
 from django.utils.dateparse import parse_datetime
-from django.utils.text import slugify
 
+from agents.discovery.normalize import (
+    label_to_slug,
+    normalize_string_list,
+    safe_bool,
+    safe_float,
+    safe_int,
+    safe_str,
+)
 from agents.models import AgentCategory, AIAgent
 
 logger = logging.getLogger(__name__)
-
-
-def label_to_slug(label):
-    """Convert a category label to a slug."""
-    return slugify(label)
-
-
-def split_pipe_delimited(value):
-    """Split a pipe-delimited string into a list. Return empty list for empty/None."""
-    if not value or not isinstance(value, str):
-        return []
-    return [item.strip() for item in value.split(" || ") if item.strip()]
-
-
-def safe_int(value, default=0):
-    """Safely convert a value to int."""
-    if value is None:
-        return default
-    try:
-        return int(value)
-    except (ValueError, TypeError):
-        return default
-
-
-def safe_float(value, default=0.0):
-    """Safely convert a value to float."""
-    if value is None:
-        return default
-    try:
-        return float(value)
-    except (ValueError, TypeError):
-        return default
-
-
-def safe_bool(value, default=False):
-    """Safely convert a value to bool."""
-    if value is None:
-        return default
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, str):
-        return value.lower() in ("true", "1", "yes")
-    return bool(value)
-
-
-def safe_str(value, default=""):
-    """Safely convert a value to string, handling None."""
-    if value is None:
-        return default
-    return str(value).strip()
 
 
 class Command(BaseCommand):
@@ -173,9 +130,8 @@ class Command(BaseCommand):
             category_slug = label_to_slug(category_label) if category_label else ""
             category = cat_lookup.get(category_slug)
 
-            # Parse pipe-delimited fields
-            key_features = split_pipe_delimited(item.get("keyFeatures"))
-            use_cases = split_pipe_delimited(item.get("useCases"))
+            key_features = normalize_string_list(item.get("keyFeatures"))
+            use_cases = normalize_string_list(item.get("useCases"))
 
             agent_data = {
                 "external_id": safe_str(item.get("id")) or None,
