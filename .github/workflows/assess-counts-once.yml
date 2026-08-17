@@ -1,0 +1,22 @@
+name: Assess counts only
+
+on:
+  push:
+    branches: [cursor/assess-counts-86bc]
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read assess progress
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
+          timeout: 60s
+          command_timeout: 5m
+          script_path: scripts/assess_counts_once.sh
