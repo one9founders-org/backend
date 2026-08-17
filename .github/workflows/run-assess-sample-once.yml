@@ -1,0 +1,24 @@
+name: One-shot inspect classify assess-sample
+
+# Temporary branch-only trigger. Do not merge to main.
+on:
+  push:
+    branches: [cursor/run-assess-sample-86bc]
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Inspect, classify tracks, then 25-row assess dry-run
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
+          timeout: 60s
+          command_timeout: 45m
+          script_path: scripts/run_assess_sample_once.sh
