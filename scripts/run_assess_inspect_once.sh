@@ -2,29 +2,33 @@
 set -euo pipefail
 cd /var/www/one9founders
 
+echo "===== GIT ====="
+git rev-parse --short HEAD
+
+echo "===== PGREP ====="
+docker compose exec -T web pgrep -af python || echo "no python in container"
+
 echo "===== COUNTS ====="
 docker compose exec -T web python manage.py shell -c "
+from django.db.models import Count
 from api.models import Tool
 print('assessed', Tool.objects.filter(criteria_completed__gt=0).count())
 print('provisional', Tool.objects.filter(overall_score__isnull=False).count())
 print('last_assessed', Tool.objects.filter(last_assessed_at__isnull=False).count())
+print('distribution')
+for row in Tool.objects.values('criteria_completed').annotate(n=Count('id')).order_by('criteria_completed'):
+    print(row['criteria_completed'], row['n'])
 "
 
-echo "===== CONTAINER PS ====="
-docker compose exec -T web ps auxww | sed -n '1,80p'
-
-echo "===== HOST PS (python/docker/loop) ====="
-ps -eo pid,cmd | grep -E '[p]ython|[d]ocker compose|[a]ssess' || true
-
-PIDFILE=/var/tmp/assess_batch.pid
-if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
-  echo "===== batch pid $(cat "$PIDFILE") alive — not starting a second ====="
-  tail -20 /var/tmp/assess_batch.log || true
+if docker compose exec -T web pgrep -f assess_tools >/dev/null 2>&1; then
+  echo "===== RUNNING — leaving the single pass alone ====="
   exit 0
 fi
 
-if docker compose exec -T web ps auxww | grep -q '[a]ssess_tools'; then
-  echo "===== in-container scorer is alive — not starting a second ====="
+echo "===== NOT RUNNING ====="
+if [ -f /var/tmp/assess_batch.pid ] && kill -0 "$(cat /var/tmp/assess_batch.pid)" 2>/dev/null; then
+  echo "host batch pid $(cat /var/tmp/assess_batch.pid) alive"
+  tail -20 /var/tmp/assess_batch.log || true
   exit 0
 fi
 
@@ -63,8 +67,8 @@ echo "==== done spent=$SPENT $(date -u) ====" >> "$LOG"
 ENDSCRIPT
 chmod +x /var/tmp/assess_batch.sh
 nohup /var/tmp/assess_batch.sh >/var/tmp/assess_batch.nohup 2>&1 &
-echo $! > "$PIDFILE"
-echo "started pid $!"
-sleep 15
-kill -0 "$(cat "$PIDFILE")" && echo "pid still alive"
-tail -15 /var/tmp/assess_batch.log || true
+echo $! > /var/tmp/assess_batch.pid
+echo started pid $!
+sleep 20
+kill -0 "$(cat /var/tmp/assess_batch.pid)" && echo pid_alive
+tail -20 /var/tmp/assess_batch.log || true
