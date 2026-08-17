@@ -1,49 +1,46 @@
 #!/bin/bash
-# Host-side batch loop: 8 tools per process (the 25-row in-container job
-# SIGKILL'd). Cumulative spend cap $40. Survives SSH via nohup.
 set -euo pipefail
 cd /var/www/one9founders
 
-echo "===== GIT ====="
-git rev-parse --short HEAD
-git log -1 --oneline
-
-echo "===== PROCESS ====="
-docker compose exec -T web ps aux | grep -E 'hygiene_pass|assess_tools' | grep -v grep || echo "no assess_tools in container"
-pgrep -af "assess_loop" || echo "no host assess_loop"
-
 echo "===== COUNTS ====="
 docker compose exec -T web python manage.py shell -c "
-from django.db.models import Count
 from api.models import Tool
-print('assessed:', Tool.objects.filter(criteria_completed__gt=0).count())
-print('provisional+:', Tool.objects.filter(overall_score__isnull=False).count())
-print('last_assessed:', Tool.objects.filter(last_assessed_at__isnull=False).count())
+print('assessed', Tool.objects.filter(criteria_completed__gt=0).count())
+print('provisional', Tool.objects.filter(overall_score__isnull=False).count())
+print('last_assessed', Tool.objects.filter(last_assessed_at__isnull=False).count())
 "
 
-if pgrep -f "/var/tmp/assess_loop.sh" >/dev/null 2>&1; then
-  echo "===== assess_loop already running — not starting a second ====="
-  tail -30 /var/tmp/assess_loop.log || true
-  exit 0
-fi
-if docker compose exec -T web pgrep -f "assess_tools" >/dev/null 2>&1; then
-  echo "===== assess_tools already running — not starting a second ====="
+echo "===== CONTAINER PS ====="
+docker compose exec -T web ps auxww | sed -n '1,80p'
+
+echo "===== HOST PS (python/docker/loop) ====="
+ps -eo pid,cmd | grep -E '[p]ython|[d]ocker compose|[a]ssess' || true
+
+PIDFILE=/var/tmp/assess_batch.pid
+if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+  echo "===== batch pid $(cat "$PIDFILE") alive — not starting a second ====="
+  tail -20 /var/tmp/assess_batch.log || true
   exit 0
 fi
 
-cat > /var/tmp/assess_loop.sh << 'EOF'
+if docker compose exec -T web ps auxww | grep -q '[a]ssess_tools'; then
+  echo "===== in-container scorer is alive — not starting a second ====="
+  exit 0
+fi
+
+echo "===== starting host batch loop ====="
+cat > /var/tmp/assess_batch.sh << 'ENDSCRIPT'
 #!/bin/bash
 set -u
 cd /var/www/one9founders
 SPENT=0
 CAP=40
-LOG=/var/tmp/assess_loop.log
+LOG=/var/tmp/assess_batch.log
 echo "==== start $(date -u) cap=$CAP ====" >> "$LOG"
 while true; do
   remain=$(python3 -c "print(round(max(0.0, $CAP - $SPENT), 4))")
-  too_small=$(python3 -c "print(int(float('$remain') < 0.05))")
-  if [ "$too_small" = "1" ]; then
-    echo "stop budget spent=$SPENT cap=$CAP $(date -u)" >> "$LOG"
+  if python3 -c "import sys; sys.exit(0 if float('$remain') < 0.05 else 1)"; then
+    echo "stop budget spent=$SPENT $(date -u)" >> "$LOG"
     break
   fi
   echo "batch remain=$remain spent=$SPENT $(date -u)" >> "$LOG"
@@ -63,14 +60,11 @@ while true; do
   fi
 done
 echo "==== done spent=$SPENT $(date -u) ====" >> "$LOG"
-EOF
-chmod +x /var/tmp/assess_loop.sh
-nohup /var/tmp/assess_loop.sh >/var/tmp/assess_loop.nohup 2>&1 &
-echo "started assess_loop pid $!"
-sleep 25
-echo "===== LOOP ALIVE ====="
-pgrep -af "/var/tmp/assess_loop.sh" || echo "loop not visible"
-echo "===== LOG TAIL ====="
-tail -40 /var/tmp/assess_loop.log || true
-echo "===== CONTAINER ====="
-docker compose exec -T web ps aux | grep -E 'assess_tools' | grep -v grep || echo "batch python not visible yet"
+ENDSCRIPT
+chmod +x /var/tmp/assess_batch.sh
+nohup /var/tmp/assess_batch.sh >/var/tmp/assess_batch.nohup 2>&1 &
+echo $! > "$PIDFILE"
+echo "started pid $!"
+sleep 15
+kill -0 "$(cat "$PIDFILE")" && echo "pid still alive"
+tail -15 /var/tmp/assess_batch.log || true
