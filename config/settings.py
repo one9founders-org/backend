@@ -198,6 +198,8 @@ REST_FRAMEWORK = {
         "user": "5000/hour",
         "smart_search_anon": "30/hour",
         "smart_search_user": "200/hour",
+        "stack_assemble_anon": "20/hour",
+        "stack_assemble_user": "100/hour",
     },
 }
 

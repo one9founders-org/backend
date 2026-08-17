@@ -9,6 +9,7 @@ from .models import (
     DiscoveryRun,
     FounderSurvey,
     Guide,
+    JobStack,
     Lab,
     News,
     NewsletterSubscription,
@@ -232,6 +233,15 @@ class FounderSurveyAdmin(admin.ModelAdmin):
 
 
 admin.site.register(UserFavorite)
+
+
+@admin.register(JobStack)
+class JobStackAdmin(admin.ModelAdmin):
+    list_display = ["public_id", "title", "source", "created_at"]
+    list_filter = ["source", "created_at"]
+    search_fields = ["public_id", "query", "title"]
+    readonly_fields = ["public_id", "created_at", "updated_at"]
+    ordering = ["-created_at"]
 
 
 @admin.register(SiteConfig)
