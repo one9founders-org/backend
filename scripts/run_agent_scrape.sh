@@ -2,17 +2,17 @@
 set -euo pipefail
 cd /var/www/one9founders
 
-SRC="${AGENT_SCRAPE_SRC:-/tmp/one9-agent-scrape}"
-WEB_ID="$(docker compose ps -q web)"
+echo "===== FETCH SCRAPER FROM origin/main ====="
+git fetch origin main
+git checkout origin/main -- \
+  agents/discovery \
+  agents/management/commands/scrape_agents.py \
+  agents/management/commands/import_agents.py
 
+WEB_ID="$(docker compose ps -q web)"
 if [ -z "$WEB_ID" ]; then
   echo "web container is not running"
-  exit 1
-fi
-
-if [ ! -d "$SRC/agents/discovery" ] || [ ! -f "$SRC/agents/management/commands/scrape_agents.py" ]; then
-  echo "Missing scrape files under $SRC"
-  ls -la "$SRC" || true
+  docker compose ps
   exit 1
 fi
 
@@ -21,10 +21,10 @@ docker exec "$WEB_ID" mkdir -p \
   /app/backend/agents/discovery \
   /app/backend/agents/management/commands
 
-docker cp "$SRC/agents/discovery/." "$WEB_ID":/app/backend/agents/discovery/
-docker cp "$SRC/agents/management/commands/scrape_agents.py" \
+docker cp agents/discovery/. "$WEB_ID":/app/backend/agents/discovery/
+docker cp agents/management/commands/scrape_agents.py \
   "$WEB_ID":/app/backend/agents/management/commands/scrape_agents.py
-docker cp "$SRC/agents/management/commands/import_agents.py" \
+docker cp agents/management/commands/import_agents.py \
   "$WEB_ID":/app/backend/agents/management/commands/import_agents.py
 
 echo "===== BEFORE ====="
