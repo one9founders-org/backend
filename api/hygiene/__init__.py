@@ -33,5 +33,8 @@ RANK_FEATURE_THRESHOLD = 0.55
 EVIDENCE_TIMEOUT = 8
 EVIDENCE_MAX_FETCHES = 6
 EVIDENCE_TEXT_LIMIT = 2500
+# Parse this many HTML characters at most. Larger slices OOM the web
+# container (BeautifulSoup + gunicorn) and kill the overnight pass.
+EVIDENCE_HTML_LIMIT = 40_000
 ASSESS_BUDGET_CEILING_USD = 50.0
 ASSESS_DEFAULT_BUDGET_USD = 40.0

@@ -7,6 +7,7 @@ JSON log that records every score and the URL it was cited from.
 
 from __future__ import annotations
 
+import gc
 import logging
 from dataclasses import asdict, dataclass, field
 from datetime import timedelta
@@ -28,7 +29,7 @@ from .assess import (
     empty_usage,
     token_cost_usd,
 )
-from .evidence import collect_evidence
+from .evidence import clear_evidence_cache, collect_evidence
 from .linkcheck import BROKEN, MALFORMED, PARKED, UNREACHABLE
 from .track import TRACK_CHOICES
 
@@ -131,24 +132,27 @@ def process_tool(tool: Tool) -> tuple[ToolOutcome, dict]:
         outcome.skipped = "no website"
         return outcome, _blank_result()
 
-    evidence = collect_evidence(website, track=getattr(tool, "track", "") or "")
-    if not evidence:
-        outcome.skipped = "no evidence"
-        return outcome, _blank_result()
+    try:
+        evidence = collect_evidence(website, track=getattr(tool, "track", "") or "")
+        if not evidence:
+            outcome.skipped = "no evidence"
+            return outcome, _blank_result()
 
-    result = assess(tool.name, website, evidence)
-    usage = result.get("usage") or {}
-    outcome.usage = usage
-    outcome.scored = result.get("scored") or {}
-    outcome.unassessed = result.get("unassessed") or []
-    outcome.criteria_completed = int(result.get("criteria_completed") or 0)
-    outcome.overall_score = result.get("overall_score")
-    outcome.security_criterion_score = result.get("security_criterion_score")
-    if result.get("error"):
-        outcome.error = str(result["error"])
-        outcome.skipped = "assess error"
-    outcome.notes.append(f"evidence_keys={sorted(evidence.keys())}")
-    return outcome, result
+        result = assess(tool.name, website, evidence)
+        usage = result.get("usage") or {}
+        outcome.usage = usage
+        outcome.scored = result.get("scored") or {}
+        outcome.unassessed = result.get("unassessed") or []
+        outcome.criteria_completed = int(result.get("criteria_completed") or 0)
+        outcome.overall_score = result.get("overall_score")
+        outcome.security_criterion_score = result.get("security_criterion_score")
+        if result.get("error"):
+            outcome.error = str(result["error"])
+            outcome.skipped = "assess error"
+        outcome.notes.append(f"evidence_keys={sorted(evidence.keys())}")
+        return outcome, result
+    finally:
+        clear_evidence_cache()
 
 
 def apply_outcome(tool: Tool, outcome: ToolOutcome, result: dict, model: str) -> bool:
@@ -232,6 +236,8 @@ def run(
         ):
             apply_outcome(tool, outcome, result, model_name)
             applied += 1
+        if index % 25 == 0:
+            gc.collect()
         if index % 250 == 0:
             logger.info(
                 "Assess progress %s/%s applied=%s spent=$%.4f tokens=%s+%s",

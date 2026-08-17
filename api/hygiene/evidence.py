@@ -21,7 +21,12 @@ from bs4 import BeautifulSoup
 
 from api.discovery.facts import fetch_github_repo_meta, parse_github_repo
 
-from . import EVIDENCE_MAX_FETCHES, EVIDENCE_TEXT_LIMIT, EVIDENCE_TIMEOUT
+from . import (
+    EVIDENCE_HTML_LIMIT,
+    EVIDENCE_MAX_FETCHES,
+    EVIDENCE_TEXT_LIMIT,
+    EVIDENCE_TIMEOUT,
+)
 from .classify import host_of
 from .linkcheck import OK, REDIRECTED, USER_AGENT, check_url
 from .track import OPEN_SOURCE, is_code_host
@@ -89,7 +94,7 @@ def fetch_page(url: str) -> dict:
         )
         status = response.status_code
         final_url = response.url or url
-        html = response.text[:200_000]
+        html = response.text[:EVIDENCE_HTML_LIMIT]
     except requests.RequestException as exc:
         result = {
             "url": url,
