@@ -39,15 +39,24 @@ if docker compose exec -T web pgrep -af "hygiene_pass|assess_tools" > /dev/null 
 fi
 echo "IDLE"
 
-echo "===== CLASSIFY TRACKS (apply) ====="
-docker compose exec -T web python manage.py classify_tracks --apply
+echo "===== CLASSIFY TRACKS ====="
+echo "Already applied in the previous run; not repeating."
 
-echo "===== ASSESS SAMPLE (25 ai_tool, dry-run, budget \$5) ====="
-docker compose exec -T web python manage.py assess_tools --limit 25 --track ai_tool --budget-usd 5
+echo "===== ASSESS SAMPLE (25 ai_tool, dry-run, budget \$5, batches of 5) ====="
+# Batches avoid a process-wide evidence cache plus gunicorn sharing one
+# cgroup; the first 25-row attempt was SIGKILL'd (137) after 11 model calls.
+for offset in 0 5 10 15 20; do
+  echo "----- offset ${offset} -----"
+  docker compose exec -T -e PYTHONUNBUFFERED=1 web \
+    python manage.py assess_tools --limit 5 --offset "${offset}" --track ai_tool --budget-usd 5
+done
 
-echo "===== LATEST ASSESS LOG ====="
+echo "===== ASSESS LOGS ====="
 docker compose exec -T web sh -c '
-  ls -t /app/backend/enrichment-logs/*.json 2>/dev/null | head -1 | xargs -r cat
+  ls -t /app/backend/enrichment-logs/*.json 2>/dev/null | head -8 | while read -r f; do
+    echo "----- $f -----"
+    cat "$f"
+  done
 '
 
 echo "===== DONE (no overnight assess started) ====="
