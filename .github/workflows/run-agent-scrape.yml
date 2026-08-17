@@ -1,0 +1,39 @@
+name: Refresh AI agents directory
+
+on:
+  schedule:
+    # Monday 04:30 UTC = 10:00 IST, weekly catalog refresh.
+    - cron: "30 4 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: scrape-agents
+  cancel-in-progress: false
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Copy scraper onto EC2
+        uses: appleboy/scp-action@v0.1.27
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
+          source: "agents/discovery,agents/management/commands/scrape_agents.py,agents/management/commands/import_agents.py,scripts/run_agent_scrape.sh"
+          target: /tmp/one9-agent-scrape
+          overwrite: true
+
+      - name: Run scrape_agents on EC2
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
+          timeout: 60s
+          command_timeout: 20m
+          script_path: scripts/run_agent_scrape.sh

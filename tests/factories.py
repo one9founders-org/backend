@@ -2,6 +2,7 @@ import factory
 from factory.django import DjangoModelFactory
 from faker import Faker
 
+from agents.models import AgentCategory, AIAgent
 from api.models import Category, Deal, News, NewsletterSubscription, Review, Tool
 
 fake = Faker()
@@ -89,3 +90,26 @@ class NewsletterSubscriptionFactory(DjangoModelFactory):
     email = factory.Faker("email")
     source = factory.Faker("random_element", elements=["homepage", "blog", "tool_page"])
     is_active = True
+
+
+class AgentCategoryFactory(DjangoModelFactory):
+    class Meta:
+        model = AgentCategory
+
+    label = factory.Faker("word")
+    slug = factory.LazyAttribute(lambda obj: obj.label.lower().replace(" ", "-"))
+    agent_count = 0
+
+
+class AIAgentFactory(DjangoModelFactory):
+    class Meta:
+        model = AIAgent
+
+    name = factory.Faker("company")
+    slug = factory.LazyAttribute(
+        lambda obj: obj.name.lower().replace(" ", "-").replace(",", "")
+    )
+    website = factory.Faker("url")
+    short_description = factory.Faker("sentence")
+    source = "aiagentsdirectory"
+    popularity_score = 0
