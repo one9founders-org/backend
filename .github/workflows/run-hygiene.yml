@@ -24,6 +24,9 @@ on:
           - llm-sample
           - llm
           - scheduled
+          - classify-tracks
+          - assess-sample
+          - assess
       limit:
         description: Row cap for a run (stale/new rows; no Google quota)
         required: false

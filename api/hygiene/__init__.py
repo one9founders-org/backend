@@ -28,3 +28,10 @@ RANK_WEIGHTS = {
 
 # A tool is only eligible for homepage/featured surfaces above this score.
 RANK_FEATURE_THRESHOLD = 0.55
+
+# Published-evidence assessment (api/hygiene/evidence.py, assess.py).
+EVIDENCE_TIMEOUT = 8
+EVIDENCE_MAX_FETCHES = 6
+EVIDENCE_TEXT_LIMIT = 2500
+ASSESS_BUDGET_CEILING_USD = 50.0
+ASSESS_DEFAULT_BUDGET_USD = 40.0

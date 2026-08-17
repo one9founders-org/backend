@@ -56,6 +56,44 @@ class TestToolAPI:
         response = api_client.post(url, data, format="json")
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
+    def test_list_exposes_assessment_fields(self, api_client):
+        ToolFactory(
+            name="RatedField Tool",
+            criteria_completed=7,
+            overall_score=3.8,
+            security_criterion_score=14,
+            assessment_detail={"version": 1, "hands_on": False},
+        )
+        response = api_client.get(reverse("tool-list"))
+        row = response.data["results"][0]
+        assert row["criteria_completed"] == 7
+        assert row["rating_status"] == "PROVISIONAL"
+        assert row["security_criterion_score"] == 14
+        assert row["assessment_detail"]["hands_on"] is False
+        assert row["track"] == "ai_tool"
+
+    def test_rated_filter(self, api_client):
+        ToolFactory(name="Full Rated", criteria_completed=10, overall_score=4.2)
+        ToolFactory(name="Half Done", criteria_completed=7, overall_score=3.5)
+        ToolFactory(name="Untouched", criteria_completed=0)
+
+        provisional = api_client.get(reverse("tool-list"), {"rated": "provisional"})
+        names = {row["name"] for row in provisional.data["results"]}
+        assert names == {"Half Done"}
+
+        rated = api_client.get(reverse("tool-list"), {"rated": "rated"})
+        names = {row["name"] for row in rated.data["results"]}
+        assert names == {"Full Rated"}
+
+    def test_overall_score_sort_puts_unrated_last(self, api_client):
+        ToolFactory(name="High Score", criteria_completed=7, overall_score=4.2)
+        ToolFactory(name="Mid Score", criteria_completed=6, overall_score=3.1)
+        ToolFactory(name="No Score", criteria_completed=0, overall_score=None)
+
+        response = api_client.get(reverse("tool-list"), {"ordering": "-overall_score"})
+        names = [row["name"] for row in response.data["results"]]
+        assert names == ["High Score", "Mid Score", "No Score"]
+
 
 @pytest.mark.django_db
 class TestReviewAPI:

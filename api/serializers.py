@@ -102,9 +102,11 @@ class ToolListSerializer(ToolAssessmentSerializerMixin, serializers.ModelSeriali
             "gst_applicable",
             "pricing_inr",
             "pricing_inr_with_gst",
+            "track",
             "criteria_completed",
             "overall_score",
             "security_criterion_score",
+            "assessment_detail",
             "last_assessed_at",
             "rating_status",
             "security_status",
@@ -169,6 +171,11 @@ class ToolDetailSerializer(ToolAssessmentSerializerMixin, serializers.ModelSeria
             "rating_status",
             "security_status",
             "last_assessed_at",
+            "criteria_completed",
+            "overall_score",
+            "security_criterion_score",
+            "assessment_detail",
+            "track",
         ]
 
     def _get_exchange_rate(self):
@@ -437,6 +444,7 @@ class TrendingToolSerializer(
             "criteria_completed",
             "overall_score",
             "security_criterion_score",
+            "assessment_detail",
             "last_assessed_at",
             "rating_status",
             "security_status",

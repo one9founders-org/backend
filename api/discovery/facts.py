@@ -151,6 +151,37 @@ def _fetch_html_facts(url: str) -> Facts:
     )
 
 
+def fetch_github_repo_meta(url: str) -> dict:
+    """License, last push, open issues, archived flag. Empty dict on failure."""
+    repo = parse_github_repo(url)
+    if not repo:
+        return {}
+    try:
+        response = requests.get(
+            f"https://api.github.com/repos/{repo}",
+            headers=_github_headers(),
+            timeout=REQUEST_TIMEOUT,
+        )
+        response.raise_for_status()
+        data = response.json()
+    except Exception as exc:
+        logger.warning("GitHub repo meta failed for %s: %s", repo, exc)
+        return {}
+
+    license_info = data.get("license") or {}
+    return {
+        "repo": repo,
+        "html_url": data.get("html_url") or f"https://github.com/{repo}",
+        "license": license_info.get("spdx_id") or license_info.get("name") or "",
+        "pushed_at": data.get("pushed_at") or "",
+        "open_issues": data.get("open_issues_count"),
+        "archived": bool(data.get("archived")),
+        "stars": data.get("stargazers_count"),
+        "description": (data.get("description") or "").strip(),
+        "topics": list(data.get("topics") or []),
+    }
+
+
 def fetch_facts(url: str) -> Facts:
     if not url or not normalize_url(url):
         return Facts()
