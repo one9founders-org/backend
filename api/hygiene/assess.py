@@ -15,6 +15,7 @@ tested do not belong in this pass.
 
 import json
 import logging
+from urllib.parse import urlparse
 
 from django.conf import settings
 from openai import OpenAI, OpenAIError
@@ -56,9 +57,55 @@ MIN_CRITERIA_FOR_SCORE = 6
 MAX_CRITERION_SCORE = 10
 # Security is stored separately on a 0-20 scale.
 SECURITY_SCALE = 20
-# A 404 can support a low score ("nothing published"). It cannot support
-# a high one.
+# A missing privacy/security page can support a low published-posture
+# score. A 404 on /changelog or /integrations is not a product rating —
+# it is "we did not find a page" and must stay unassessed.
 ABSENT_SCORE_CAP = 4
+ABSENCE_SCORES_ONLY = frozenset({"security_privacy"})
+
+# Dedicated-path hints. Homepage (and GitHub) may still support several
+# criteria when the visible text actually contains the facts.
+CRITERION_PATH_HINTS = {
+    "security_privacy": (
+        "privacy",
+        "security",
+        "trust",
+        "legal",
+        "dpa",
+        "gdpr",
+        "terms",
+        "policy",
+    ),
+    "functionality": ("feature", "product", "platform", "solution"),
+    "pricing_value": ("pricing", "plans", "billing", "subscribe"),
+    "integrations": (
+        "integrat",
+        "apps",
+        "marketplace",
+        "plugin",
+        "connect",
+        "partners",
+    ),
+    "support": ("support", "contact", "help", "docs", "doc", "faq", "community"),
+    "company_stability": (
+        "about",
+        "team",
+        "company",
+        "investors",
+        "press",
+        "careers",
+    ),
+    "update_frequency": ("changelog", "releases", "whats-new", "news", "blog"),
+    "startup_friendliness": (
+        "startup",
+        "pricing",
+        "plans",
+        "students",
+        "education",
+        "free",
+    ),
+}
+HOMEPAGE_OK = frozenset(AUTOMATABLE)
 
 # Where evidence for each automatable criterion usually lives. Used to
 # steer the fetcher, and shown to the model so it knows what to look for.
@@ -68,38 +115,52 @@ EVIDENCE_HINTS = {
         "stated SOC 2 / GDPR / DPA / retention. Not a test of controls."
     ),
     "functionality": "the product or features page, or the homepage",
-    "pricing_value": "/pricing",
-    "integrations": "/integrations, /apps, or a marketplace page",
-    "support": "/support, /contact, /docs, community links",
+    "pricing_value": "/pricing, /plans, or plans/free tier stated on the homepage",
+    "integrations": (
+        "/integrations, /apps, marketplace, or named connectors on the homepage"
+    ),
+    "support": "/support, /contact, /docs — never a blog post",
     "company_stability": "about/team page, funding mention, GitHub archive flag",
     "update_frequency": "/changelog, /releases, recent commit dates",
     "startup_friendliness": "free tier, startup programme, credits page",
 }
 
-SYSTEM_PROMPT = """You score software tools for a directory that publishes \
-its rating methodology.
+SYSTEM_PROMPT = """You score software tools for a public directory. \
+Visitors will see these numbers next to the product. They must look like \
+a careful reading of published pages, not a penalty for missing URLs.
 
 You will be given evidence gathered from a tool's own site or GitHub. \
 Score ONLY the criteria you were asked about.
 
 Hard rules:
-- Score a criterion ONLY if the evidence directly supports it. If it does \
-not, set that criterion to null. Returning null is correct and expected; \
-guessing is a failure. Typical tools score 4-7 of the 8 automatable \
-criteria, not all 8.
-- Every score MUST cite an evidence_url drawn from the evidence provided. \
-A score without a citation is invalid.
-- Never infer a score from the tool's popularity or your own familiarity \
-with it. You are grading the evidence, not the brand.
-- Scores are integers 0-10, where 5 means "adequate, unremarkable".
+- Score a criterion ONLY when a PRESENT page (present=true) actually \
+discusses it. If it does not, return null. Null is correct. Guessing \
+is a failure.
+- Do NOT score 0 because /pricing, /integrations, /changelog, or \
+/support 404'd. That is missing evidence, not a bad product. Return \
+null unless another PRESENT page (often the homepage) covers that \
+criterion.
+- The homepage MAY support functionality, pricing (plans/free tier \
+visible), support (contact/docs/help visible), company stability \
+(team/about/founded), startup-friendliness (free tier/credits), and \
+integrations (named connectors). Cite the homepage only when its text \
+contains those facts.
+- Typical present-page scores are 6-8. Use 5 for a thin but real page. \
+Reserve 9-10 for unusually complete published info (e.g. privacy + \
+named SOC 2/GDPR/DPA). Use 0-3 only when a PRESENT page shows a real \
+problem (no HTTPS, policy says data is sold with no controls).
+- Every score MUST cite an evidence_url from the evidence provided.
+- Never infer a score from popularity or your training knowledge. \
+Grade the evidence, not the brand.
 - Security is published posture only: HTTPS in transit, a reachable \
-privacy policy, and stated compliance commitments such as SOC 2 or GDPR. \
-You did not test anyone's controls. Never use the words verified, \
-audited, or penetration tested.
-- A 404/410 (present=false, absence=true) may support a LOW score \
-(0-4) if you cite that URL. It cannot support a high score. A 403 or \
-failed fetch is not evidence of absence — return null.
-- Do not score Ease of Use or Reliability; they are not in the list.
+privacy policy, stated SOC 2 / GDPR / DPA / retention. You did not \
+test controls. Never say verified, audited, or penetration tested.
+- The one 404 exception: a missing privacy/security page MAY score \
+0-4 for Security & Data Privacy, citing that URL, if HTTPS is the \
+only other signal. A 403 or failed fetch is not absence — return null.
+- Customer Support must cite /support, /contact, /help, /docs, or a \
+homepage that actually shows those. Never cite a blog or article.
+- Do not score Ease of Use or Reliability.
 
 Return a single JSON object, no prose."""
 
@@ -159,6 +220,37 @@ def _normalize_url(url: str) -> str:
     return (url or "").strip().rstrip("/")
 
 
+def _is_homepage_url(url: str) -> bool:
+    path = (urlparse(url).path or "/").rstrip("/") or "/"
+    return path == "/"
+
+
+def _host(url: str) -> str:
+    return (urlparse(url).netloc or "").lower().removeprefix("www.")
+
+
+def citation_fits(criterion_id: str, url: str, cited: dict) -> bool:
+    """Drop citations that cannot reasonably support the criterion.
+
+    A 404 may only score Security & Data Privacy. Support cannot cite a
+    blog post. Homepage is allowed when the page is actually present.
+    """
+    if not cited.get("present"):
+        return bool(cited.get("absence") and criterion_id in ABSENCE_SCORES_ONLY)
+    host = _host(url)
+    if host.endswith("github.com") or host == "raw.githubusercontent.com":
+        return True
+    path = (urlparse(url).path or "/").lower()
+    hints = CRITERION_PATH_HINTS.get(criterion_id, ())
+    if any(hint in path for hint in hints):
+        return True
+    if criterion_id in HOMEPAGE_OK and _is_homepage_url(url):
+        return True
+    if criterion_id == "security_privacy":
+        return True
+    return False
+
+
 def _evidence_index(evidence: dict) -> dict[str, dict]:
     index = {}
     for item in evidence.values():
@@ -171,7 +263,7 @@ def _evidence_index(evidence: dict) -> dict[str, dict]:
     return index
 
 
-def _valid_entry(raw, evidence_index: dict) -> dict | None:
+def _valid_entry(raw, evidence_index: dict, criterion_id: str = "") -> dict | None:
     """A criterion counts only if it has both a score and a citation."""
     if not isinstance(raw, dict):
         return None
@@ -190,8 +282,10 @@ def _valid_entry(raw, evidence_index: dict) -> dict | None:
         cited = evidence_index.get(_normalize_url(url).replace("http://", "https://"))
     if cited is None:
         return None
+    if not citation_fits(criterion_id, url, cited):
+        return None
     if not cited.get("present"):
-        if not cited.get("absence") or value > ABSENT_SCORE_CAP:
+        if value > ABSENT_SCORE_CAP:
             return None
         url = cited.get("url") or url
     else:
@@ -291,7 +385,7 @@ def assess(name: str, website: str, evidence: dict) -> dict:
     evidence_index = _evidence_index(evidence)
     scored: dict[str, dict] = {}
     for cid in AUTOMATABLE:
-        entry = _valid_entry(data.get(cid), evidence_index)
+        entry = _valid_entry(data.get(cid), evidence_index, cid)
         if entry is not None:
             scored[cid] = entry
 

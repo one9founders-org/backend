@@ -319,10 +319,15 @@ class TestAssessScoring:
                 "present": True,
             }
         }
-        assert _valid_entry({"score": 8, "evidence_url": ""}, index) is None
+        assert (
+            _valid_entry({"score": 8, "evidence_url": ""}, index, "security_privacy")
+            is None
+        )
         assert (
             _valid_entry(
-                {"score": 8, "evidence_url": "https://invented.example"}, index
+                {"score": 8, "evidence_url": "https://invented.example"},
+                index,
+                "security_privacy",
             )
             is None
         )
@@ -344,6 +349,7 @@ class TestAssessScoring:
                 "reasoning": "Policy found.",
             },
             index,
+            "security_privacy",
         )
         assert entry["score"] == 7
         assert entry["evidence_url"] == "https://acme.com/privacy"
@@ -361,7 +367,9 @@ class TestAssessScoring:
         }
         assert (
             _valid_entry(
-                {"score": 8, "evidence_url": "https://acme.com/privacy"}, index
+                {"score": 8, "evidence_url": "https://acme.com/privacy"},
+                index,
+                "security_privacy",
             )
             is None
         )
@@ -372,8 +380,74 @@ class TestAssessScoring:
                 "reasoning": "No policy.",
             },
             index,
+            "security_privacy",
         )
         assert low["score"] == 2
+
+    def test_404_does_not_score_non_security_criteria(self):
+        from api.hygiene.assess import _valid_entry
+
+        index = {
+            "https://acme.com/integrations": {
+                "url": "https://acme.com/integrations",
+                "present": False,
+                "absence": True,
+                "http_status": 404,
+            }
+        }
+        assert (
+            _valid_entry(
+                {
+                    "score": 0,
+                    "evidence_url": "https://acme.com/integrations",
+                    "reasoning": "404",
+                },
+                index,
+                "integrations",
+            )
+            is None
+        )
+
+    def test_support_cannot_cite_a_blog_post(self):
+        from api.hygiene.assess import _valid_entry
+
+        url = "https://acme.com/supporting-parents-during-the-perinatal-period/"
+        index = {
+            url: {
+                "url": url,
+                "present": True,
+                "absence": False,
+            }
+        }
+        assert (
+            _valid_entry(
+                {"score": 5, "evidence_url": url, "reasoning": "Article."},
+                index,
+                "support",
+            )
+            is None
+        )
+
+    def test_homepage_may_support_functionality(self):
+        from api.hygiene.assess import _valid_entry
+
+        index = {
+            "https://acme.com": {
+                "url": "https://acme.com",
+                "present": True,
+                "absence": False,
+            }
+        }
+        entry = _valid_entry(
+            {
+                "score": 7,
+                "evidence_url": "https://acme.com",
+                "reasoning": "Features listed.",
+            },
+            index,
+            "functionality",
+        )
+        assert entry["score"] == 7
 
     def test_overall_stays_null_below_six_criteria(self):
         from api.hygiene.assess import overall_from, security_score_from
