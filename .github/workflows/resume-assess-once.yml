@@ -1,0 +1,23 @@
+name: Resume overnight assess
+
+# Temporary branch-only trigger. Do not merge to main.
+on:
+  push:
+    branches: [cursor/resume-assess-86bc]
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resume one assess pass if idle
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
+          timeout: 60s
+          command_timeout: 10m
+          script_path: scripts/resume_assess_once.sh
