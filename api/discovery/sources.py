@@ -107,15 +107,23 @@ def fetch_github_candidates(days: int = 14) -> list[dict]:
             if not key or key in seen_urls:
                 continue
             seen_urls.add(key)
+            full_name = (item.get("full_name") or "").strip()
+            # Prefer github/owner/repo so open-source bucketing can key off
+            # the same prefix as website paths and agent external ids.
+            display_name = (
+                f"github/{full_name}"
+                if full_name and "/" in full_name
+                else (item.get("name") or full_name or "")
+            )
             candidates.append(
                 {
-                    "name": item.get("name") or item.get("full_name") or "",
+                    "name": display_name,
                     "url": html_url,
                     "sourceType": "github",
                     "rawSignal": {
                         "stars": item.get("stargazers_count") or 0,
                         "description": item.get("description") or "",
-                        "full_name": item.get("full_name") or "",
+                        "full_name": full_name,
                     },
                 }
             )

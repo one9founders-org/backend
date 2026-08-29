@@ -81,6 +81,30 @@ class TestDedupe:
 
 
 @pytest.mark.django_db
+class TestPublishNewTool:
+    def test_github_candidate_gets_open_source_track(self):
+        from api.discovery.facts import Facts
+        from api.discovery.pipeline import publish_new_tool
+        from api.hygiene.track import OPEN_SOURCE
+
+        description = (
+            "LangChain is an open-source framework for building LLM apps. "
+            "Teams chain prompts, tools, and memory into production agents "
+            "without locking into a single hosted vendor."
+        )
+        tool = publish_new_tool(
+            {
+                "name": "github/langchain-ai/langchain",
+                "url": "https://github.com/langchain-ai/langchain",
+                "generated": description,
+                "facts": Facts(pricing="free", topics=["llm", "agents"]),
+            }
+        )
+        assert tool.track == OPEN_SOURCE
+        assert tool.name == "github/langchain-ai/langchain"
+
+
+@pytest.mark.django_db
 class TestDiscoveryTrigger:
     def test_forbidden_without_secret(self):
         client = APIClient()

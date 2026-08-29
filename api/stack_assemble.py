@@ -25,23 +25,6 @@ OPEN_SOURCE = "open_source"
 AGENT_SKILL = "agent_skill"
 MCP_SERVER = "mcp_server"
 
-_MCP_NAME_RE = re.compile(r"\bmcp\b|[-_]mcp\b|\bmcp[-_]", re.IGNORECASE)
-_MCP_TEXT_RE = re.compile(
-    r"\bmcp[- ]servers?\b|\bmodel[- ]context[- ]protocol\b", re.IGNORECASE
-)
-_SKILL_RE = re.compile(
-    r"\bskill\.md\b|\bagent skills?\b|\bclaude skills?\b"
-    r"|\bskills? (?:pack|library|collection)\b|\bskills? for\b",
-    re.IGNORECASE,
-)
-_SKILL_NAME_RE = re.compile(r"skills?$|[-_ ]skills?\b", re.IGNORECASE)
-_AGENT_RE = re.compile(
-    r"\bautonomous agents?\b|\bai agents?\b|\bmulti[- ]agent\b"
-    r"|\bagent(?:ic)? (?:framework|harness|runtime)\b|\bagentic\b",
-    re.IGNORECASE,
-)
-_CODE_HOSTS = ("github.com", "gitlab.com", "codeberg.org", "bitbucket.org")
-
 LANE_SPECS = [
     {
         "id": "selfhost",
@@ -107,6 +90,17 @@ def _client() -> OpenAI:
 
 
 def _guess_track(tool: Tool) -> str:
+    """Prefer a non-default persisted track; else re-run the classifier.
+
+    Rows still on the ``ai_tool`` default may be uncategorized GitHub
+    repos, so we re-classify those. Explicit tracks (open_source, MCP,
+    skill, agent) are trusted as already bucketed.
+    """
+    from api.hygiene.track import classify_track
+
+    stored = (tool.track or "").strip()
+    if stored in {AI_AGENT, OPEN_SOURCE, AGENT_SKILL, MCP_SERVER}:
+        return stored
     name = tool.name or ""
     text = " ".join(
         filter(
@@ -120,17 +114,7 @@ def _guess_track(tool: Tool) -> str:
             ],
         )
     )
-    if _MCP_TEXT_RE.search(text) or _MCP_NAME_RE.search(name):
-        return MCP_SERVER
-    if _SKILL_RE.search(text) or _SKILL_NAME_RE.search(name):
-        return AGENT_SKILL
-    if _AGENT_RE.search(text):
-        return AI_AGENT
-    host = (tool.website or "").split("://", 1)[-1].split("/", 1)[0].lower()
-    host = host.removeprefix("www.")
-    if any(host == h or host.endswith(f".{h}") for h in _CODE_HOSTS):
-        return OPEN_SOURCE
-    return AI_TOOL
+    return classify_track(name, tool.website or "", text)
 
 
 def _cost_for(tool: Tool, track: str) -> tuple[str, str]:

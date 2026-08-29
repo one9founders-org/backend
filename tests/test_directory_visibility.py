@@ -127,6 +127,9 @@ class TestDirectoryHidesNonProducts:
         assert stats.data["count"] == 1
         assert stats.data["total_tools"] == 2
         assert stats.data["by_category"] == [{"category": "Writing", "count": 1}]
+        assert stats.data["by_track"] == [
+            {"track": "ai_tool", "label": "AI Tools", "count": 1},
+        ]
 
         categories = api_client.get(reverse("category-list"))
         writing_row = next(
