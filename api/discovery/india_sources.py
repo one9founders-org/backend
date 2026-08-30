@@ -1,4 +1,9 @@
-"""Firecrawl-backed discovery of Indian and newly launched AI tools."""
+"""Firecrawl-backed discovery of Indian and newly launched AI tools.
+
+YC / Wellfound / GoodFirms / Crunchbase are *lead sources*: we scrape them
+to find startups, then publish only when we can resolve an official product
+homepage. News blogs and SEO listicles are junk and never become Tool rows.
+"""
 
 from __future__ import annotations
 
@@ -14,10 +19,10 @@ logger = logging.getLogger(__name__)
 # Geo-targeted searches for Indian AI products founders can actually buy.
 INDIA_QUERIES = (
     "Indian AI startups tools for founders site:.in OR INR",
+    "YC India AI companies Wellfound Bangalore",
     "Sarvam Krutrim Neysa Indian AI product official site",
     "AI SaaS founded in India pricing",
     "Bangalore AI product launch official website",
-    "Indian generative AI company product homepage",
 )
 
 # Fresh launches worldwide so the directory stays current.
@@ -28,25 +33,40 @@ NEW_TOOL_QUERIES = (
     "new LLM developer tools 2026",
 )
 
-# Directory / news / listicle hosts — never use these as the Tool.website.
-_SKIP_HOST_RE = re.compile(
+# Startup directories we *want* as discovery leads. Never store these as
+# Tool.website, but do scrape them for the company's official site.
+_LEAD_HOST_RE = re.compile(
+    r"(?:^|\.)(?:"
+    r"wellfound\.com|angel\.co|ycombinator\.com|"
+    r"goodfirms\.|clutch\.co|crunchbase\.com|"
+    r"producthunt\.com|g2\.com|capterra\.|getapp\."
+    r")",
+    re.IGNORECASE,
+)
+
+# Multi-company list pages on lead hosts (not a single company profile).
+_LEAD_LIST_PATH_RE = re.compile(
+    r"/(?:companies/industry|startups/l/|artificial-intelligence/"
+    r"|companies\?|search)",
+    re.IGNORECASE,
+)
+
+# News / SEO junk — never useful as a product or a lead profile.
+_JUNK_HOST_RE = re.compile(
     r"(?:^|\.)(?:"
     r"google\.|bing\.|yahoo\.|duckduckgo\.|facebook\.|twitter\.|"
     r"x\.com|linkedin\.|youtube\.|instagram\.|reddit\.|wikipedia\.|"
     r"amazon\.|play\.google|apps\.apple|medium\.com|substack\.com|"
-    r"producthunt\.com|theresanaiforthat\.com|futurepedia\.|"
+    r"theresanaiforthat\.com|futurepedia\.|"
     r"toolify\.|aitools\.|topai\.tools|techstori|yuverse|"
     r"analyticsindiamag\.|inc42\.|yourstory\.|techcrunch\.|"
     r"forbes\.|ndtv\.|timesofindia\.|economictimes\.|"
-    r"wellfound\.com|angel\.co|crunchbase\.com|goodfirms\.|"
-    r"clutch\.co|g2\.com|capterra\.|getapp\.|"
     r"geeksforgeeks\.|sutrahr\.|aistartupimpact\.|"
-    r"ycombinator\.com|bookface\.ycombinator|"
-    r"grow\.google|bharatsamachar\.|finifi\.io|"
+    r"bookface\.ycombinator|grow\.google|bharatsamachar\.|finifi\.io|"
     r"s2sbizsolutions\.|listany\.|"
     r"tracxn\.|pitchbook\.|cbinsights\.|"
     r"wikipedia\.org|wikidata\.|"
-    r"news\.|blog\.wordpress\.|blogspot\."
+    r"blogspot\."
     r")",
     re.IGNORECASE,
 )
@@ -54,7 +74,7 @@ _SKIP_HOST_RE = re.compile(
 # Paths that almost always mean "article about tools", not a product.
 _ARTICLE_PATH_RE = re.compile(
     r"(?:/(?:blog|blogs|post|posts|article|articles|news|knowledge-base|"
-    r"knowledge_base|resources/blog|builders|companies/industry)/)"
+    r"knowledge_base|resources/blog|builders)/)"
     r"|"
     r"(?:/top[-_](?:generative[-_])?ai[-_]companies)"
     r"|"
@@ -80,12 +100,29 @@ def host_of(url: str) -> str:
     return host.removeprefix("www.")
 
 
-def is_aggregator_host(url: str) -> bool:
-    """True when the URL host is a directory, news, or marketplace site."""
+def is_lead_host(url: str) -> bool:
+    """YC / Wellfound / GoodFirms / etc. — scrape for official product URL."""
+    host = host_of(url or "")
+    if not host:
+        return False
+    return bool(_LEAD_HOST_RE.search(host))
+
+
+def is_junk_host(url: str) -> bool:
+    """News / SEO hosts that should never become Tool.website or leads."""
     host = host_of(url or "")
     if not host:
         return True
-    return bool(_SKIP_HOST_RE.search(host))
+    return bool(_JUNK_HOST_RE.search(host))
+
+
+def is_aggregator_host(url: str) -> bool:
+    """True when the URL must not be stored as Tool.website.
+
+    Lead directories (YC, Wellfound) and junk news hosts both fail this —
+    only a real product homepage should be saved.
+    """
+    return is_lead_host(url) or is_junk_host(url)
 
 
 def is_article_path(url: str) -> bool:
@@ -93,10 +130,28 @@ def is_article_path(url: str) -> bool:
     return bool(_ARTICLE_PATH_RE.search(path))
 
 
+def is_lead_list_page(url: str) -> bool:
+    """Industry/filter list on a lead host (many companies, not one profile)."""
+    if not is_lead_host(url or ""):
+        return False
+    path = urlparse(url if "://" in (url or "") else f"https://{url or ''}").path or ""
+    return bool(_LEAD_LIST_PATH_RE.search(path))
+
+
 def looks_like_listicle(title: str, url: str = "") -> bool:
-    """True for roundup posts that should never become a Tool row."""
-    if is_aggregator_host(url or ""):
+    """True for junk pages that should never become a Tool row.
+
+    Lead-directory *profiles* (e.g. a Wellfound company page) return False
+    so we can scrape them for an official website. Lead *list* pages and
+    news/SEO junk return True.
+    """
+    if is_junk_host(url or ""):
         return True
+    if is_lead_list_page(url or ""):
+        return True
+    if is_lead_host(url or ""):
+        # Single company profile on YC/Wellfound/GoodFirms — keep as a lead.
+        return False
     if is_article_path(url or ""):
         return True
     text = (title or "").strip()
@@ -106,6 +161,15 @@ def looks_like_listicle(title: str, url: str = "") -> bool:
         return True
     # Long SEO titles with year markers are almost always articles.
     if len(text) > 80 and re.search(r"\b20\d{2}\b", text):
+        return True
+    return False
+
+
+def website_is_unusable(url: str) -> bool:
+    """True when Tool.website still points at a directory/news page."""
+    if not (url or "").strip():
+        return True
+    if is_aggregator_host(url) or is_article_path(url) or is_lead_list_page(url):
         return True
     return False
 
@@ -129,6 +193,7 @@ def _candidate_from_hit(
             "description": hit.get("description") or "",
             "india_focus": india_focus,
             "via": "firecrawl",
+            "from_lead_directory": is_lead_host(url),
         },
     }
 
