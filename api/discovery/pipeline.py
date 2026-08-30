@@ -24,7 +24,6 @@ from .india_sources import (
 from .quality_gate import passes_quality_gate, similarity_ratio
 from .sources import canonicalize_http_url, candidate_signal, discover_candidates
 
-
 logger = logging.getLogger(__name__)
 
 # Django URLField defaults to max_length=200.

@@ -39,7 +39,8 @@ _LEAD_HOST_RE = re.compile(
     r"(?:^|\.)(?:"
     r"wellfound\.com|angel\.co|ycombinator\.com|"
     r"goodfirms\.|clutch\.co|crunchbase\.com|"
-    r"producthunt\.com|g2\.com|capterra\.|getapp\."
+    r"producthunt\.com|g2\.com|capterra\.|getapp\.|"
+    r"topstartups\.io|startupblink\.com|indiaai\.gov\.in"
     r")",
     re.IGNORECASE,
 )
@@ -47,11 +48,12 @@ _LEAD_HOST_RE = re.compile(
 # Multi-company list pages on lead hosts (not a single company profile).
 _LEAD_LIST_PATH_RE = re.compile(
     r"/(?:companies/industry|startups/l/|artificial-intelligence/"
-    r"|companies\?|search)",
+    r"|companies\?|search|startup/?$|top-startups|"
+    r"top-startups/|hq_location)",
     re.IGNORECASE,
 )
 
-# News / SEO junk — never useful as a product or a lead profile.
+# News / SEO / job-board junk — never useful as a product or a lead profile.
 _JUNK_HOST_RE = re.compile(
     r"(?:^|\.)(?:"
     r"google\.|bing\.|yahoo\.|duckduckgo\.|facebook\.|twitter\.|"
@@ -65,6 +67,7 @@ _JUNK_HOST_RE = re.compile(
     r"bookface\.ycombinator|grow\.google|bharatsamachar\.|finifi\.io|"
     r"s2sbizsolutions\.|listany\.|"
     r"tracxn\.|pitchbook\.|cbinsights\.|"
+    r"indeed\.|naukri\.|glassdoor\.|monster\.|shine\.com|"
     r"wikipedia\.org|wikidata\.|"
     r"blogspot\."
     r")",
@@ -134,8 +137,15 @@ def is_lead_list_page(url: str) -> bool:
     """Industry/filter list on a lead host (many companies, not one profile)."""
     if not is_lead_host(url or ""):
         return False
-    path = urlparse(url if "://" in (url or "") else f"https://{url or ''}").path or ""
-    return bool(_LEAD_LIST_PATH_RE.search(path))
+    parsed = urlparse(url if "://" in (url or "") else f"https://{url or ''}")
+    path = parsed.path or ""
+    query = parsed.query or ""
+    if _LEAD_LIST_PATH_RE.search(path) or _LEAD_LIST_PATH_RE.search(query):
+        return True
+    # Bare directory roots / filter hubs are never a single company profile.
+    if path in ("", "/"):
+        return True
+    return False
 
 
 def looks_like_listicle(title: str, url: str = "") -> bool:

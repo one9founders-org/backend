@@ -38,9 +38,7 @@ class TestHttpUrlGuard:
         assert canonicalize_http_url("gomotive.com") == "https://gomotive.com"
 
     def test_rejects_opaque_extract_tokens(self):
-        token = (
-            "CAESXAHrOzAVBi3yNwAlzHEA1Fz2tsxXPHQXei_Rhe7E-Gf25sDnbwLeypJZVWRv"
-        )
+        token = "CAESXAHrOzAVBi3yNwAlzHEA1Fz2tsxXPHQXei_Rhe7E-Gf25sDnbwLeypJZVWRv"
         assert not is_http_url(token)
         assert canonicalize_http_url(token) is None
         assert canonicalize_http_url(f"https://{token}") is None
@@ -131,12 +129,30 @@ class TestIndiaSources:
         assert is_lead_host("https://wellfound.com/company/motive")
         assert is_lead_host("https://www.ycombinator.com/companies/sarvam")
         assert is_lead_host("https://www.goodfirms.co/company/indata-labs")
+        assert is_lead_host("https://topstartups.io/?hq_location=Bangalore")
+        assert is_lead_host(
+            "https://www.startupblink.com/top-startups/bangalore-in/software-data"
+        )
+        assert is_lead_host("https://indiaai.gov.in/startup")
         assert is_junk_host(
             "https://www.geeksforgeeks.org/blogs/ai-companies-in-india/"
         )
         assert is_junk_host("https://finifi.io/knowledge-base/top-ai-tools")
+        assert is_junk_host(
+            "https://in.indeed.com/q-ai-startups-l-bengaluru,-karnataka-jobs.html"
+        )
         assert is_aggregator_host("https://wellfound.com/company/motive")
         assert website_is_unusable("https://wellfound.com/company/motive")
+        assert website_is_unusable("https://topstartups.io/?hq_location=Bangalore")
+        assert website_is_unusable("https://indiaai.gov.in/startup")
+        assert looks_like_listicle(
+            "Innoviti Solutions",
+            "https://topstartups.io/?hq_location=Bangalore",
+        )
+        assert looks_like_listicle(
+            "Endimension",
+            "https://indiaai.gov.in/startup",
+        )
         assert not website_is_unusable("https://www.sarvam.ai/")
 
     def test_aggregator_and_article_helpers(self):
@@ -473,9 +489,7 @@ class TestPublishFromFirecrawlFacts:
         assert any("official product website" in r for r in result["reasons"])
 
     def test_rejects_opaque_official_website_token(self):
-        token = (
-            "CAESXAHrOzAVBi3yNwAlzHEA1Fz2tsxXPHQXei_Rhe7E-Gf25sDnbwLeypJZVWRv"
-        )
+        token = "CAESXAHrOzAVBi3yNwAlzHEA1Fz2tsxXPHQXei_Rhe7E-Gf25sDnbwLeypJZVWRv"
         with patch(
             "api.discovery.pipeline.fetch_facts",
             return_value=Facts(

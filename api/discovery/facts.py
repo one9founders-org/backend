@@ -13,7 +13,6 @@ from api.models import Category
 
 from .sources import USER_AGENT, canonicalize_http_url
 
-
 logger = logging.getLogger(__name__)
 
 REQUEST_TIMEOUT = 15
