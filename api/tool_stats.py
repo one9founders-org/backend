@@ -24,9 +24,7 @@ def compute_tool_directory_stats():
         .order_by("-count", "category")
     )
     by_track_rows = list(
-        qs.values("track")
-        .annotate(count=Count("id"))
-        .order_by("-count", "track")
+        qs.values("track").annotate(count=Count("id")).order_by("-count", "track")
     )
     by_track = [
         {

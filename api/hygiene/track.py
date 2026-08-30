@@ -220,9 +220,7 @@ def classify_track(
     if _AGENT_RE.search(combined) or _AGENT_BEHAVIOUR_RE.search(combined):
         return AI_AGENT
 
-    if is_open_source_signal(
-        name, website, host=host, has_license=has_license
-    ):
+    if is_open_source_signal(name, website, host=host, has_license=has_license):
         return OPEN_SOURCE
 
     return AI_TOOL

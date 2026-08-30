@@ -278,17 +278,13 @@ class TestTrack:
             classify_track("github/langchain-ai/langchain", "https://langchain.com")
             == OPEN_SOURCE
         )
-        assert (
-            classify_track("github:All-Hands-AI/OpenHands", "")
-            == OPEN_SOURCE
-        )
+        assert classify_track("github:All-Hands-AI/OpenHands", "") == OPEN_SOURCE
 
     def test_github_product_page_is_not_open_source(self):
         from api.hygiene.track import AI_TOOL, classify_track
 
         assert (
-            classify_track("Copilot", "https://github.com/features/copilot")
-            == AI_TOOL
+            classify_track("Copilot", "https://github.com/features/copilot") == AI_TOOL
         )
         assert classify_track("GitHub", "https://github.com") == AI_TOOL
 
