@@ -18,6 +18,7 @@ from .generate import generate_description
 from .india_sources import (
     is_aggregator_host,
     is_article_path,
+    is_lead_host,
     looks_like_listicle,
 )
 from .quality_gate import passes_quality_gate, similarity_ratio
@@ -97,6 +98,21 @@ def process_candidate(candidate: dict) -> dict:
 
     prefer_fc = (candidate.get("sourceType") or "").startswith("firecrawl")
     facts = fetch_facts(url, prefer_firecrawl=prefer_fc or True)
+
+    # Lead directories (YC/Wellfound/GoodFirms): keep the company, but only
+    # publish after we resolve their official product homepage.
+    if is_lead_host(url):
+        official = (facts.official_website or "").strip()
+        if not official or is_aggregator_host(official) or is_article_path(official):
+            return _reject(
+                candidate,
+                name,
+                url,
+                ["lead directory page missing official product website"],
+                facts=facts,
+            )
+        facts = fetch_facts(official, prefer_firecrawl=True)
+        url = official
 
     if facts.is_single_product_page is False:
         # Extractor said this is a directory/blog — try official URL once.

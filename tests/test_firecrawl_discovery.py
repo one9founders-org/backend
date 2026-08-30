@@ -15,7 +15,10 @@ from api.discovery.india_sources import (
     fetch_new_tool_candidates,
     is_aggregator_host,
     is_article_path,
+    is_junk_host,
+    is_lead_host,
     looks_like_listicle,
+    website_is_unusable,
 )
 from api.discovery.pipeline import process_candidate, publish_new_tool
 from api.hygiene.track import AI_TOOL, OPEN_SOURCE
@@ -91,15 +94,32 @@ class TestIndiaSources:
             "Top 10 AI Tools for Indian Businesses in 2026 - YuVerse",
             "https://yuverse.ai/blog/top-10",
         )
+        # Industry list pages on lead hosts are skipped; company profiles are not.
         assert looks_like_listicle(
-            "Motive",
+            "AI startups in India",
             "https://wellfound.com/startups/l/india/artificial-intelligence",
+        )
+        assert not looks_like_listicle(
+            "Motive",
+            "https://wellfound.com/company/motive",
         )
         assert looks_like_listicle(
             "Vyapar TaxOne",
             "https://taxone.vyapar.com/post/best-ai-tools-for-gst-reco",
         )
         assert not looks_like_listicle("Sarvam AI", "https://sarvam.ai")
+
+    def test_lead_vs_junk_hosts(self):
+        assert is_lead_host("https://wellfound.com/company/motive")
+        assert is_lead_host("https://www.ycombinator.com/companies/sarvam")
+        assert is_lead_host("https://www.goodfirms.co/company/indata-labs")
+        assert is_junk_host(
+            "https://www.geeksforgeeks.org/blogs/ai-companies-in-india/"
+        )
+        assert is_junk_host("https://finifi.io/knowledge-base/top-ai-tools")
+        assert is_aggregator_host("https://wellfound.com/company/motive")
+        assert website_is_unusable("https://wellfound.com/company/motive")
+        assert not website_is_unusable("https://www.sarvam.ai/")
 
     def test_aggregator_and_article_helpers(self):
         assert is_aggregator_host("https://www.goodfirms.co/artificial-intelligence")
@@ -121,24 +141,30 @@ class TestIndiaSources:
                     "description": "Indian language AI",
                 },
                 {
-                    "url": "https://producthunt.com/posts/foo",
-                    "title": "Listicle",
-                    "description": "skip me",
+                    "url": "https://wellfound.com/company/clientell",
+                    "title": "Clientell AI",
+                    "description": "keep as lead profile",
                 },
                 {
                     "url": "https://wellfound.com/startups/l/bangalore",
-                    "title": "Clientell AI",
-                    "description": "skip directory",
+                    "title": "Bangalore AI list",
+                    "description": "skip list page",
+                },
+                {
+                    "url": "https://www.geeksforgeeks.org/blogs/ai-companies-in-india/",
+                    "title": "AI companies",
+                    "description": "skip junk",
                 },
             ],
         ):
             rows = fetch_india_tool_candidates(limit_per_query=2)
         urls = {r["url"] for r in rows}
         assert "https://sarvam.ai" in urls
+        assert "https://wellfound.com/company/clientell" in urls
         assert all(r["sourceType"] == "firecrawl_india" for r in rows)
         assert all(r["rawSignal"]["india_focus"] for r in rows)
-        assert "https://producthunt.com/posts/foo" not in urls
         assert "https://wellfound.com/startups/l/bangalore" not in urls
+        assert "https://www.geeksforgeeks.org/blogs/ai-companies-in-india/" not in urls
 
     def test_new_tools_search(self, settings):
         settings.FIRECRAWL_API_KEY = "fc-test"
@@ -357,13 +383,84 @@ class TestPublishFromFirecrawlFacts:
         assert result["passed"] is True
         assert result["url"] == "https://credresolve.com"
 
+    def test_wellfound_lead_resolves_to_official_site(self):
+        description = (
+            "Motive builds AI fleet hardware for logistics teams. Drivers "
+            "get coaching, fleets cut fuel waste, and operators track safety "
+            "without spreadsheet ops across routes."
+        )
+        lead_facts = Facts(
+            title="Motive",
+            is_single_product_page=True,
+            official_website="https://gomotive.com",
+            pricing="paid",
+            source_text="fleet AI",
+        )
+        product_facts = Facts(
+            title="Motive",
+            meta_description="Fleet AI",
+            pricing="paid",
+            category="Automation",
+            is_single_product_page=True,
+            india_focused=False,
+            source_text="fleet AI platform",
+        )
+
+        def _facts(url, prefer_firecrawl=True):
+            if "wellfound" in url:
+                return lead_facts
+            return product_facts
+
+        with (
+            patch("api.discovery.pipeline.fetch_facts", side_effect=_facts),
+            patch(
+                "api.discovery.pipeline.generate_description",
+                return_value=description,
+            ),
+            patch(
+                "api.discovery.pipeline.passes_quality_gate",
+                return_value=(True, []),
+            ),
+        ):
+            result = process_candidate(
+                {
+                    "name": "Motive",
+                    "url": "https://wellfound.com/company/motive",
+                    "sourceType": "firecrawl_india",
+                    "rawSignal": {"india_focus": True, "from_lead_directory": True},
+                }
+            )
+        assert result["passed"] is True
+        assert result["url"] == "https://gomotive.com"
+
+    def test_wellfound_lead_without_official_site_is_rejected(self):
+        with patch(
+            "api.discovery.pipeline.fetch_facts",
+            return_value=Facts(
+                title="Motive",
+                is_single_product_page=True,
+                official_website="",
+                source_text="directory",
+            ),
+        ):
+            result = process_candidate(
+                {
+                    "name": "Motive",
+                    "url": "https://wellfound.com/company/motive",
+                    "sourceType": "firecrawl_india",
+                    "rawSignal": {"india_focus": True},
+                }
+            )
+        assert result["passed"] is False
+        assert any("official product website" in r for r in result["reasons"])
+
 
 @pytest.mark.django_db
 class TestCleanupBadIndia:
-    def test_deactivates_aggregator_websites(self):
+    def test_deactivates_directory_websites_not_product_sites(self):
         bad = ToolFactory(
             name="Motive",
-            website="https://wellfound.com/startups/l/india/ai",
+            website="https://wellfound.com/company/motive",
             tags=["auto-discovery", "firecrawl_india", "india"],
             is_active=True,
             description="Bad row pointing at a directory listing page only.",
@@ -377,11 +474,22 @@ class TestCleanupBadIndia:
             description="Real Indian AI product homepage that should stay live.",
             short_description="Product",
         )
+        # Same company discovered via Wellfound but already resolved.
+        resolved = ToolFactory(
+            name="Motive Fleet",
+            website="https://gomotive.com",
+            tags=["auto-discovery", "firecrawl_india", "india"],
+            is_active=True,
+            description="Motive with the real product website should stay active.",
+            short_description="Product",
+        )
         call_command("cleanup_bad_india_discoveries", apply=True)
         bad.refresh_from_db()
         good.refresh_from_db()
+        resolved.refresh_from_db()
         assert bad.is_active is False
         assert good.is_active is True
+        assert resolved.is_active is True
 
 
 @pytest.mark.django_db
