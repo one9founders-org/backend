@@ -105,6 +105,9 @@ class TestIndiaSources:
         assert is_aggregator_host("https://www.goodfirms.co/artificial-intelligence")
         assert is_aggregator_host("https://ycombinator.com/companies/industry/ai/india")
         assert is_article_path("https://example.com/blog/foo")
+        assert is_article_path(
+            "https://caliberfocus.com/top-generative-ai-companies-in-india"
+        )
         assert not is_article_path("https://sarvam.ai/")
 
     def test_india_search_builds_candidates(self, settings):

@@ -54,7 +54,10 @@ _SKIP_HOST_RE = re.compile(
 # Paths that almost always mean "article about tools", not a product.
 _ARTICLE_PATH_RE = re.compile(
     r"/(?:blog|blogs|post|posts|article|articles|news|knowledge-base|"
-    r"knowledge_base|resources/blog|builders)/",
+    r"knowledge_base|resources/blog|builders|"
+    r"top[-_](?:generative[-_])?ai[-_]companies|"
+    r"top[-_]ai[-_]startup|"
+    r"companies/industry)/",
     re.IGNORECASE,
 )
 
