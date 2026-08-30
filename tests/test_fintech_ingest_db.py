@@ -89,10 +89,10 @@ class TestIngestVendor:
         assert tool.overall_score is None
         assert tool.assessment_detail in ({}, None)
         assert FintechEvidencePage.objects.filter(tool=tool).count() == 1
-        row = FintechRating.objects.get(tool=tool, check__slug="dataLocalization")
+        row = FintechRating.objects.get(tool=tool, criterion__slug="dataLocalization")
         assert row.result == "pass"
         assert row.evidence_url == HOMEPAGE
-        unknown = FintechRating.objects.get(tool=tool, check__slug="biasTesting")
+        unknown = FintechRating.objects.get(tool=tool, criterion__slug="biasTesting")
         assert unknown.result == "unknown"
         assert unknown.evidence_url == ""
 

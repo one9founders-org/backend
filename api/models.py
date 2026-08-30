@@ -441,7 +441,7 @@ class FintechRating(models.Model):
     tool = models.ForeignKey(
         Tool, on_delete=models.CASCADE, related_name="fintech_ratings"
     )
-    check = models.ForeignKey(
+    criterion = models.ForeignKey(
         FintechCheck, on_delete=models.CASCADE, related_name="ratings"
     )
     stack = models.CharField(
@@ -456,16 +456,16 @@ class FintechRating(models.Model):
 
     class Meta:
         db_table = "fintech_ratings"
-        ordering = ["tool__name", "check__sort_order"]
+        ordering = ["tool__name", "criterion__sort_order"]
         constraints = [
             models.UniqueConstraint(
-                fields=["tool", "check", "stack"],
-                name="uniq_fintech_rating_tool_check_stack",
+                fields=["tool", "criterion", "stack"],
+                name="uniq_fintech_rating_tool_criterion_stack",
             )
         ]
 
     def __str__(self):
-        return f"{self.tool.name} / {self.check.slug} / {self.result}"
+        return f"{self.tool.name} / {self.criterion.slug} / {self.result}"
 
     def clean(self):
         from django.core.exceptions import ValidationError

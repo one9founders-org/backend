@@ -386,7 +386,7 @@ def _write_ratings(
     for row in scored["checks"]:
         obj, _ = FintechRating.objects.update_or_create(
             tool=tool,
-            check=checks[row["check"]],
+            criterion=checks[row["check"]],
             stack=vendor.stack,
             defaults={
                 "result": row["result"],
