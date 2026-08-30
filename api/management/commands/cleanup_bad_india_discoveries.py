@@ -1,15 +1,22 @@
-"""Deactivate junk Firecrawl India rows that point at directories/listicles."""
+"""Deactivate Firecrawl India rows whose website is still a directory/news URL.
+
+YC / Wellfound / GoodFirms are valuable *sources* of startups. We do not
+reject those companies — we only deactivate rows where Tool.website still
+points at the directory page (e.g. wellfound.com/...) instead of the
+product homepage (e.g. gomotive.com). Re-run discovery after deploy to
+re-ingest those startups with a real website.
+"""
 
 from django.core.management.base import BaseCommand
 
-from api.discovery.india_sources import looks_like_listicle
+from api.discovery.india_sources import website_is_unusable
 from api.models import Tool
 
 
 class Command(BaseCommand):
     help = (
-        "Deactivate auto-discovered India tools whose website/title is a "
-        "directory, news, or listicle page. Dry-run unless --apply."
+        "Deactivate auto-discovered India tools whose website still points "
+        "at a directory/news page (not the product). Dry-run unless --apply."
     )
 
     def add_arguments(self, parser):
@@ -29,6 +36,11 @@ class Command(BaseCommand):
         apply = options["apply"]
         mode = "APPLY" if apply else "DRY RUN"
         self.stdout.write(f"--- Cleanup bad India discoveries ({mode}) ---")
+        self.stdout.write(
+            "Note: YC/Wellfound/GoodFirms startups are kept when their "
+            "website is the real product URL. Only directory/news websites "
+            "are deactivated so discovery can re-publish them correctly."
+        )
 
         queryset = (
             Tool.objects.filter(is_active=True)
@@ -43,11 +55,11 @@ class Command(BaseCommand):
         bad: list[Tool] = []
         for tool in queryset.iterator(chunk_size=200):
             scanned += 1
-            if looks_like_listicle(tool.name or "", tool.website or ""):
+            if website_is_unusable(tool.website or ""):
                 bad.append(tool)
 
         self.stdout.write(f"Scanned: {scanned}")
-        self.stdout.write(f"Bad:     {len(bad)}")
+        self.stdout.write(f"Bad website (directory/news): {len(bad)}")
         for tool in bad[:40]:
             self.stdout.write(f"  [{tool.id}] {tool.name!r} -> {tool.website}")
         if len(bad) > 40:

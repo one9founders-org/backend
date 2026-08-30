@@ -59,7 +59,10 @@ TOOL_EXTRACT_SCHEMA: dict[str, Any] = {
 TOOL_EXTRACT_PROMPT = (
     "Extract product metadata for an AI tools directory aimed at founders. "
     "Set is_single_product_page false when the page lists many companies, "
-    "is a blog/news/roundup, a marketplace profile, or a registration agency. "
+    "is a blog/news/roundup, a marketplace search result, or a registration agency. "
+    "When the page is a YC, Wellfound, GoodFirms, Crunchbase, G2, or Product Hunt "
+    "company *profile*, set is_single_product_page true and set official_website to "
+    "the company's own product homepage (never the directory URL itself). "
     "When is_single_product_page is true, prefer the official product name, "
     "official_website (canonical homepage), a one-sentence short description, "
     "pricing type, starting USD price if shown, whether a free tier exists, "
@@ -68,7 +71,7 @@ TOOL_EXTRACT_PROMPT = (
     "company is Indian, founded in India, or clearly targets Indian "
     "founders (INR pricing, GST, India office). "
     "Set has_inr_or_india_pricing true when INR/₹ or India plans appear. "
-    "If the page is not a single product, leave official_website empty."
+    "If the page is not a single product/company profile, leave official_website empty."
 )
 
 
