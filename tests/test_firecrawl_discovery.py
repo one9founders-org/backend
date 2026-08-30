@@ -1,7 +1,5 @@
 """Tests for Firecrawl India/new-tool discovery and directory columns."""
 
-# CI retrigger marker
-
 from decimal import Decimal
 from unittest.mock import patch
 
