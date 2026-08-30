@@ -32,9 +32,20 @@ NEW_TOOL_QUERIES = (
 _SKIP_HOST_RE = re.compile(
     r"(?:google\.|bing\.|yahoo\.|duckduckgo\.|facebook\.|twitter\.|"
     r"x\.com|linkedin\.|youtube\.|instagram\.|reddit\.|wikipedia\.|"
-    r"amazon\.|play\.google|apps\.apple|"
+    r"amazon\.|play\.google|apps\.apple|medium\.com|substack\.com|"
     r"producthunt\.com|theresanaiforthat\.com|futurepedia\.|"
-    r"toolify\.|aitools\.|topai\.tools)",
+    r"toolify\.|aitools\.|topai\.tools|techstori|yuverse|"
+    r"analyticsindiamag\.|inc42\.|yourstory\.|techcrunch\.|"
+    r"forbes\.|ndtv\.|timesofindia\.|economictimes\.)",
+    re.IGNORECASE,
+)
+
+# SERP titles that are roundups, not a single product.
+_LISTICLE_TITLE_RE = re.compile(
+    r"\b(?:top\s+\d+|best\s+\d*|best ai tools|ai tools for|"
+    r"tools for (?:indian|small|digital)|latest ai products|"
+    r"companies in india|github repositories|"
+    r"reviewed|roundup|list of)\b",
     re.IGNORECASE,
 )
 
@@ -47,6 +58,21 @@ def _is_skippable_host(url: str) -> bool:
     return bool(_SKIP_HOST_RE.search(host))
 
 
+def looks_like_listicle(title: str, url: str = "") -> bool:
+    """True for roundup posts that should never become a Tool row."""
+    if _is_skippable_host(url or ""):
+        return True
+    text = (title or "").strip()
+    if not text:
+        return True
+    if _LISTICLE_TITLE_RE.search(text):
+        return True
+    # Long SEO titles with year markers are almost always articles.
+    if len(text) > 80 and re.search(r"\b20\d{2}\b", text):
+        return True
+    return False
+
+
 def _candidate_from_hit(
     hit: dict,
     *,
@@ -55,9 +81,8 @@ def _candidate_from_hit(
 ) -> dict | None:
     url = (hit.get("url") or "").strip()
     title = (hit.get("title") or "").strip()
-    if not url or not title or _is_skippable_host(url):
+    if not url or not title or looks_like_listicle(title, url):
         return None
-    # Drop github path-less or non-repo noise later; keep real repos.
     return {
         "name": title[:255],
         "url": url,
