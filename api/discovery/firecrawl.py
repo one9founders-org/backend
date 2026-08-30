@@ -15,13 +15,17 @@ from typing import Any
 import requests
 from django.conf import settings
 
+from .sources import canonicalize_http_url
+
 logger = logging.getLogger(__name__)
 
 FIRECRAWL_BASE = "https://api.firecrawl.dev/v2"
+
 REQUEST_TIMEOUT = 45
 MAX_RETRIES = 4
 # Pause between search queries so we stay under Firecrawl rate limits.
 SEARCH_GAP_SECONDS = 2.0
+SCRAPE_GAP_SECONDS = 1.5
 
 # Structured fields we ask Firecrawl to pull from a product page.
 TOOL_EXTRACT_SCHEMA: dict[str, Any] = {
@@ -60,8 +64,9 @@ TOOL_EXTRACT_PROMPT = (
     "Extract product metadata for an AI tools directory aimed at founders. "
     "Set is_single_product_page false when the page lists many companies, "
     "is a blog/news/roundup, a marketplace search result, or a registration agency. "
-    "When the page is a YC, Wellfound, GoodFirms, Crunchbase, G2, or Product Hunt "
-    "company *profile*, set is_single_product_page true and set official_website to "
+    "When the page is a YC, Wellfound, GoodFirms, Crunchbase, G2, Product Hunt, "
+    "TopStartups, StartupBlink, or IndiaAI.gov company *profile*, set "
+    "is_single_product_page true and set official_website to "
     "the company's own product homepage (never the directory URL itself). "
     "When is_single_product_page is true, prefer the official product name, "
     "official_website (canonical homepage), a one-sentence short description, "
@@ -76,7 +81,20 @@ TOOL_EXTRACT_PROMPT = (
 
 
 def firecrawl_enabled() -> bool:
+    """True when an API key is configured (fintech ingest, opt-in discovery)."""
     return bool(getattr(settings, "FIRECRAWL_API_KEY", "") or "")
+
+
+def firecrawl_discovery_enabled() -> bool:
+    """True only when India/new Firecrawl discovery is explicitly opted in.
+
+    JSON extract scrapes cost ~5 credits each; default discovery must not
+    call Firecrawl. Set FIRECRAWL_DISCOVERY_ENABLED=true to allow
+    discover_india_tools / job=india.
+    """
+    return firecrawl_enabled() and bool(
+        getattr(settings, "FIRECRAWL_DISCOVERY_ENABLED", False)
+    )
 
 
 def _headers() -> dict[str, str]:
@@ -117,6 +135,15 @@ def _post_with_backoff(path: str, body: dict[str, Any]) -> dict[str, Any] | None
                 time.sleep(wait)
                 delay = min(delay * 2, 60.0)
                 continue
+            # 4xx (except 429) are not retryable — bad URL / payload.
+            if 400 <= response.status_code < 500:
+                logger.warning(
+                    "Firecrawl %s client error %s: %s",
+                    path,
+                    response.status_code,
+                    (response.text or "")[:200],
+                )
+                return None
             response.raise_for_status()
             return response.json() or {}
         except requests.RequestException as exc:
@@ -169,7 +196,7 @@ def search(
         web = data.get("web") or []
     results = []
     for item in web:
-        url = (item.get("url") or "").strip()
+        url = canonicalize_http_url(item.get("url") or "")
         title = (item.get("title") or "").strip()
         if not url or not title:
             continue
@@ -187,11 +214,13 @@ def scrape_tool_page(url: str) -> dict[str, Any]:
     """Scrape one URL; return markdown + json extract (+ metadata)."""
     if not firecrawl_enabled():
         return {}
-    if not url:
+    clean = canonicalize_http_url(url)
+    if not clean:
+        logger.warning("Firecrawl scrape skipped; invalid URL %r", url)
         return {}
 
     body = {
-        "url": url,
+        "url": clean,
         "onlyMainContent": True,
         "formats": [
             "markdown",
@@ -203,8 +232,9 @@ def scrape_tool_page(url: str) -> dict[str, Any]:
         ],
     }
     payload = _post_with_backoff("/scrape", body)
+    time.sleep(SCRAPE_GAP_SECONDS)
     if not payload:
-        logger.warning("Firecrawl scrape failed for %s", url)
+        logger.warning("Firecrawl scrape failed for %s", clean)
         return {}
 
     data = payload.get("data") or {}

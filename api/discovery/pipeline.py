@@ -12,7 +12,7 @@ from api.hygiene.logos import resolve_logo
 from api.hygiene.track import classify_track
 from api.models import Category, DiscoveryRun, Tool
 
-from . import MAX_NEW_TOOLS_PER_RUN, REFRESH_NOOP_RATIO
+from . import MAX_FIRECRAWL_TOOLS_PER_RUN, MAX_NEW_TOOLS_PER_RUN, REFRESH_NOOP_RATIO
 from .facts import Facts, fetch_facts
 from .generate import generate_description
 from .india_sources import (
@@ -22,7 +22,7 @@ from .india_sources import (
     looks_like_listicle,
 )
 from .quality_gate import passes_quality_gate, similarity_ratio
-from .sources import candidate_signal, discover_candidates
+from .sources import candidate_signal, canonicalize_http_url, discover_candidates
 
 logger = logging.getLogger(__name__)
 
@@ -75,15 +75,15 @@ def _reject(candidate: dict, name: str, url: str, reasons: list[str], facts=None
 
 def _resolve_product_url(serp_url: str, facts: Facts) -> str | None:
     """Pick a real product homepage; None when we only have a listicle URL."""
-    official = (facts.official_website or "").strip()
+    official = canonicalize_http_url(facts.official_website or "")
     if official and not is_aggregator_host(official) and not is_article_path(official):
         return official
-    if facts.github_url and "github.com" in facts.github_url.lower():
-        gh = facts.github_url.strip()
-        if not is_aggregator_host(gh):
-            return gh
-    if serp_url and not is_aggregator_host(serp_url) and not is_article_path(serp_url):
-        return serp_url
+    github = canonicalize_http_url(facts.github_url or "")
+    if github and "github.com" in github.lower() and not is_aggregator_host(github):
+        return github
+    serp = canonicalize_http_url(serp_url or "")
+    if serp and not is_aggregator_host(serp) and not is_article_path(serp):
+        return serp
     return None
 
 
@@ -97,12 +97,14 @@ def process_candidate(candidate: dict) -> dict:
         )
 
     prefer_fc = (candidate.get("sourceType") or "").startswith("firecrawl")
-    facts = fetch_facts(url, prefer_firecrawl=prefer_fc or True)
+    # Never `prefer_fc or True` — that burned Firecrawl credits on every
+    # GitHub / Product Hunt / HN candidate (JSON extract ≈ 5 credits/page).
+    facts = fetch_facts(url, prefer_firecrawl=prefer_fc)
 
     # Lead directories (YC/Wellfound/GoodFirms): keep the company, but only
     # publish after we resolve their official product homepage.
     if is_lead_host(url):
-        official = (facts.official_website or "").strip()
+        official = canonicalize_http_url(facts.official_website or "")
         if not official or is_aggregator_host(official) or is_article_path(official):
             return _reject(
                 candidate,
@@ -111,19 +113,19 @@ def process_candidate(candidate: dict) -> dict:
                 ["lead directory page missing official product website"],
                 facts=facts,
             )
-        facts = fetch_facts(official, prefer_firecrawl=True)
+        facts = fetch_facts(official, prefer_firecrawl=prefer_fc)
         url = official
 
     if facts.is_single_product_page is False:
         # Extractor said this is a directory/blog — try official URL once.
-        official = (facts.official_website or "").strip()
+        official = canonicalize_http_url(facts.official_website or "")
         if (
             official
             and official.rstrip("/") != url.rstrip("/")
             and not is_aggregator_host(official)
             and not is_article_path(official)
         ):
-            facts = fetch_facts(official, prefer_firecrawl=True)
+            facts = fetch_facts(official, prefer_firecrawl=prefer_fc)
             url = official
             if facts.is_single_product_page is False:
                 return _reject(
@@ -154,7 +156,7 @@ def process_candidate(candidate: dict) -> dict:
     if product_url.rstrip("/") != url.rstrip("/"):
         # Re-fetch facts from the real homepage when SERP pointed elsewhere.
         if is_aggregator_host(url) or is_article_path(url):
-            facts = fetch_facts(product_url, prefer_firecrawl=True)
+            facts = fetch_facts(product_url, prefer_firecrawl=prefer_fc)
         url = product_url
 
     if is_aggregator_host(url) or is_article_path(url):
@@ -437,10 +439,27 @@ def run_new_tool_discovery(
     }
 
 
-def run_india_and_new_discovery(max_new: int | None = 40) -> dict:
-    """Firecrawl-only pass: Indian tools + newly launched AI tools."""
+def run_india_and_new_discovery(max_new: int | None = None) -> dict:
+    """Firecrawl-only pass: Indian tools + newly launched AI tools.
+
+    No-op unless FIRECRAWL_DISCOVERY_ENABLED=true (JSON extract is expensive).
+    """
+    from .firecrawl import firecrawl_discovery_enabled
     from .india_sources import fetch_firecrawl_candidates
     from .sources import dedupe_candidates
+
+    if max_new is None:
+        max_new = MAX_FIRECRAWL_TOOLS_PER_RUN
+    if not firecrawl_discovery_enabled():
+        return {
+            "candidates_found": 0,
+            "published": 0,
+            "rejected": 0,
+            "errored": 0,
+            "deferred_over_cap": 0,
+            "source": "firecrawl_india_and_new",
+            "skipped": "FIRECRAWL_DISCOVERY_ENABLED is not set",
+        }
 
     candidates = dedupe_candidates(fetch_firecrawl_candidates())
     result = run_new_tool_discovery(max_new=max_new, candidates=candidates)
@@ -458,7 +477,8 @@ def run_refresh_descriptions(limit: int = 50) -> dict:
 
     for tool in tools:
         try:
-            facts = fetch_facts(tool.website)
+            # Cheap HTML / GitHub only — never Firecrawl JSON extract.
+            facts = fetch_facts(tool.website, prefer_firecrawl=False)
             generated = generate_description(tool.name, facts)
             passed, reasons = passes_quality_gate(
                 tool.name, generated, facts, facts.source_text

@@ -125,7 +125,18 @@ docker compose exec -T web python manage.py discover_candidates
 
 if [ "${DISCOVERY_ACTION:-inspect-and-run}" = "inspect-and-run" ]; then
   echo "===== START RUN ====="
-  docker compose exec -T web bash -lc 'pkill -f run_tool_discovery || true'
+  docker compose exec -T web bash -lc '
+    for pat in run_tool_discovery discover_india; do
+      pids=$(ps aux | grep "$pat" | grep -v grep | awk "{print \$2}")
+      if [ -n "$pids" ]; then
+        echo "killing $pat: $pids"
+        kill $pids 2>/dev/null || true
+      else
+        echo "no $pat process"
+      fi
+    done
+  '
+
   docker compose exec -d web python manage.py run_tool_discovery
   sleep 5
   docker compose exec -T web ps aux | grep run_tool_discovery | grep -v grep || echo "process not visible yet"

@@ -38,6 +38,19 @@ def run_discovery_trigger(request):
 
     payload = {}
     if job == "india":
+        from api.discovery.firecrawl import firecrawl_discovery_enabled
+
+        if not firecrawl_discovery_enabled():
+            return Response(
+                {
+                    "detail": (
+                        "India Firecrawl discovery is disabled. Set "
+                        "FIRECRAWL_DISCOVERY_ENABLED=true to opt in "
+                        "(~5 credits per scraped page)."
+                    )
+                },
+                status=403,
+            )
         payload["india"] = run_india_and_new_discovery()
         return Response(payload)
     if job in {"both", "discovery"}:
