@@ -38,6 +38,15 @@ class TestFirecrawlClientGuards:
 
 
 class TestIndiaSources:
+    def test_skips_listicle_titles(self, settings):
+        from api.discovery.india_sources import looks_like_listicle
+
+        assert looks_like_listicle(
+            "Top 10 AI Tools for Indian Businesses in 2026 - YuVerse",
+            "https://yuverse.ai/blog/top-10",
+        )
+        assert not looks_like_listicle("Sarvam AI", "https://sarvam.ai")
+
     def test_india_search_builds_candidates(self, settings):
         settings.FIRECRAWL_API_KEY = "fc-test"
         with patch(
@@ -143,6 +152,53 @@ class TestPublishFromFirecrawlFacts:
             }
         )
         assert tool.track == OPEN_SOURCE
+
+    def test_long_logo_url_is_dropped_not_crashed(self):
+        description = (
+            "ShortName is a founder AI workspace for briefs and weekly "
+            "updates. Teams draft copy, keep outlines shared, and export "
+            "docs without replacing their editor of record."
+        )
+        long_logo = "https://cdn.example.com/" + ("a" * 250) + ".png"
+        tool = publish_new_tool(
+            {
+                "name": "ShortName LogoFit",
+                "url": "https://shortname.example",
+                "generated": description,
+                "candidate": {"sourceType": "firecrawl_new", "rawSignal": {}},
+                "facts": Facts(
+                    title="ShortName LogoFit",
+                    meta_description="x" * 500,
+                    pricing="free",
+                    logo_url=long_logo,
+                    source_text="founder AI workspace",
+                ),
+            }
+        )
+        assert tool.logo_url != long_logo
+        assert not tool.logo_url or len(tool.logo_url) <= 200
+        assert len(tool.short_description) <= 200
+
+    def test_duplicate_name_is_rejected_before_save(self):
+        ToolFactory(
+            name="ChatGPT",
+            is_active=True,
+            description="Existing ChatGPT row for founders in the directory.",
+            short_description="Existing",
+        )
+        from api.discovery.pipeline import process_candidate
+
+        result = process_candidate(
+            {
+                "name": "The Best AI Tools for 2026",
+                "url": "https://example.com/best-ai-tools-2026",
+                "sourceType": "firecrawl_new",
+                "rawSignal": {},
+            }
+        )
+        # Listicle title should fail before scrape/save.
+        assert result["passed"] is False
+        assert any("listicle" in r for r in result["reasons"])
 
 
 @pytest.mark.django_db

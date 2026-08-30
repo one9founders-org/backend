@@ -3,6 +3,7 @@
 import logging
 from decimal import Decimal, InvalidOperation
 
+from django.db import IntegrityError
 from django.db.models import F
 from django.utils import timezone
 from django.utils.text import slugify
@@ -14,10 +15,15 @@ from api.models import Category, DiscoveryRun, Tool
 from . import MAX_NEW_TOOLS_PER_RUN, REFRESH_NOOP_RATIO
 from .facts import Facts, fetch_facts
 from .generate import generate_description
+from .india_sources import looks_like_listicle
 from .quality_gate import passes_quality_gate, similarity_ratio
 from .sources import candidate_signal, discover_candidates
 
 logger = logging.getLogger(__name__)
+
+# Django URLField defaults to max_length=200.
+_URL_MAX = 200
+_SHORT_DESC_MAX = 200
 
 SIMILARITY_ONLY_PREFIX = "description too similar to source"
 RETRY_INSTRUCTION = (
@@ -43,14 +49,74 @@ def log_run(
     )
 
 
+def _clip(value: str | None, limit: int) -> str:
+    text = (value or "").strip()
+    if len(text) <= limit:
+        return text
+    return text[: limit - 1].rstrip() + "…"
+
+
 def process_candidate(candidate: dict) -> dict:
     name = (candidate.get("name") or "").strip()
     url = (candidate.get("url") or "").strip()
+
+    if looks_like_listicle(name, url):
+        return {
+            "name": name,
+            "url": url,
+            "candidate": candidate,
+            "facts": Facts(),
+            "generated": "",
+            "passed": False,
+            "reasons": ["listicle or roundup page, not a product"],
+        }
+
     prefer_fc = (candidate.get("sourceType") or "").startswith("firecrawl")
     facts = fetch_facts(url, prefer_firecrawl=prefer_fc or True)
-    # Prefer product name from Firecrawl extract over long SERP titles.
-    if facts.title and len(facts.title) < len(name):
-        name = facts.title.strip()
+
+    # Prefer a short extracted product name, but never adopt a name that
+    # already exists (listicles often extract "ChatGPT" / "Gemini").
+    extracted = (facts.title or "").strip()
+    if (
+        extracted
+        and len(extracted) < len(name)
+        and len(extracted) <= 80
+        and not looks_like_listicle(extracted, url)
+        and not Tool.objects.filter(name__iexact=extracted).exists()
+    ):
+        name = extracted
+
+    if Tool.objects.filter(name__iexact=name).exists():
+        return {
+            "name": name,
+            "url": url,
+            "candidate": candidate,
+            "facts": facts,
+            "generated": "",
+            "passed": False,
+            "reasons": [f"tool named {name!r} already exists"],
+        }
+
+    if url:
+        exact = Tool.objects.filter(website__iexact=url).exists()
+        if not exact:
+            # Common trailing-slash / http(s) variants.
+            trimmed = url.rstrip("/")
+            exact = (
+                Tool.objects.filter(website__iexact=trimmed).exists()
+                or Tool.objects.filter(website__iexact=trimmed + "/").exists()
+            )
+        if exact:
+            return {
+                "name": name,
+                "url": url,
+                "candidate": candidate,
+                "facts": facts,
+                "generated": "",
+                "passed": False,
+                "reasons": ["website already in directory"],
+            }
+
     generated = generate_description(name, facts)
     passed, reasons = passes_quality_gate(name, generated, facts, facts.source_text)
 
@@ -92,18 +158,24 @@ def _apply_categories(tool: Tool, facts: Facts) -> None:
 
 
 def _resolve_logo_url(url: str, facts: Facts) -> str:
+    # URLField max_length=200 — drop logos that cannot fit.
+    candidates = []
     if facts.logo_url:
-        return facts.logo_url[:500]
+        candidates.append(facts.logo_url.strip())
     try:
         result = resolve_logo(url, verify=False)
-        return (result.url or "")[:500]
+        if result.url:
+            candidates.append(result.url.strip())
     except Exception as exc:
         logger.debug("logo resolve failed for %s: %s", url, exc)
-        return ""
+    for logo in candidates:
+        if logo and len(logo) <= _URL_MAX:
+            return logo
+    return ""
 
 
 def publish_new_tool(result: dict) -> Tool:
-    name = result["name"]
+    name = (result["name"] or "").strip()
     description = result["generated"]
     url = result["url"]
     facts = result["facts"]
@@ -111,12 +183,17 @@ def publish_new_tool(result: dict) -> Tool:
     raw = candidate.get("rawSignal") or {}
     now = timezone.now()
 
+    if not name:
+        raise ValueError("tool name required")
+    if Tool.objects.filter(name__iexact=name).exists():
+        raise IntegrityError(f"tool named {name!r} already exists")
+
     # Prefer GitHub repo URL when extract found one — that buckets OSS.
-    website = url
+    website = url or ""
     if facts.github_url and "github.com" in facts.github_url.lower():
-        # Keep product site as website unless the candidate itself was a repo.
         if "github.com" in (url or "").lower():
             website = facts.github_url
+    website = _clip(website, _URL_MAX)
 
     track_text = " ".join(
         filter(
@@ -145,12 +222,13 @@ def publish_new_tool(result: dict) -> Tool:
     if facts.github_url:
         tags.append("has-github")
 
+    short = _clip(facts.meta_description or description, _SHORT_DESC_MAX)
     tool = Tool(
         name=name[:255],
         slug=(slugify(name) or f"tool-{int(now.timestamp())}")[:255],
-        website=website,
+        website=website or None,
         description=description,
-        short_description=(facts.meta_description or description)[:200],
+        short_description=short,
         tags=tags,
         track=track,
         last_enriched_at=now,
@@ -213,7 +291,18 @@ def run_new_tool_discovery(
         try:
             result = process_candidate(candidate)
             if result["passed"]:
-                publish_new_tool(result)
+                try:
+                    publish_new_tool(result)
+                except IntegrityError as exc:
+                    log_run(
+                        run_type="new",
+                        tool_name=name,
+                        url=url,
+                        status="rejected",
+                        reasons=f"duplicate: {exc}",
+                    )
+                    rejected += 1
+                    continue
                 log_run(
                     run_type="new",
                     tool_name=name,
@@ -311,8 +400,8 @@ def run_refresh_descriptions(limit: int = 50) -> dict:
                 "description": generated,
                 "last_enriched_at": timezone.now(),
             }
-            if facts.logo_url and not tool.logo_url:
-                updates["logo_url"] = facts.logo_url[:500]
+            if facts.logo_url and not tool.logo_url and len(facts.logo_url) <= _URL_MAX:
+                updates["logo_url"] = facts.logo_url
             if facts.pricing and tool.pricing_type == "freemium":
                 updates["pricing_type"] = facts.pricing
             Tool.objects.filter(pk=tool.pk).update(**updates)
