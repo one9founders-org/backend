@@ -769,10 +769,10 @@ class FintechCheckAdmin(admin.ModelAdmin):
 
 @admin.register(FintechRating)
 class FintechRatingAdmin(admin.ModelAdmin):
-    list_display = ["tool", "check", "stack", "result", "reviewed_at"]
-    list_filter = ["stack", "result", "check"]
+    list_display = ["tool", "criterion", "stack", "result", "reviewed_at"]
+    list_filter = ["stack", "result", "criterion"]
     search_fields = ["tool__name", "rationale", "evidence_url"]
-    raw_id_fields = ["tool", "check"]
+    raw_id_fields = ["tool", "criterion"]
 
 
 @admin.register(FintechEvidencePage)

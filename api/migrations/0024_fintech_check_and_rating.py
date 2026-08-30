@@ -101,7 +101,7 @@ class Migration(migrations.Migration):
                 ("reviewed_at", models.DateField()),
                 ("india_relevance", models.CharField(blank=True, max_length=400)),
                 (
-                    "check",
+                    "criterion",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
                         related_name="ratings",
@@ -119,14 +119,14 @@ class Migration(migrations.Migration):
             ],
             options={
                 "db_table": "fintech_ratings",
-                "ordering": ["tool__name", "check__sort_order"],
+                "ordering": ["tool__name", "criterion__sort_order"],
             },
         ),
         migrations.AddConstraint(
             model_name="fintechrating",
             constraint=models.UniqueConstraint(
-                fields=("tool", "check", "stack"),
-                name="uniq_fintech_rating_tool_check_stack",
+                fields=("tool", "criterion", "stack"),
+                name="uniq_fintech_rating_tool_criterion_stack",
             ),
         ),
         migrations.RunPython(seed_kyc, unseed_kyc),

@@ -286,7 +286,7 @@ def assessment_detail_from_ratings(ratings, *, stack: str) -> dict:
     unassessed = []
     reviewed_at = None
     for row in ratings:
-        check = row.check
+        check = row.criterion
         criteria[check.slug] = {
             "name": check.name,
             "score": None,
@@ -605,7 +605,7 @@ def seed_stack(
         for rating in vendor["ratings"]:
             obj, _ = Rating.objects.update_or_create(
                 tool=tool,
-                check=checks[rating["check"]],
+                criterion=checks[rating["check"]],
                 stack=stack,
                 defaults={
                     "result": rating["result"],
@@ -642,8 +642,8 @@ def serialize_stack(stack: str) -> dict:
 
     ratings = (
         FintechRating.objects.filter(stack=stack)
-        .select_related("tool", "check")
-        .order_by("tool__name", "check__sort_order")
+        .select_related("tool", "criterion")
+        .order_by("tool__name", "criterion__sort_order")
     )
     by_tool: dict[int, list] = {}
     tools: dict[int, Tool] = {}
