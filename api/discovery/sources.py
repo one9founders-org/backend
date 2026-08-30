@@ -213,8 +213,11 @@ def fetch_hacker_news_candidates(days: int = 14) -> list[dict]:
 
 
 def fetch_all_candidates() -> list[dict]:
+    from .india_sources import fetch_firecrawl_candidates
+
     combined = []
     for fetcher in (
+        fetch_firecrawl_candidates,
         fetch_github_candidates,
         fetch_product_hunt_candidates,
         fetch_hacker_news_candidates,

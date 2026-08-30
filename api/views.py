@@ -32,6 +32,7 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.authentication import JWTAuthentication
 
 from .authentication import OptionalJWTAuthentication
+from .directory_columns import DEFAULT_PER_COLUMN, build_directory_columns
 from .hygiene.visibility import publishable_queryset
 from .models import (
     Category,
@@ -183,6 +184,7 @@ class ToolViewSet(viewsets.ModelViewSet):
         startup_friendly = self.request.query_params.get("startup_friendly")
         rated = (self.request.query_params.get("rated") or "").strip().lower()
         track = (self.request.query_params.get("track") or "").strip()
+        india = (self.request.query_params.get("india") or "").strip().lower()
 
         if category:
             queryset = queryset.filter(
@@ -200,6 +202,10 @@ class ToolViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(startup_friendly=True)
         if track:
             queryset = queryset.filter(track=track)
+        if india in {"1", "true", "yes"}:
+            queryset = queryset.filter(
+                Q(tags__contains=["india"]) | Q(pricing_has_india_plan=True)
+            )
         if rated == "provisional":
             queryset = queryset.filter(
                 criteria_completed__gte=6, criteria_completed__lt=10
@@ -580,6 +586,22 @@ def trending_tools(request):
 def tool_directory_stats(request):
     """Live directory totals — the same count the paginated listing uses."""
     return Response(get_tool_directory_stats())
+
+
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def tool_directory_columns(request):
+    """Two-column directory payload: AI Tools | Open Source.
+
+    Frontend: render ``columns`` as two lanes. Page more with each
+    column's ``list_path`` (``?track=ai_tool`` / ``?track=open_source``).
+    """
+    try:
+        per_column = int(request.query_params.get("per_column") or DEFAULT_PER_COLUMN)
+    except (TypeError, ValueError):
+        per_column = DEFAULT_PER_COLUMN
+    per_column = max(1, min(per_column, 48))
+    return Response(build_directory_columns(per_column=per_column))
 
 
 @api_view(["GET"])

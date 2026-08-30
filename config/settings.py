@@ -246,6 +246,9 @@ AUTHENTICATION_BACKENDS = [
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
+# Firecrawl — India + new-tool discovery scrape/search (optional; discovery
+# still works from GitHub/PH/HN when unset).
+FIRECRAWL_API_KEY = os.getenv("FIRECRAWL_API_KEY", "")
 
 # Directory hygiene pass (api/hygiene/).
 # Popularity ranking uses the free Tranco list; refresh with
