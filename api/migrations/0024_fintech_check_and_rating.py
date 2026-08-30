@@ -3,8 +3,17 @@ import django.db.models.deletion
 
 
 def seed_kyc(apps, schema_editor):
-    from api.fintech import KYC_REVIEWED_AT, KYC_VENDORS, seed_stack
+    from api.fintech import (
+        KYC_REVIEWED_AT,
+        KYC_VENDORS,
+        ensure_checks,
+        seed_stack,
+        skip_vendor_seed,
+    )
 
+    ensure_checks(check_model=apps.get_model("api", "FintechCheck"))
+    if skip_vendor_seed():
+        return
     seed_stack(
         KYC_VENDORS,
         stack="kyc",

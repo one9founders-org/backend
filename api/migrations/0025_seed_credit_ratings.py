@@ -2,8 +2,15 @@ from django.db import migrations
 
 
 def seed_credit(apps, schema_editor):
-    from api.fintech import CREDIT_REVIEWED_AT, CREDIT_VENDORS, seed_stack
+    from api.fintech import (
+        CREDIT_REVIEWED_AT,
+        CREDIT_VENDORS,
+        seed_stack,
+        skip_vendor_seed,
+    )
 
+    if skip_vendor_seed():
+        return
     seed_stack(
         CREDIT_VENDORS,
         stack="credit",

@@ -18,6 +18,19 @@ from rest_framework.response import Response
 
 KYC_REVIEWED_AT = date(2026, 8, 22)
 
+
+def skip_vendor_seed() -> bool:
+    """Migrations must not insert directory tools into the pytest database."""
+    import sys
+
+    from django.conf import settings
+
+    if "pytest" in sys.modules:
+        return True
+    name = str(settings.DATABASES.get("default", {}).get("NAME") or "")
+    return name.startswith("test")
+
+
 CHECKS = [
     {
         "slug": "dataLocalization",
