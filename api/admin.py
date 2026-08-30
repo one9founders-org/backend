@@ -7,6 +7,9 @@ from .models import (
     Category,
     Deal,
     DiscoveryRun,
+    FintechCheck,
+    FintechEvidencePage,
+    FintechRating,
     FounderSurvey,
     Guide,
     JobStack,
@@ -755,3 +758,26 @@ class WorkshopAdmin(SummernoteModelAdmin):
             },
         ),
     )
+
+
+@admin.register(FintechCheck)
+class FintechCheckAdmin(admin.ModelAdmin):
+    list_display = ["name", "slug", "sort_order"]
+    prepopulated_fields = {"slug": ("name",)}
+    ordering = ["sort_order"]
+
+
+@admin.register(FintechRating)
+class FintechRatingAdmin(admin.ModelAdmin):
+    list_display = ["tool", "check", "stack", "result", "reviewed_at"]
+    list_filter = ["stack", "result", "check"]
+    search_fields = ["tool__name", "rationale", "evidence_url"]
+    raw_id_fields = ["tool", "check"]
+
+
+@admin.register(FintechEvidencePage)
+class FintechEvidencePageAdmin(admin.ModelAdmin):
+    list_display = ["tool", "title", "url", "crawled_at"]
+    search_fields = ["tool__name", "url", "title"]
+    raw_id_fields = ["tool"]
+    readonly_fields = ["crawled_at"]
