@@ -15,9 +15,9 @@ from typing import Any
 import requests
 from django.conf import settings
 
-logger = logging.getLogger(__name__)
-
 from .sources import canonicalize_http_url
+
+logger = logging.getLogger(__name__)
 
 FIRECRAWL_BASE = "https://api.firecrawl.dev/v2"
 
