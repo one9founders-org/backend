@@ -46,6 +46,8 @@ class Facts:
     github_url: str | None = None
     india_focused: bool = False
     has_india_pricing: bool = False
+    official_website: str | None = None
+    is_single_product_page: bool | None = None
 
 
 def parse_github_repo(url: str) -> str | None:
@@ -240,6 +242,12 @@ def _facts_from_firecrawl(url: str) -> Facts | None:
         extracted.get("logo_url") or page.get("og_image") or page.get("favicon") or ""
     ).strip()
     github_url = (extracted.get("github_url") or "").strip() or None
+    official = (extracted.get("official_website") or "").strip() or None
+    if official and not official.startswith(("http://", "https://")):
+        official = f"https://{official}"
+    single = extracted.get("is_single_product_page")
+    if single is not None:
+        single = bool(single)
     pricing_from = extracted.get("pricing_from_usd")
     try:
         pricing_from_f = float(pricing_from) if pricing_from is not None else None
@@ -264,6 +272,8 @@ def _facts_from_firecrawl(url: str) -> Facts | None:
         github_url=github_url,
         india_focused=bool(extracted.get("india_based_or_focused")),
         has_india_pricing=bool(extracted.get("has_inr_or_india_pricing")),
+        official_website=official,
+        is_single_product_page=single,
     )
 
 

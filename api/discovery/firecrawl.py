@@ -9,6 +9,7 @@ still runs.
 from __future__ import annotations
 
 import logging
+import time
 from typing import Any
 
 import requests
@@ -18,6 +19,9 @@ logger = logging.getLogger(__name__)
 
 FIRECRAWL_BASE = "https://api.firecrawl.dev/v2"
 REQUEST_TIMEOUT = 45
+MAX_RETRIES = 4
+# Pause between search queries so we stay under Firecrawl rate limits.
+SEARCH_GAP_SECONDS = 2.0
 
 # Structured fields we ask Firecrawl to pull from a product page.
 TOOL_EXTRACT_SCHEMA: dict[str, Any] = {
@@ -26,6 +30,17 @@ TOOL_EXTRACT_SCHEMA: dict[str, Any] = {
         "name": {"type": "string"},
         "short_description": {"type": "string"},
         "description": {"type": "string"},
+        "official_website": {
+            "type": "string",
+            "description": "Canonical product homepage URL (not a blog or directory).",
+        },
+        "is_single_product_page": {
+            "type": "boolean",
+            "description": (
+                "True only when this URL is one product's homepage or docs; "
+                "false for listicles, directories, news, or multi-company pages."
+            ),
+        },
         "pricing_type": {
             "type": "string",
             "enum": ["free", "freemium", "paid", "unknown"],
@@ -38,18 +53,22 @@ TOOL_EXTRACT_SCHEMA: dict[str, Any] = {
         "india_based_or_focused": {"type": "boolean"},
         "has_inr_or_india_pricing": {"type": "boolean"},
     },
-    "required": ["name"],
+    "required": ["name", "is_single_product_page"],
 }
 
 TOOL_EXTRACT_PROMPT = (
     "Extract product metadata for an AI tools directory aimed at founders. "
-    "Prefer the official product name, a one-sentence short description, "
+    "Set is_single_product_page false when the page lists many companies, "
+    "is a blog/news/roundup, a marketplace profile, or a registration agency. "
+    "When is_single_product_page is true, prefer the official product name, "
+    "official_website (canonical homepage), a one-sentence short description, "
     "pricing type, starting USD price if shown, whether a free tier exists, "
     "up to 5 category tags, the best logo/icon URL on the page, and any "
     "public GitHub repo URL. Set india_based_or_focused true when the "
     "company is Indian, founded in India, or clearly targets Indian "
     "founders (INR pricing, GST, India office). "
-    "Set has_inr_or_india_pricing true when INR/₹ or India plans appear."
+    "Set has_inr_or_india_pricing true when INR/₹ or India plans appear. "
+    "If the page is not a single product, leave official_website empty."
 )
 
 
@@ -63,6 +82,55 @@ def _headers() -> dict[str, str]:
         "Authorization": f"Bearer {key}",
         "Content-Type": "application/json",
     }
+
+
+def _post_with_backoff(path: str, body: dict[str, Any]) -> dict[str, Any] | None:
+    """POST to Firecrawl; retry on 429/5xx with exponential backoff."""
+    url = f"{FIRECRAWL_BASE}{path}"
+    delay = 2.0
+    for attempt in range(MAX_RETRIES):
+        try:
+            response = requests.post(
+                url,
+                headers=_headers(),
+                json=body,
+                timeout=REQUEST_TIMEOUT,
+            )
+            if response.status_code == 429 or response.status_code >= 500:
+                retry_after = response.headers.get("Retry-After")
+                try:
+                    wait = float(retry_after) if retry_after else delay
+                except ValueError:
+                    wait = delay
+                wait = max(wait, delay)
+                logger.warning(
+                    "Firecrawl %s status %s (attempt %s/%s); sleeping %.1fs",
+                    path,
+                    response.status_code,
+                    attempt + 1,
+                    MAX_RETRIES,
+                    wait,
+                )
+                time.sleep(wait)
+                delay = min(delay * 2, 60.0)
+                continue
+            response.raise_for_status()
+            return response.json() or {}
+        except requests.RequestException as exc:
+            if attempt + 1 >= MAX_RETRIES:
+                logger.warning("Firecrawl %s failed: %s", path, exc)
+                return None
+            logger.warning(
+                "Firecrawl %s error (attempt %s/%s): %s; sleeping %.1fs",
+                path,
+                attempt + 1,
+                MAX_RETRIES,
+                exc,
+                delay,
+            )
+            time.sleep(delay)
+            delay = min(delay * 2, 60.0)
+    return None
 
 
 def search(
@@ -83,17 +151,11 @@ def search(
     if location:
         body["location"] = location
 
-    try:
-        response = requests.post(
-            f"{FIRECRAWL_BASE}/search",
-            headers=_headers(),
-            json=body,
-            timeout=REQUEST_TIMEOUT,
-        )
-        response.raise_for_status()
-        payload = response.json() or {}
-    except Exception as exc:
-        logger.warning("Firecrawl search failed for %r: %s", query, exc)
+    payload = _post_with_backoff("/search", body)
+    # Throttle subsequent searches even on success.
+    time.sleep(SEARCH_GAP_SECONDS)
+    if not payload:
+        logger.warning("Firecrawl search failed for %r", query)
         return []
 
     data = payload.get("data") or {}
@@ -137,17 +199,9 @@ def scrape_tool_page(url: str) -> dict[str, Any]:
             },
         ],
     }
-    try:
-        response = requests.post(
-            f"{FIRECRAWL_BASE}/scrape",
-            headers=_headers(),
-            json=body,
-            timeout=REQUEST_TIMEOUT,
-        )
-        response.raise_for_status()
-        payload = response.json() or {}
-    except Exception as exc:
-        logger.warning("Firecrawl scrape failed for %s: %s", url, exc)
+    payload = _post_with_backoff("/scrape", body)
+    if not payload:
+        logger.warning("Firecrawl scrape failed for %s", url)
         return {}
 
     data = payload.get("data") or {}

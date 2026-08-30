@@ -4,6 +4,7 @@ from decimal import Decimal
 from unittest.mock import patch
 
 import pytest
+from django.core.management import call_command
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient
@@ -12,8 +13,11 @@ from api.discovery.facts import Facts
 from api.discovery.india_sources import (
     fetch_india_tool_candidates,
     fetch_new_tool_candidates,
+    is_aggregator_host,
+    is_article_path,
+    looks_like_listicle,
 )
-from api.discovery.pipeline import publish_new_tool
+from api.discovery.pipeline import process_candidate, publish_new_tool
 from api.hygiene.track import AI_TOOL, OPEN_SOURCE
 from tests.factories import CategoryFactory, ToolFactory
 
@@ -36,16 +40,72 @@ class TestFirecrawlClientGuards:
         settings.FIRECRAWL_API_KEY = ""
         assert firecrawl.scrape_tool_page("https://example.com") == {}
 
+    def test_search_retries_on_429(self, settings):
+        from api.discovery import firecrawl
+
+        settings.FIRECRAWL_API_KEY = "fc-test"
+        ok = type(
+            "R",
+            (),
+            {
+                "status_code": 200,
+                "headers": {},
+                "raise_for_status": lambda self: None,
+                "json": lambda self: {
+                    "data": {
+                        "web": [
+                            {
+                                "url": "https://sarvam.ai",
+                                "title": "Sarvam",
+                                "description": "x",
+                            }
+                        ]
+                    }
+                },
+            },
+        )()
+        limited = type(
+            "R",
+            (),
+            {
+                "status_code": 429,
+                "headers": {"Retry-After": "0"},
+                "raise_for_status": lambda self: (_ for _ in ()).throw(
+                    Exception("should not")
+                ),
+                "json": lambda self: {},
+            },
+        )()
+        with (
+            patch("api.discovery.firecrawl.requests.post", side_effect=[limited, ok]),
+            patch("api.discovery.firecrawl.time.sleep"),
+            patch("api.discovery.firecrawl.SEARCH_GAP_SECONDS", 0),
+        ):
+            rows = firecrawl.search("q", limit=1)
+        assert rows and rows[0]["url"] == "https://sarvam.ai"
+
 
 class TestIndiaSources:
-    def test_skips_listicle_titles(self, settings):
-        from api.discovery.india_sources import looks_like_listicle
-
+    def test_skips_listicle_titles(self):
         assert looks_like_listicle(
             "Top 10 AI Tools for Indian Businesses in 2026 - YuVerse",
             "https://yuverse.ai/blog/top-10",
         )
+        assert looks_like_listicle(
+            "Motive",
+            "https://wellfound.com/startups/l/india/artificial-intelligence",
+        )
+        assert looks_like_listicle(
+            "Vyapar TaxOne",
+            "https://taxone.vyapar.com/post/best-ai-tools-for-gst-reco",
+        )
         assert not looks_like_listicle("Sarvam AI", "https://sarvam.ai")
+
+    def test_aggregator_and_article_helpers(self):
+        assert is_aggregator_host("https://www.goodfirms.co/artificial-intelligence")
+        assert is_aggregator_host("https://ycombinator.com/companies/industry/ai/india")
+        assert is_article_path("https://example.com/blog/foo")
+        assert not is_article_path("https://sarvam.ai/")
 
     def test_india_search_builds_candidates(self, settings):
         settings.FIRECRAWL_API_KEY = "fc-test"
@@ -62,6 +122,11 @@ class TestIndiaSources:
                     "title": "Listicle",
                     "description": "skip me",
                 },
+                {
+                    "url": "https://wellfound.com/startups/l/bangalore",
+                    "title": "Clientell AI",
+                    "description": "skip directory",
+                },
             ],
         ):
             rows = fetch_india_tool_candidates(limit_per_query=2)
@@ -70,6 +135,7 @@ class TestIndiaSources:
         assert all(r["sourceType"] == "firecrawl_india" for r in rows)
         assert all(r["rawSignal"]["india_focus"] for r in rows)
         assert "https://producthunt.com/posts/foo" not in urls
+        assert "https://wellfound.com/startups/l/bangalore" not in urls
 
     def test_new_tools_search(self, settings):
         settings.FIRECRAWL_API_KEY = "fc-test"
@@ -118,6 +184,7 @@ class TestPublishFromFirecrawlFacts:
                     india_focused=True,
                     has_india_pricing=True,
                     source_text="Indian language AI",
+                    is_single_product_page=True,
                 ),
             }
         )
@@ -129,6 +196,33 @@ class TestPublishFromFirecrawlFacts:
         assert "india" in tool.tags
         assert tool.track == AI_TOOL
         assert tool.categories.filter(name="Writing").exists()
+
+    def test_india_focus_without_inr_does_not_set_india_plan(self):
+        description = (
+            "Neysa builds GPU cloud for Indian ML teams shipping models. "
+            "Founders rent capacity without US-only billing friction for "
+            "early training runs and inference pilots."
+        )
+        tool = publish_new_tool(
+            {
+                "name": "Neysa Cloud",
+                "url": "https://neysa.ai",
+                "generated": description,
+                "candidate": {
+                    "sourceType": "firecrawl_india",
+                    "rawSignal": {"india_focus": True},
+                },
+                "facts": Facts(
+                    title="Neysa Cloud",
+                    pricing="paid",
+                    india_focused=True,
+                    has_india_pricing=False,
+                    source_text="GPU cloud",
+                ),
+            }
+        )
+        assert "india" in tool.tags
+        assert tool.pricing_has_india_plan is False
 
     def test_github_extract_buckets_open_source(self):
         description = (
@@ -186,8 +280,6 @@ class TestPublishFromFirecrawlFacts:
             description="Existing ChatGPT row for founders in the directory.",
             short_description="Existing",
         )
-        from api.discovery.pipeline import process_candidate
-
         result = process_candidate(
             {
                 "name": "The Best AI Tools for 2026",
@@ -199,6 +291,94 @@ class TestPublishFromFirecrawlFacts:
         # Listicle title should fail before scrape/save.
         assert result["passed"] is False
         assert any("listicle" in r for r in result["reasons"])
+
+    def test_rejects_non_product_page_from_extract(self):
+        with patch(
+            "api.discovery.pipeline.fetch_facts",
+            return_value=Facts(
+                title="Acme Foundry",
+                is_single_product_page=False,
+                official_website="",
+                source_text="directory",
+            ),
+        ):
+            result = process_candidate(
+                {
+                    "name": "Acme Foundry",
+                    "url": "https://realstartup.example",
+                    "sourceType": "firecrawl_india",
+                    "rawSignal": {"india_focus": True},
+                }
+            )
+        assert result["passed"] is False
+        assert any("not a single product" in r for r in result["reasons"])
+
+    def test_prefers_official_website_from_extract(self):
+        description = (
+            "CredResolve is an AI collections platform for Indian lenders. "
+            "Banks automate outreach, prioritize accounts, and track "
+            "resolution without spreadsheet ops for recovery teams."
+        )
+        with (
+            patch(
+                "api.discovery.pipeline.fetch_facts",
+                return_value=Facts(
+                    title="CredResolve",
+                    meta_description="AI collections",
+                    pricing="paid",
+                    category="Finance",
+                    is_single_product_page=True,
+                    official_website="https://credresolve.com",
+                    india_focused=True,
+                    has_india_pricing=True,
+                    source_text="AI collections for banks",
+                ),
+            ),
+            patch(
+                "api.discovery.pipeline.generate_description",
+                return_value=description,
+            ),
+            patch(
+                "api.discovery.pipeline.passes_quality_gate",
+                return_value=(True, []),
+            ),
+        ):
+            result = process_candidate(
+                {
+                    "name": "CredResolve",
+                    "url": "https://credresolve.com/about",
+                    "sourceType": "firecrawl_india",
+                    "rawSignal": {"india_focus": True},
+                }
+            )
+        assert result["passed"] is True
+        assert result["url"] == "https://credresolve.com"
+
+
+@pytest.mark.django_db
+class TestCleanupBadIndia:
+    def test_deactivates_aggregator_websites(self):
+        bad = ToolFactory(
+            name="Motive",
+            website="https://wellfound.com/startups/l/india/ai",
+            tags=["auto-discovery", "firecrawl_india", "india"],
+            is_active=True,
+            description="Bad row pointing at a directory listing page only.",
+            short_description="Directory",
+        )
+        good = ToolFactory(
+            name="Sarvam Keep",
+            website="https://www.sarvam.ai/",
+            tags=["auto-discovery", "firecrawl_india", "india"],
+            is_active=True,
+            description="Real Indian AI product homepage that should stay live.",
+            short_description="Product",
+        )
+        call_command("cleanup_bad_india_discoveries", apply=True)
+        bad.refresh_from_db()
+        good.refresh_from_db()
+        assert bad.is_active is False
+        assert good.is_active is True
 
 
 @pytest.mark.django_db
