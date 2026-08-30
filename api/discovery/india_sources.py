@@ -13,30 +13,52 @@ logger = logging.getLogger(__name__)
 
 # Geo-targeted searches for Indian AI products founders can actually buy.
 INDIA_QUERIES = (
-    "Indian AI startups tools for founders",
-    "best AI SaaS tools India INR pricing",
-    "AI tools for Indian startups GST",
-    "India founded generative AI product",
-    "Bangalore AI startup product launch",
+    "Indian AI startups tools for founders site:.in OR INR",
+    "Sarvam Krutrim Neysa Indian AI product official site",
+    "AI SaaS founded in India pricing",
+    "Bangalore AI product launch official website",
+    "Indian generative AI company product homepage",
 )
 
 # Fresh launches worldwide so the directory stays current.
 NEW_TOOL_QUERIES = (
-    "new AI tools launched this week",
+    "new AI tools launched this week official site",
     "Product Hunt AI tools launched today",
     "new open source AI tools GitHub",
     "new LLM developer tools 2026",
 )
 
-# Directory/listicle hosts — we want the product site, not the roundup.
+# Directory / news / listicle hosts — never use these as the Tool.website.
 _SKIP_HOST_RE = re.compile(
-    r"(?:google\.|bing\.|yahoo\.|duckduckgo\.|facebook\.|twitter\.|"
+    r"(?:^|\.)(?:"
+    r"google\.|bing\.|yahoo\.|duckduckgo\.|facebook\.|twitter\.|"
     r"x\.com|linkedin\.|youtube\.|instagram\.|reddit\.|wikipedia\.|"
     r"amazon\.|play\.google|apps\.apple|medium\.com|substack\.com|"
     r"producthunt\.com|theresanaiforthat\.com|futurepedia\.|"
     r"toolify\.|aitools\.|topai\.tools|techstori|yuverse|"
     r"analyticsindiamag\.|inc42\.|yourstory\.|techcrunch\.|"
-    r"forbes\.|ndtv\.|timesofindia\.|economictimes\.)",
+    r"forbes\.|ndtv\.|timesofindia\.|economictimes\.|"
+    r"wellfound\.com|angel\.co|crunchbase\.com|goodfirms\.|"
+    r"clutch\.co|g2\.com|capterra\.|getapp\.|"
+    r"geeksforgeeks\.|sutrahr\.|aistartupimpact\.|"
+    r"ycombinator\.com|bookface\.ycombinator|"
+    r"grow\.google|bharatsamachar\.|finifi\.io|"
+    r"s2sbizsolutions\.|listany\.|"
+    r"tracxn\.|pitchbook\.|cbinsights\.|"
+    r"wikipedia\.org|wikidata\.|"
+    r"news\.|blog\.wordpress\.|blogspot\."
+    r")",
+    re.IGNORECASE,
+)
+
+# Paths that almost always mean "article about tools", not a product.
+_ARTICLE_PATH_RE = re.compile(
+    r"(?:/(?:blog|blogs|post|posts|article|articles|news|knowledge-base|"
+    r"knowledge_base|resources/blog|builders|companies/industry)/)"
+    r"|"
+    r"(?:/top[-_](?:generative[-_])?ai[-_]companies)"
+    r"|"
+    r"(?:/top[-_]ai[-_]startup)",
     re.IGNORECASE,
 )
 
@@ -45,22 +67,37 @@ _LISTICLE_TITLE_RE = re.compile(
     r"\b(?:top\s+\d+|best\s+\d*|best ai tools|ai tools for|"
     r"tools for (?:indian|small|digital)|latest ai products|"
     r"companies in india|github repositories|"
-    r"reviewed|roundup|list of)\b",
+    r"ai startup(?:s)?(?:\s+in)?(?:\s+india)?|"
+    r"startup school|sovereign ai initiative|"
+    r"promise of|revolutionizing|"
+    r"reviewed|roundup|list of|how to start)\b",
     re.IGNORECASE,
 )
 
 
-def _is_skippable_host(url: str) -> bool:
+def host_of(url: str) -> str:
     host = urlparse(url if "://" in url else f"https://{url}").netloc.lower()
-    host = host.removeprefix("www.")
+    return host.removeprefix("www.")
+
+
+def is_aggregator_host(url: str) -> bool:
+    """True when the URL host is a directory, news, or marketplace site."""
+    host = host_of(url or "")
     if not host:
         return True
     return bool(_SKIP_HOST_RE.search(host))
 
 
+def is_article_path(url: str) -> bool:
+    path = urlparse(url if "://" in (url or "") else f"https://{url or ''}").path or ""
+    return bool(_ARTICLE_PATH_RE.search(path))
+
+
 def looks_like_listicle(title: str, url: str = "") -> bool:
     """True for roundup posts that should never become a Tool row."""
-    if _is_skippable_host(url or ""):
+    if is_aggregator_host(url or ""):
+        return True
+    if is_article_path(url or ""):
         return True
     text = (title or "").strip()
     if not text:

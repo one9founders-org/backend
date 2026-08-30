@@ -15,7 +15,11 @@ from api.models import Category, DiscoveryRun, Tool
 from . import MAX_NEW_TOOLS_PER_RUN, REFRESH_NOOP_RATIO
 from .facts import Facts, fetch_facts
 from .generate import generate_description
-from .india_sources import looks_like_listicle
+from .india_sources import (
+    is_aggregator_host,
+    is_article_path,
+    looks_like_listicle,
+)
 from .quality_gate import passes_quality_gate, similarity_ratio
 from .sources import candidate_signal, discover_candidates
 
@@ -56,23 +60,95 @@ def _clip(value: str | None, limit: int) -> str:
     return text[: limit - 1].rstrip() + "…"
 
 
+def _reject(candidate: dict, name: str, url: str, reasons: list[str], facts=None):
+    return {
+        "name": name,
+        "url": url,
+        "candidate": candidate,
+        "facts": facts if facts is not None else Facts(),
+        "generated": "",
+        "passed": False,
+        "reasons": reasons,
+    }
+
+
+def _resolve_product_url(serp_url: str, facts: Facts) -> str | None:
+    """Pick a real product homepage; None when we only have a listicle URL."""
+    official = (facts.official_website or "").strip()
+    if official and not is_aggregator_host(official) and not is_article_path(official):
+        return official
+    if facts.github_url and "github.com" in facts.github_url.lower():
+        gh = facts.github_url.strip()
+        if not is_aggregator_host(gh):
+            return gh
+    if serp_url and not is_aggregator_host(serp_url) and not is_article_path(serp_url):
+        return serp_url
+    return None
+
+
 def process_candidate(candidate: dict) -> dict:
     name = (candidate.get("name") or "").strip()
     url = (candidate.get("url") or "").strip()
 
     if looks_like_listicle(name, url):
-        return {
-            "name": name,
-            "url": url,
-            "candidate": candidate,
-            "facts": Facts(),
-            "generated": "",
-            "passed": False,
-            "reasons": ["listicle or roundup page, not a product"],
-        }
+        return _reject(
+            candidate, name, url, ["listicle or roundup page, not a product"]
+        )
 
     prefer_fc = (candidate.get("sourceType") or "").startswith("firecrawl")
     facts = fetch_facts(url, prefer_firecrawl=prefer_fc or True)
+
+    if facts.is_single_product_page is False:
+        # Extractor said this is a directory/blog — try official URL once.
+        official = (facts.official_website or "").strip()
+        if (
+            official
+            and official.rstrip("/") != url.rstrip("/")
+            and not is_aggregator_host(official)
+            and not is_article_path(official)
+        ):
+            facts = fetch_facts(official, prefer_firecrawl=True)
+            url = official
+            if facts.is_single_product_page is False:
+                return _reject(
+                    candidate,
+                    name,
+                    url,
+                    ["page is not a single product"],
+                    facts=facts,
+                )
+        else:
+            return _reject(
+                candidate,
+                name,
+                url,
+                ["page is not a single product"],
+                facts=facts,
+            )
+
+    product_url = _resolve_product_url(url, facts)
+    if not product_url:
+        return _reject(
+            candidate,
+            name,
+            url,
+            ["no official product website found"],
+            facts=facts,
+        )
+    if product_url.rstrip("/") != url.rstrip("/"):
+        # Re-fetch facts from the real homepage when SERP pointed elsewhere.
+        if is_aggregator_host(url) or is_article_path(url):
+            facts = fetch_facts(product_url, prefer_firecrawl=True)
+        url = product_url
+
+    if is_aggregator_host(url) or is_article_path(url):
+        return _reject(
+            candidate,
+            name,
+            url,
+            ["website is a directory or article, not a product"],
+            facts=facts,
+        )
 
     # Prefer a short extracted product name, but never adopt a name that
     # already exists (listicles often extract "ChatGPT" / "Gemini").
@@ -86,16 +162,23 @@ def process_candidate(candidate: dict) -> dict:
     ):
         name = extracted
 
+    if looks_like_listicle(name, url):
+        return _reject(
+            candidate,
+            name,
+            url,
+            ["extracted name looks like a listicle title"],
+            facts=facts,
+        )
+
     if Tool.objects.filter(name__iexact=name).exists():
-        return {
-            "name": name,
-            "url": url,
-            "candidate": candidate,
-            "facts": facts,
-            "generated": "",
-            "passed": False,
-            "reasons": [f"tool named {name!r} already exists"],
-        }
+        return _reject(
+            candidate,
+            name,
+            url,
+            [f"tool named {name!r} already exists"],
+            facts=facts,
+        )
 
     if url:
         exact = Tool.objects.filter(website__iexact=url).exists()
@@ -107,15 +190,13 @@ def process_candidate(candidate: dict) -> dict:
                 or Tool.objects.filter(website__iexact=trimmed + "/").exists()
             )
         if exact:
-            return {
-                "name": name,
-                "url": url,
-                "candidate": candidate,
-                "facts": facts,
-                "generated": "",
-                "passed": False,
-                "reasons": ["website already in directory"],
-            }
+            return _reject(
+                candidate,
+                name,
+                url,
+                ["website already in directory"],
+                facts=facts,
+            )
 
     generated = generate_description(name, facts)
     passed, reasons = passes_quality_gate(name, generated, facts, facts.source_text)
@@ -244,11 +325,12 @@ def publish_new_tool(result: dict) -> Tool:
             tool.pricing_from = Decimal(str(facts.pricing_from))
         except (InvalidOperation, TypeError, ValueError):
             pass
-    if facts.india_focused or raw.get("india_focus"):
-        tool.pricing_has_india_plan = bool(
-            facts.has_india_pricing or facts.india_focused
-        )
+    # Only mark India pricing when the page actually shows INR/India plans.
+    # India-focused discovery alone must not invent a local price plan.
     if facts.has_india_pricing:
+        tool.pricing_has_india_plan = True
+        tool.gst_applicable = True
+    elif facts.india_focused:
         tool.gst_applicable = True
 
     logo = _resolve_logo_url(website, facts)
