@@ -17,11 +17,15 @@ from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
+from .sources import canonicalize_http_url
+
 FIRECRAWL_BASE = "https://api.firecrawl.dev/v2"
+
 REQUEST_TIMEOUT = 45
 MAX_RETRIES = 4
 # Pause between search queries so we stay under Firecrawl rate limits.
 SEARCH_GAP_SECONDS = 2.0
+SCRAPE_GAP_SECONDS = 1.5
 
 # Structured fields we ask Firecrawl to pull from a product page.
 TOOL_EXTRACT_SCHEMA: dict[str, Any] = {
@@ -117,6 +121,15 @@ def _post_with_backoff(path: str, body: dict[str, Any]) -> dict[str, Any] | None
                 time.sleep(wait)
                 delay = min(delay * 2, 60.0)
                 continue
+            # 4xx (except 429) are not retryable — bad URL / payload.
+            if 400 <= response.status_code < 500:
+                logger.warning(
+                    "Firecrawl %s client error %s: %s",
+                    path,
+                    response.status_code,
+                    (response.text or "")[:200],
+                )
+                return None
             response.raise_for_status()
             return response.json() or {}
         except requests.RequestException as exc:
@@ -169,7 +182,7 @@ def search(
         web = data.get("web") or []
     results = []
     for item in web:
-        url = (item.get("url") or "").strip()
+        url = canonicalize_http_url(item.get("url") or "")
         title = (item.get("title") or "").strip()
         if not url or not title:
             continue
@@ -187,11 +200,13 @@ def scrape_tool_page(url: str) -> dict[str, Any]:
     """Scrape one URL; return markdown + json extract (+ metadata)."""
     if not firecrawl_enabled():
         return {}
-    if not url:
+    clean = canonicalize_http_url(url)
+    if not clean:
+        logger.warning("Firecrawl scrape skipped; invalid URL %r", url)
         return {}
 
     body = {
-        "url": url,
+        "url": clean,
         "onlyMainContent": True,
         "formats": [
             "markdown",
@@ -203,8 +218,9 @@ def scrape_tool_page(url: str) -> dict[str, Any]:
         ],
     }
     payload = _post_with_backoff("/scrape", body)
+    time.sleep(SCRAPE_GAP_SECONDS)
     if not payload:
-        logger.warning("Firecrawl scrape failed for %s", url)
+        logger.warning("Firecrawl scrape failed for %s", clean)
         return {}
 
     data = payload.get("data") or {}

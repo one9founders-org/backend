@@ -11,7 +11,8 @@ from django.conf import settings
 
 from api.models import Category
 
-from .sources import USER_AGENT, normalize_url
+from .sources import USER_AGENT, canonicalize_http_url
+
 
 logger = logging.getLogger(__name__)
 
@@ -241,10 +242,8 @@ def _facts_from_firecrawl(url: str) -> Facts | None:
     logo = (
         extracted.get("logo_url") or page.get("og_image") or page.get("favicon") or ""
     ).strip()
-    github_url = (extracted.get("github_url") or "").strip() or None
-    official = (extracted.get("official_website") or "").strip() or None
-    if official and not official.startswith(("http://", "https://")):
-        official = f"https://{official}"
+    github_url = canonicalize_http_url(extracted.get("github_url") or "")
+    official = canonicalize_http_url(extracted.get("official_website") or "")
     single = extracted.get("is_single_product_page")
     if single is not None:
         single = bool(single)
@@ -278,8 +277,10 @@ def _facts_from_firecrawl(url: str) -> Facts | None:
 
 
 def fetch_facts(url: str, *, prefer_firecrawl: bool = True) -> Facts:
-    if not url or not normalize_url(url):
+    clean = canonicalize_http_url(url)
+    if not clean:
         return Facts()
+    url = clean
     if prefer_firecrawl:
         scraped = _facts_from_firecrawl(url)
         if scraped is not None:

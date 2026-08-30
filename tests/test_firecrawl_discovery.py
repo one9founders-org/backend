@@ -21,6 +21,7 @@ from api.discovery.india_sources import (
     website_is_unusable,
 )
 from api.discovery.pipeline import process_candidate, publish_new_tool
+from api.discovery.sources import canonicalize_http_url, is_http_url
 from api.hygiene.track import AI_TOOL, OPEN_SOURCE
 from tests.factories import CategoryFactory, ToolFactory
 
@@ -28,6 +29,23 @@ from tests.factories import CategoryFactory, ToolFactory
 @pytest.fixture
 def api_client():
     return APIClient()
+
+
+class TestHttpUrlGuard:
+    def test_accepts_real_domains(self):
+        assert is_http_url("https://sarvam.ai")
+        assert is_http_url("sarvam.ai/pricing")
+        assert canonicalize_http_url("gomotive.com") == "https://gomotive.com"
+
+    def test_rejects_opaque_extract_tokens(self):
+        token = (
+            "CAESXAHrOzAVBi3yNwAlzHEA1Fz2tsxXPHQXei_Rhe7E-Gf25sDnbwLeypJZVWRv"
+        )
+        assert not is_http_url(token)
+        assert canonicalize_http_url(token) is None
+        assert canonicalize_http_url(f"https://{token}") is None
+        assert not is_http_url("")
+        assert not is_http_url("not a url")
 
 
 class TestFirecrawlClientGuards:
@@ -453,6 +471,32 @@ class TestPublishFromFirecrawlFacts:
             )
         assert result["passed"] is False
         assert any("official product website" in r for r in result["reasons"])
+
+    def test_rejects_opaque_official_website_token(self):
+        token = (
+            "CAESXAHrOzAVBi3yNwAlzHEA1Fz2tsxXPHQXei_Rhe7E-Gf25sDnbwLeypJZVWRv"
+        )
+        with patch(
+            "api.discovery.pipeline.fetch_facts",
+            return_value=Facts(
+                title="Broken Extract",
+                is_single_product_page=True,
+                official_website=token,
+                source_text="directory",
+            ),
+        ) as fetch:
+            result = process_candidate(
+                {
+                    "name": "Broken Extract",
+                    "url": "https://wellfound.com/company/broken",
+                    "sourceType": "firecrawl_india",
+                    "rawSignal": {"india_focus": True},
+                }
+            )
+        assert result["passed"] is False
+        assert any("official product website" in r for r in result["reasons"])
+        # Must not attempt a second scrape of the garbage token.
+        assert fetch.call_count == 1
 
 
 @pytest.mark.django_db

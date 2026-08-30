@@ -22,7 +22,8 @@ from .india_sources import (
     looks_like_listicle,
 )
 from .quality_gate import passes_quality_gate, similarity_ratio
-from .sources import candidate_signal, discover_candidates
+from .sources import canonicalize_http_url, candidate_signal, discover_candidates
+
 
 logger = logging.getLogger(__name__)
 
@@ -75,15 +76,15 @@ def _reject(candidate: dict, name: str, url: str, reasons: list[str], facts=None
 
 def _resolve_product_url(serp_url: str, facts: Facts) -> str | None:
     """Pick a real product homepage; None when we only have a listicle URL."""
-    official = (facts.official_website or "").strip()
+    official = canonicalize_http_url(facts.official_website or "")
     if official and not is_aggregator_host(official) and not is_article_path(official):
         return official
-    if facts.github_url and "github.com" in facts.github_url.lower():
-        gh = facts.github_url.strip()
-        if not is_aggregator_host(gh):
-            return gh
-    if serp_url and not is_aggregator_host(serp_url) and not is_article_path(serp_url):
-        return serp_url
+    github = canonicalize_http_url(facts.github_url or "")
+    if github and "github.com" in github.lower() and not is_aggregator_host(github):
+        return github
+    serp = canonicalize_http_url(serp_url or "")
+    if serp and not is_aggregator_host(serp) and not is_article_path(serp):
+        return serp
     return None
 
 
@@ -102,7 +103,7 @@ def process_candidate(candidate: dict) -> dict:
     # Lead directories (YC/Wellfound/GoodFirms): keep the company, but only
     # publish after we resolve their official product homepage.
     if is_lead_host(url):
-        official = (facts.official_website or "").strip()
+        official = canonicalize_http_url(facts.official_website or "")
         if not official or is_aggregator_host(official) or is_article_path(official):
             return _reject(
                 candidate,
@@ -116,7 +117,7 @@ def process_candidate(candidate: dict) -> dict:
 
     if facts.is_single_product_page is False:
         # Extractor said this is a directory/blog — try official URL once.
-        official = (facts.official_website or "").strip()
+        official = canonicalize_http_url(facts.official_website or "")
         if (
             official
             and official.rstrip("/") != url.rstrip("/")

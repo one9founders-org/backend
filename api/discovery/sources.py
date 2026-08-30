@@ -48,6 +48,46 @@ def normalize_url(url: str) -> str:
     return f"{host}{path}"
 
 
+_HOST_RE = re.compile(
+    r"^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$",
+    re.IGNORECASE,
+)
+
+
+def is_http_url(url: str) -> bool:
+    """True for a real http(s) URL with a DNS-like host.
+
+    Rejects opaque extract garbage (e.g. Google CAES… tokens) that Firecrawl
+    sometimes returns as official_website.
+    """
+    text = (url or "").strip()
+    if not text or len(text) > 500 or any(ch.isspace() for ch in text):
+        return False
+    if "://" not in text:
+        # Allow bare domains like sarvam.ai — not random base64 blobs.
+        if "." not in text.split("/")[0]:
+            return False
+        text = "https://" + text
+    parsed = urlparse(text)
+    if parsed.scheme not in ("http", "https"):
+        return False
+    host = (parsed.netloc or "").lower().split("@")[-1].split(":")[0]
+    host = host.removeprefix("www.")
+    if not host or not _HOST_RE.match(host):
+        return False
+    return True
+
+
+def canonicalize_http_url(url: str) -> str | None:
+    """Return a normalized http(s) URL, or None if unusable."""
+    if not is_http_url(url):
+        return None
+    text = (url or "").strip()
+    if "://" not in text:
+        text = "https://" + text
+    return text
+
+
 def normalize_name(name: str) -> str:
     text = (name or "").lower().strip()
     text = re.sub(r"[^\w\s-]", " ", text)
