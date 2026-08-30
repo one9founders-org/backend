@@ -103,11 +103,7 @@ def process_candidate(candidate: dict) -> dict:
     # publish after we resolve their official product homepage.
     if is_lead_host(url):
         official = (facts.official_website or "").strip()
-        if (
-            not official
-            or is_aggregator_host(official)
-            or is_article_path(official)
-        ):
+        if not official or is_aggregator_host(official) or is_article_path(official):
             return _reject(
                 candidate,
                 name,

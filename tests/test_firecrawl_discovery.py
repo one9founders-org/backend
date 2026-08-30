@@ -113,7 +113,9 @@ class TestIndiaSources:
         assert is_lead_host("https://wellfound.com/company/motive")
         assert is_lead_host("https://www.ycombinator.com/companies/sarvam")
         assert is_lead_host("https://www.goodfirms.co/company/indata-labs")
-        assert is_junk_host("https://www.geeksforgeeks.org/blogs/ai-companies-in-india/")
+        assert is_junk_host(
+            "https://www.geeksforgeeks.org/blogs/ai-companies-in-india/"
+        )
         assert is_junk_host("https://finifi.io/knowledge-base/top-ai-tools")
         assert is_aggregator_host("https://wellfound.com/company/motive")
         assert website_is_unusable("https://wellfound.com/company/motive")
