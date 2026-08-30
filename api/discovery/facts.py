@@ -38,6 +38,14 @@ class Facts:
     stars: int | None = None
     topics: list[str] = field(default_factory=list)
     source_text: str = ""
+    # Optional enrichments (Firecrawl JSON extract / logos).
+    logo_url: str | None = None
+    pricing_from: float | None = None
+    free_tier_available: bool | None = None
+    categories: list[str] = field(default_factory=list)
+    github_url: str | None = None
+    india_focused: bool = False
+    has_india_pricing: bool = False
 
 
 def parse_github_repo(url: str) -> str | None:
@@ -195,9 +203,77 @@ def fetch_github_repo_meta(url: str) -> dict:
     }
 
 
-def fetch_facts(url: str) -> Facts:
+def _facts_from_firecrawl(url: str) -> Facts | None:
+    """Prefer Firecrawl when configured; None means fall back."""
+    from . import firecrawl
+
+    if not firecrawl.firecrawl_enabled():
+        return None
+    page = firecrawl.scrape_tool_page(url)
+    if not page:
+        return None
+
+    extracted = page.get("extracted") or {}
+    markdown = page.get("markdown") or ""
+    title = (extracted.get("name") or page.get("title") or "").strip() or None
+    short = (
+        extracted.get("short_description")
+        or extracted.get("description")
+        or page.get("description")
+        or ""
+    ).strip()
+    pricing_raw = (extracted.get("pricing_type") or "").strip().lower()
+    pricing = pricing_raw if pricing_raw in {"free", "freemium", "paid"} else None
+    if not pricing:
+        pricing = _infer_pricing(" ".join(filter(None, [short, markdown[:2000]])))
+
+    categories = [
+        str(c).strip() for c in (extracted.get("categories") or []) if str(c).strip()
+    ]
+    category = None
+    if categories:
+        category = _infer_category(" ".join(categories)) or categories[0]
+    else:
+        category = _infer_category(" ".join(filter(None, [title, short])))
+
+    logo = (
+        extracted.get("logo_url") or page.get("og_image") or page.get("favicon") or ""
+    ).strip()
+    github_url = (extracted.get("github_url") or "").strip() or None
+    pricing_from = extracted.get("pricing_from_usd")
+    try:
+        pricing_from_f = float(pricing_from) if pricing_from is not None else None
+    except (TypeError, ValueError):
+        pricing_from_f = None
+
+    free_tier = extracted.get("free_tier_available")
+    if free_tier is None and pricing == "free":
+        free_tier = True
+
+    return Facts(
+        title=title,
+        meta_description=short[:500] or None,
+        pricing=pricing,
+        category=category,
+        topics=categories,
+        source_text=(short or markdown[:1500])[:2000],
+        logo_url=logo or None,
+        pricing_from=pricing_from_f,
+        free_tier_available=bool(free_tier) if free_tier is not None else None,
+        categories=categories,
+        github_url=github_url,
+        india_focused=bool(extracted.get("india_based_or_focused")),
+        has_india_pricing=bool(extracted.get("has_inr_or_india_pricing")),
+    )
+
+
+def fetch_facts(url: str, *, prefer_firecrawl: bool = True) -> Facts:
     if not url or not normalize_url(url):
         return Facts()
+    if prefer_firecrawl:
+        scraped = _facts_from_firecrawl(url)
+        if scraped is not None:
+            return scraped
     parsed = urlparse(url if "://" in url else f"https://{url}")
     host = (parsed.netloc or "").lower().removeprefix("www.")
     if host == "github.com":

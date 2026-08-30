@@ -6,7 +6,11 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
-from api.discovery.pipeline import run_new_tool_discovery, run_refresh_descriptions
+from api.discovery.pipeline import (
+    run_india_and_new_discovery,
+    run_new_tool_discovery,
+    run_refresh_descriptions,
+)
 
 
 def _secret_matches(request) -> bool:
@@ -26,13 +30,16 @@ def run_discovery_trigger(request):
         return Response({"detail": "Forbidden"}, status=403)
 
     job = (request.query_params.get("job") or "both").lower()
-    if job not in {"both", "discovery", "refresh"}:
+    if job not in {"both", "discovery", "refresh", "india"}:
         return Response(
-            {"detail": "job must be both, discovery, or refresh"},
+            {"detail": "job must be both, discovery, refresh, or india"},
             status=400,
         )
 
     payload = {}
+    if job == "india":
+        payload["india"] = run_india_and_new_discovery()
+        return Response(payload)
     if job in {"both", "discovery"}:
         payload["discovery"] = run_new_tool_discovery()
     if job in {"both", "refresh"}:

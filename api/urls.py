@@ -73,6 +73,11 @@ urlpatterns = [
     path("tools/trending/", views.trending_tools, name="trending-tools"),
     path("tools/stats/", views.tool_directory_stats, name="tool-directory-stats"),
     path(
+        "tools/directory-columns/",
+        views.tool_directory_columns,
+        name="tool-directory-columns",
+    ),
+    path(
         "tools/<int:tool_id>/usage-count/",
         views.tool_usage_count,
         name="tool-usage-count",
