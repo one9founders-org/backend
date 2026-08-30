@@ -10,6 +10,7 @@ from .auth_views import (
     register_user,
 )
 from .discovery.views import run_discovery_trigger
+from .fintech import list_fintech_ratings
 from .smart_search_views import decompose_task_search, smart_search_tools
 from .stack_views import assemble_stack, get_stack, save_stack
 
@@ -65,6 +66,7 @@ urlpatterns = [
     path(
         "newsletter/subscribe/", views.subscribe_newsletter, name="newsletter-subscribe"
     ),
+    path("fintech/ratings/", list_fintech_ratings, name="fintech-ratings"),
     path("founder-survey/", views.submit_founder_survey, name="founder-survey"),
     # Tracking endpoints
     path("track/usage/", views.track_tool_usage, name="track-tool-usage"),

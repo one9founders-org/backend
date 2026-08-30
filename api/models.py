@@ -397,6 +397,113 @@ class Tool(models.Model):
         ordering = ["display_order", "-is_featured", "-rating"]
 
 
+class FintechCheck(models.Model):
+    """One published-evidence check in the fintech stack (KYC, credit, fraud)."""
+
+    slug = models.SlugField(max_length=64, unique=True)
+    name = models.CharField(max_length=120)
+    description = models.CharField(max_length=280)
+    sort_order = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        db_table = "fintech_checks"
+        ordering = ["sort_order", "slug"]
+
+    def __str__(self):
+        return self.name
+
+
+class FintechRating(models.Model):
+    """Pass / fail / unknown for one Tool × FintechCheck, with a cited URL.
+
+    This is the RBI/DPDP layer. It is not Tool.overall_score or
+    assessment_detail — those stay the general directory methodology.
+    """
+
+    RESULT_PASS = "pass"
+    RESULT_FAIL = "fail"
+    RESULT_UNKNOWN = "unknown"
+    RESULT_CHOICES = [
+        (RESULT_PASS, "Pass"),
+        (RESULT_FAIL, "Fail"),
+        (RESULT_UNKNOWN, "Unknown"),
+    ]
+
+    STACK_KYC = "kyc"
+    STACK_CREDIT = "credit"
+    STACK_FRAUD = "fraud"
+    STACK_CHOICES = [
+        (STACK_KYC, "KYC / identity"),
+        (STACK_CREDIT, "Credit scoring"),
+        (STACK_FRAUD, "Fraud / AML"),
+    ]
+
+    tool = models.ForeignKey(
+        Tool, on_delete=models.CASCADE, related_name="fintech_ratings"
+    )
+    check = models.ForeignKey(
+        FintechCheck, on_delete=models.CASCADE, related_name="ratings"
+    )
+    stack = models.CharField(
+        max_length=20, choices=STACK_CHOICES, default=STACK_KYC, db_index=True
+    )
+    result = models.CharField(max_length=16, choices=RESULT_CHOICES)
+    rationale = models.CharField(max_length=500)
+    evidence_url = models.URLField(max_length=500, blank=True)
+    evidence_label = models.CharField(max_length=160, blank=True)
+    reviewed_at = models.DateField()
+    india_relevance = models.CharField(max_length=400, blank=True)
+
+    class Meta:
+        db_table = "fintech_ratings"
+        ordering = ["tool__name", "check__sort_order"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["tool", "check", "stack"],
+                name="uniq_fintech_rating_tool_check_stack",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.tool.name} / {self.check.slug} / {self.result}"
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+
+        if (
+            self.result in (self.RESULT_PASS, self.RESULT_FAIL)
+            and not self.evidence_url
+        ):
+            raise ValidationError(
+                {"evidence_url": "Pass and Fail must cite a published URL."}
+            )
+
+
+class FintechEvidencePage(models.Model):
+    """One published page crawled for a fintech vendor. Not a lab test."""
+
+    tool = models.ForeignKey(
+        Tool, on_delete=models.CASCADE, related_name="fintech_evidence_pages"
+    )
+    url = models.URLField(max_length=500)
+    title = models.CharField(max_length=300, blank=True)
+    markdown = models.TextField(blank=True)
+    crawled_at = models.DateTimeField()
+
+    class Meta:
+        db_table = "fintech_evidence_pages"
+        ordering = ["-crawled_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["tool", "url"],
+                name="uniq_fintech_evidence_tool_url",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.tool.name} {self.url}"
+
+
 class Review(models.Model):
     RATING_CHOICES = [(i, str(i)) for i in range(1, 6)]
 
