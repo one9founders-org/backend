@@ -22,7 +22,7 @@ from .india_sources import (
     looks_like_listicle,
 )
 from .quality_gate import passes_quality_gate, similarity_ratio
-from .sources import canonicalize_http_url, candidate_signal, discover_candidates
+from .sources import candidate_signal, canonicalize_http_url, discover_candidates
 
 logger = logging.getLogger(__name__)
 
