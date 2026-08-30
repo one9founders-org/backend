@@ -10,6 +10,11 @@ track=open_source at the same time. Track is the top-level navigation
 axis, which is why it is one field with one value rather than a tag: a
 founder browsing open-source repos should never be shown a SaaS product,
 and tags cannot enforce that.
+
+Open-source bucketing: any real code-host repo URL (github.com/owner/repo
+and siblings) or an id that already starts with github/... (or github:)
+lands in the Open Source track, unless a more specific track (MCP, skill,
+agent) wins first.
 """
 
 import re
@@ -39,6 +44,50 @@ TRACK_LABELS = {
 }
 
 CODE_HOSTS = ("github.com", "gitlab.com", "codeberg.org", "sr.ht", "bitbucket.org")
+
+# GitHub/GitLab marketing and account paths that look like owner/repo but
+# are not repositories. Keep this tight -- unknown owners are assumed real.
+_RESERVED_REPO_OWNERS = frozenset(
+    {
+        "topics",
+        "orgs",
+        "settings",
+        "marketplace",
+        "features",
+        "explore",
+        "sponsors",
+        "enterprise",
+        "login",
+        "signup",
+        "pricing",
+        "about",
+        "security",
+        "pulls",
+        "issues",
+        "notifications",
+        "account",
+        "new",
+        "apps",
+        "collections",
+        "events",
+        "codespaces",
+        "customer-stories",
+        "readme",
+        "git-guides",
+        "open-source",
+        "solutions",
+        "organizations",
+        "users",
+        "search",
+        "site",
+    }
+)
+
+# Explicit ids such as "github/owner/repo" or "github:owner/repo".
+_CODE_REPO_ID_RE = re.compile(
+    r"^(?:github|gitlab|codeberg|bitbucket|sr\.ht)[/:]([\w.-]+)/([\w.-]+)$",
+    re.IGNORECASE,
+)
 
 # Deliberately strict. A bare "mcp" mention means "this supports MCP",
 # which most AI repos now tag themselves with -- matching on that files
@@ -79,6 +128,68 @@ def is_code_host(host: str) -> bool:
     return any(host == h or host.endswith(f".{h}") for h in CODE_HOSTS)
 
 
+def parse_code_repo(url: str) -> str | None:
+    """Return ``owner/repo`` when *url* points at a real code-host repo.
+
+    Bare hosts (``https://github.com``) and product pages
+    (``https://github.com/features/copilot``) return None so they are not
+    bucketed as open-source tools.
+    """
+    if not url:
+        return None
+    text = url.strip()
+    if "://" not in text:
+        text = "https://" + text.lstrip("/")
+    without_scheme = text.split("://", 1)[-1]
+    host, _, path = without_scheme.partition("/")
+    host = host.split(":", 1)[0].lower().removeprefix("www.")
+    if not is_code_host(host):
+        return None
+    parts = [p for p in path.split("/") if p]
+    if len(parts) < 2:
+        return None
+    owner, repo = parts[0], parts[1].removesuffix(".git")
+    if not owner or not repo:
+        return None
+    if owner.lower() in _RESERVED_REPO_OWNERS:
+        return None
+    if repo.lower() in {"issues", "pulls", "actions", "settings", "wiki", "projects"}:
+        return None
+    return f"{owner}/{repo}"
+
+
+def has_code_repo_id(name: str) -> bool:
+    """True when *name* is already a ``github/owner/repo``-style id."""
+    match = _CODE_REPO_ID_RE.match((name or "").strip())
+    if not match:
+        return False
+    owner = match.group(1)
+    return owner.lower() not in _RESERVED_REPO_OWNERS
+
+
+def is_open_source_signal(
+    name: str,
+    website: str,
+    *,
+    host: str = "",
+    has_license: bool = False,
+) -> bool:
+    """Whether this row should land in the Open Source bucket.
+
+    Signals, in order of strength:
+    1. Explicit id prefix (``github/owner/repo`` / ``github:owner/repo``)
+    2. Website is a real code-host repo path
+    3. Declared open-source license (discovery / GitHub meta)
+    """
+    if has_code_repo_id(name):
+        return True
+    if parse_code_repo(website):
+        return True
+    if has_license:
+        return True
+    return False
+
+
 def classify_track(
     name: str,
     website: str,
@@ -109,8 +220,7 @@ def classify_track(
     if _AGENT_RE.search(combined) or _AGENT_BEHAVIOUR_RE.search(combined):
         return AI_AGENT
 
-    resolved_host = host or _host_of(website)
-    if is_code_host(resolved_host) or has_license:
+    if is_open_source_signal(name, website, host=host, has_license=has_license):
         return OPEN_SOURCE
 
     return AI_TOOL

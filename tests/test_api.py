@@ -160,6 +160,9 @@ class TestToolDirectoryStatsAPI:
         assert response.data["by_category"] == [
             {"category": "Writing", "count": 2},
         ]
+        assert response.data["by_track"] == [
+            {"track": "ai_tool", "label": "AI Tools", "count": 2},
+        ]
 
     def test_serves_cached_payload(self, api_client):
         cache.set(
@@ -170,6 +173,9 @@ class TestToolDirectoryStatsAPI:
                 "provisionally_assessed_count": 20,
                 "total_tools": 100,
                 "by_category": [{"category": "Cached", "count": 99}],
+                "by_track": [
+                    {"track": "ai_tool", "label": "AI Tools", "count": 99},
+                ],
             },
             3600,
         )
@@ -179,6 +185,9 @@ class TestToolDirectoryStatsAPI:
         assert response.status_code == status.HTTP_200_OK
         assert response.data["total_tools"] == 100
         assert response.data["by_category"] == [{"category": "Cached", "count": 99}]
+        assert response.data["by_track"] == [
+            {"track": "ai_tool", "label": "AI Tools", "count": 99},
+        ]
 
     def test_tool_save_busts_cache(self, api_client):
         writing = CategoryFactory(name="Writing", slug="writing")

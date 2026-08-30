@@ -6,6 +6,7 @@ from django.db.models import F
 from django.utils import timezone
 from django.utils.text import slugify
 
+from api.hygiene.track import classify_track
 from api.models import Category, DiscoveryRun, Tool
 
 from . import MAX_NEW_TOOLS_PER_RUN, REFRESH_NOOP_RATIO
@@ -78,17 +79,35 @@ def _apply_facts_to_create(tool: Tool, facts: Facts) -> None:
 def publish_new_tool(result: dict) -> Tool:
     name = result["name"]
     description = result["generated"]
+    url = result["url"]
+    facts = result["facts"]
     now = timezone.now()
+    # Bucket GitHub (and other code-host) repos into open_source at insert
+    # time so founders do not wait on a later classify_tracks pass.
+    track = classify_track(
+        name,
+        url,
+        " ".join(
+            filter(
+                None,
+                [
+                    description or "",
+                    " ".join(facts.topics or []),
+                ],
+            )
+        ),
+        topics=list(facts.topics or []),
+    )
     tool = Tool(
         name=name[:255],
         slug=(slugify(name) or f"tool-{int(now.timestamp())}")[:255],
-        website=result["url"],
+        website=url,
         description=description,
         short_description=description[:200],
         tags=["auto-discovery"],
+        track=track,
         last_enriched_at=now,
     )
-    facts = result["facts"]
     if facts.pricing:
         tool.pricing_type = facts.pricing
     tool.save()

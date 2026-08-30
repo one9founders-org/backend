@@ -45,7 +45,20 @@ def parse_github_repo(url: str) -> str | None:
     if not match:
         return None
     owner, repo = match.group(1), match.group(2)
-    if owner.lower() in {"topics", "orgs", "settings", "marketplace"}:
+    if owner.lower() in {
+        "topics",
+        "orgs",
+        "settings",
+        "marketplace",
+        "features",
+        "explore",
+        "sponsors",
+        "enterprise",
+        "login",
+        "signup",
+        "pricing",
+        "about",
+    }:
         return None
     return f"{owner}/{repo.removesuffix('.git')}"
 

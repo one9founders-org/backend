@@ -14,6 +14,8 @@ def bust_tool_stats_cache():
 
 def compute_tool_directory_stats():
     """Each value is one aggregate query — no per-row Python loops."""
+    from api.hygiene.track import TRACK_LABELS
+
     qs = publishable_queryset()
     by_category = list(
         qs.filter(categories__isnull=False)
@@ -21,6 +23,17 @@ def compute_tool_directory_stats():
         .annotate(count=Count("id", distinct=True))
         .order_by("-count", "category")
     )
+    by_track_rows = list(
+        qs.values("track").annotate(count=Count("id")).order_by("-count", "track")
+    )
+    by_track = [
+        {
+            "track": row["track"],
+            "label": TRACK_LABELS.get(row["track"], row["track"]),
+            "count": row["count"],
+        }
+        for row in by_track_rows
+    ]
     return {
         "count": qs.count(),
         "fully_assessed_count": qs.filter(criteria_completed=10).count(),
@@ -29,6 +42,7 @@ def compute_tool_directory_stats():
         ).count(),
         "total_tools": Tool.objects.count(),
         "by_category": by_category,
+        "by_track": by_track,
     }
 
 
