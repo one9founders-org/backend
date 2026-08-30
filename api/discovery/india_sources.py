@@ -210,7 +210,7 @@ def _candidate_from_hit(
 
 def fetch_india_tool_candidates(limit_per_query: int = 8) -> list[dict]:
     """Search Indian AI tools via Firecrawl (country=IN)."""
-    if not firecrawl.firecrawl_enabled():
+    if not firecrawl.firecrawl_discovery_enabled():
         return []
 
     candidates: list[dict] = []
@@ -239,7 +239,7 @@ def fetch_india_tool_candidates(limit_per_query: int = 8) -> list[dict]:
 
 def fetch_new_tool_candidates(limit_per_query: int = 8) -> list[dict]:
     """Search newly launched AI tools via Firecrawl."""
-    if not firecrawl.firecrawl_enabled():
+    if not firecrawl.firecrawl_discovery_enabled():
         return []
 
     candidates: list[dict] = []

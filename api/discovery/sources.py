@@ -253,15 +253,20 @@ def fetch_hacker_news_candidates(days: int = 14) -> list[dict]:
 
 
 def fetch_all_candidates() -> list[dict]:
+    """Cheap public sources by default. Firecrawl only when explicitly enabled."""
+    from .firecrawl import firecrawl_discovery_enabled
     from .india_sources import fetch_firecrawl_candidates
 
-    combined = []
-    for fetcher in (
-        fetch_firecrawl_candidates,
+    fetchers = [
         fetch_github_candidates,
         fetch_product_hunt_candidates,
         fetch_hacker_news_candidates,
-    ):
+    ]
+    if firecrawl_discovery_enabled():
+        fetchers.insert(0, fetch_firecrawl_candidates)
+
+    combined = []
+    for fetcher in fetchers:
         try:
             combined.extend(fetcher())
         except Exception as exc:

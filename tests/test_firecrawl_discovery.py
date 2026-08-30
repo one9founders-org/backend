@@ -166,6 +166,7 @@ class TestIndiaSources:
 
     def test_india_search_builds_candidates(self, settings):
         settings.FIRECRAWL_API_KEY = "fc-test"
+        settings.FIRECRAWL_DISCOVERY_ENABLED = True
         with patch(
             "api.discovery.india_sources.firecrawl.search",
             return_value=[
@@ -200,8 +201,16 @@ class TestIndiaSources:
         assert "https://wellfound.com/startups/l/bangalore" not in urls
         assert "https://www.geeksforgeeks.org/blogs/ai-companies-in-india/" not in urls
 
+    def test_india_search_noop_without_discovery_flag(self, settings):
+        settings.FIRECRAWL_API_KEY = "fc-test"
+        settings.FIRECRAWL_DISCOVERY_ENABLED = False
+        with patch("api.discovery.india_sources.firecrawl.search") as search:
+            assert fetch_india_tool_candidates() == []
+            search.assert_not_called()
+
     def test_new_tools_search(self, settings):
         settings.FIRECRAWL_API_KEY = "fc-test"
+        settings.FIRECRAWL_DISCOVERY_ENABLED = True
         with patch(
             "api.discovery.india_sources.firecrawl.search",
             return_value=[
@@ -440,7 +449,7 @@ class TestPublishFromFirecrawlFacts:
             source_text="fleet AI platform",
         )
 
-        def _facts(url, prefer_firecrawl=True):
+        def _facts(url, prefer_firecrawl=False):
             if "wellfound" in url:
                 return lead_facts
             return product_facts
@@ -610,8 +619,24 @@ class TestIndiaFilter:
 
 @pytest.mark.django_db
 class TestIndiaDiscoveryTrigger:
+    def test_india_job_requires_opt_in(self, settings):
+        settings.DISCOVERY_TRIGGER_SECRET = "expected-secret"
+        settings.FIRECRAWL_API_KEY = "fc-test"
+        settings.FIRECRAWL_DISCOVERY_ENABLED = False
+        client = APIClient()
+        url = reverse("run-discovery-trigger")
+        with patch("api.discovery.views.run_india_and_new_discovery") as india:
+            response = client.post(
+                f"{url}?job=india",
+                HTTP_X_TRIGGER_SECRET="expected-secret",
+            )
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+        india.assert_not_called()
+
     def test_india_job(self, settings):
         settings.DISCOVERY_TRIGGER_SECRET = "expected-secret"
+        settings.FIRECRAWL_API_KEY = "fc-test"
+        settings.FIRECRAWL_DISCOVERY_ENABLED = True
         client = APIClient()
         url = reverse("run-discovery-trigger")
         with patch(
@@ -625,3 +650,70 @@ class TestIndiaDiscoveryTrigger:
         assert response.status_code == status.HTTP_200_OK
         india.assert_called_once()
         assert response.data["india"]["published"] == 2
+
+
+class TestFirecrawlCreditGuards:
+    def test_github_candidate_does_not_prefer_firecrawl(self):
+        with (
+            patch(
+                "api.discovery.pipeline.fetch_facts",
+                return_value=Facts(
+                    title="Repo",
+                    pricing="free",
+                    is_single_product_page=True,
+                    source_text="x" * 40,
+                ),
+            ) as fetch,
+            patch(
+                "api.discovery.pipeline.generate_description",
+                return_value="A safe generated description for the open source tool.",
+            ),
+            patch(
+                "api.discovery.pipeline.passes_quality_gate",
+                return_value=(False, ["stop after facts"]),
+            ),
+        ):
+            process_candidate(
+                {
+                    "name": "Some Repo",
+                    "url": "https://github.com/acme/tool",
+                    "sourceType": "github",
+                    "rawSignal": {"stars": 10},
+                }
+            )
+        assert fetch.call_count >= 1
+        assert fetch.call_args.kwargs.get("prefer_firecrawl") is False
+
+    def test_default_fetch_all_skips_firecrawl(self, settings):
+        settings.FIRECRAWL_API_KEY = "fc-test"
+        settings.FIRECRAWL_DISCOVERY_ENABLED = False
+        from api.discovery.sources import fetch_all_candidates
+
+        with (
+            patch(
+                "api.discovery.sources.fetch_github_candidates",
+                return_value=[],
+            ),
+            patch(
+                "api.discovery.sources.fetch_product_hunt_candidates",
+                return_value=[],
+            ),
+            patch(
+                "api.discovery.sources.fetch_hacker_news_candidates",
+                return_value=[],
+            ),
+            patch("api.discovery.india_sources.fetch_firecrawl_candidates") as fc,
+        ):
+            assert fetch_all_candidates() == []
+            fc.assert_not_called()
+
+    def test_run_india_skips_when_disabled(self, settings):
+        settings.FIRECRAWL_API_KEY = "fc-test"
+        settings.FIRECRAWL_DISCOVERY_ENABLED = False
+        from api.discovery.pipeline import run_india_and_new_discovery
+
+        with patch("api.discovery.india_sources.fetch_firecrawl_candidates") as fc:
+            result = run_india_and_new_discovery()
+        fc.assert_not_called()
+        assert result["published"] == 0
+        assert "FIRECRAWL_DISCOVERY_ENABLED" in result["skipped"]

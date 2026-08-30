@@ -209,14 +209,15 @@ jobs:
             docker compose exec -d web python manage.py build_faiss_index
             docker compose exec -d web python manage.py run_news_pipeline
 
-            # Uncapped discovery in the background so new tools land overnight
-            # without blocking this SSH session. Nightly cron keeps it going.
+            # Cheap discovery only (GitHub / PH / HN). Firecrawl India/new is
+            # opt-in via FIRECRAWL_DISCOVERY_ENABLED — never start it on deploy.
             if ! crontab -l 2>/dev/null | grep -q 'run_tool_discovery'; then
               (
                 crontab -l 2>/dev/null || true
-                echo '15 2 * * * cd /var/www/one9founders && docker compose exec -T web python manage.py run_tool_discovery >> /var/log/tool-discovery.log 2>&1'
+                echo '15 2 * * * cd /var/www/one9founders && docker compose exec -T web python manage.py run_tool_discovery --max-new 40 >> /var/log/tool-discovery.log 2>&1'
               ) | crontab -
             fi
-            docker compose exec -d web python manage.py run_tool_discovery
+            # Capped free-source discovery; does not call Firecrawl by default.
+            docker compose exec -d web python manage.py run_tool_discovery --max-new 40
 
             echo "Deploy complete."

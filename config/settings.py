@@ -249,6 +249,11 @@ GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
 # Firecrawl — India + new-tool discovery scrape/search (optional; discovery
 # still works from GitHub/PH/HN when unset).
 FIRECRAWL_API_KEY = os.getenv("FIRECRAWL_API_KEY", "")
+# JSON-extract scrapes cost ~5 credits each. Keep OFF unless you explicitly
+# want another India/new Firecrawl pass (manage.py discover_india_tools).
+FIRECRAWL_DISCOVERY_ENABLED = os.getenv(
+    "FIRECRAWL_DISCOVERY_ENABLED", ""
+).strip().lower() in {"1", "true", "yes", "on"}
 
 # Directory hygiene pass (api/hygiene/).
 # Popularity ranking uses the free Tranco list; refresh with

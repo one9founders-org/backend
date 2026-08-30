@@ -81,7 +81,20 @@ TOOL_EXTRACT_PROMPT = (
 
 
 def firecrawl_enabled() -> bool:
+    """True when an API key is configured (fintech ingest, opt-in discovery)."""
     return bool(getattr(settings, "FIRECRAWL_API_KEY", "") or "")
+
+
+def firecrawl_discovery_enabled() -> bool:
+    """True only when India/new Firecrawl discovery is explicitly opted in.
+
+    JSON extract scrapes cost ~5 credits each; default discovery must not
+    call Firecrawl. Set FIRECRAWL_DISCOVERY_ENABLED=true to allow
+    discover_india_tools / job=india.
+    """
+    return firecrawl_enabled() and bool(
+        getattr(settings, "FIRECRAWL_DISCOVERY_ENABLED", False)
+    )
 
 
 def _headers() -> dict[str, str]:

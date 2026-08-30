@@ -1,5 +1,7 @@
-# None = no cap. Re-set to an int (e.g. 40) once the directory is populated.
-MAX_NEW_TOOLS_PER_RUN = None
+# Cap free (GitHub / Product Hunt / HN) discovery so one run cannot flood
+# the directory. Firecrawl India/new is separately opt-in and capped lower.
+MAX_NEW_TOOLS_PER_RUN = 40
+MAX_FIRECRAWL_TOOLS_PER_RUN = 15
 SIMILARITY_REJECT_RATIO = 0.35
 REFRESH_NOOP_RATIO = 0.9
 MIN_DESCRIPTION_WORDS = 30

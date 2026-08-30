@@ -275,7 +275,12 @@ def _facts_from_firecrawl(url: str) -> Facts | None:
     )
 
 
-def fetch_facts(url: str, *, prefer_firecrawl: bool = True) -> Facts:
+def fetch_facts(url: str, *, prefer_firecrawl: bool = False) -> Facts:
+    """Best-effort page facts. Firecrawl JSON extract is opt-in only.
+
+    Default path uses the GitHub API or a cheap HTML fetch so GitHub /
+    Product Hunt / HN discovery never burns Firecrawl credits.
+    """
     clean = canonicalize_http_url(url)
     if not clean:
         return Facts()
