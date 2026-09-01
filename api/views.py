@@ -66,6 +66,7 @@ from .serializers import (
     ReviewSerializer,
     ToolDetailSerializer,
     ToolListSerializer,
+    ToolSitemapSerializer,
     ToolSubmissionSerializer,
     TrendingToolSerializer,
     WorkshopDetailSerializer,
@@ -101,6 +102,14 @@ class CustomPageNumberPagination(PageNumberPagination):
         response = super().get_paginated_response(data)
         response["X-Page-Size-Used"] = str(self.page_size)
         return response
+
+
+class SitemapPagination(PageNumberPagination):
+    """Large pages of slug + lastmod only. Used by sitemap generators."""
+
+    page_size = 2000
+    page_size_query_param = "page_size"
+    max_page_size = 5000
 
 
 # ---------------------------------------------------------------------------
@@ -556,6 +565,17 @@ def track_search_query(request):
     return Response(
         {"message": "Search tracked", "id": search.id}, status=status.HTTP_201_CREATED
     )
+
+
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def tool_sitemap(request):
+    """Every publishable tool slug + lastmod. Not filtered on list-only fields."""
+    queryset = publishable_queryset().only("slug", "updated_at").order_by("id")
+    paginator = SitemapPagination()
+    page = paginator.paginate_queryset(queryset, request)
+    serializer = ToolSitemapSerializer(page, many=True)
+    return paginator.get_paginated_response(serializer.data)
 
 
 @api_view(["GET"])

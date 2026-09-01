@@ -72,6 +72,7 @@ urlpatterns = [
     path("track/usage/", views.track_tool_usage, name="track-tool-usage"),
     path("track/click/", views.track_tool_click, name="track-tool-click"),
     path("track/search/", views.track_search_query, name="track-search-query"),
+    path("tools/sitemap/", views.tool_sitemap, name="tool-sitemap"),
     path("tools/trending/", views.trending_tools, name="trending-tools"),
     path("tools/stats/", views.tool_directory_stats, name="tool-directory-stats"),
     path(

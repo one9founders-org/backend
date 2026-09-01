@@ -13,6 +13,27 @@ from rest_framework.views import APIView
 from .models import Paper
 from .serializers import PaperDetailSerializer, PaperListSerializer
 
+
+class SitemapPagination(PageNumberPagination):
+    page_size = 2000
+    page_size_query_param = "page_size"
+    max_page_size = 5000
+
+
+class PaperSitemapView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        queryset = Paper.objects.only("arxiv_id", "published_at").order_by("id")
+        paginator = SitemapPagination()
+        page = paginator.paginate_queryset(queryset, request, view=self)
+        results = [
+            {"arxiv_id": paper.arxiv_id, "published_at": paper.published_at}
+            for paper in page
+        ]
+        return paginator.get_paginated_response(results)
+
+
 logger = logging.getLogger(__name__)
 
 # Tag-to-category mapping for tab filtering

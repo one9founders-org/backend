@@ -94,6 +94,64 @@ class TestToolAPI:
         names = [row["name"] for row in response.data["results"]]
         assert names == ["High Score", "Mid Score", "No Score"]
 
+    def test_sitemap_returns_publishable_slugs(self, api_client):
+        live = ToolFactory(name="Live Sitemap Tool", is_active=True)
+        ToolFactory(name="Hidden Sitemap Tool", is_active=False)
+
+        response = api_client.get(reverse("tool-sitemap"))
+        assert response.status_code == status.HTTP_200_OK
+        rows = response.data["results"]
+        assert {key for row in rows for key in row} <= {"slug", "updated_at"}
+        slugs = {row["slug"] for row in rows}
+        assert live.slug in slugs
+        assert "hidden-sitemap-tool" not in slugs
+
+
+@pytest.mark.django_db
+class TestPaperSitemapAPI:
+    def test_paper_sitemap_returns_arxiv_ids(self, api_client):
+        from django.utils import timezone
+
+        from research_papers.models import Paper
+
+        paper = Paper.objects.create(
+            arxiv_id="2401.00001",
+            title="A Test Paper",
+            abstract="Abstract",
+            published_at=timezone.now(),
+            pdf_url="https://arxiv.org/pdf/2401.00001",
+            arxiv_url="https://arxiv.org/abs/2401.00001",
+        )
+        response = api_client.get(reverse("paper-sitemap"))
+        assert response.status_code == status.HTTP_200_OK
+        rows = response.data["results"]
+        assert rows[0]["arxiv_id"] == paper.arxiv_id
+        assert "published_at" in rows[0]
+
+
+@pytest.mark.django_db
+class TestCourseSitemapAPI:
+    def test_course_sitemap_returns_published_slugs(self, api_client):
+        from education.models import Course
+
+        live = Course.objects.create(
+            title="Published Course",
+            slug="published-course",
+            status="published",
+        )
+        Course.objects.create(
+            title="Draft Course",
+            slug="draft-course",
+            status="draft",
+        )
+        response = api_client.get(reverse("course-sitemap"))
+        assert response.status_code == status.HTTP_200_OK
+        rows = response.data["results"]
+        slugs = {row["slug"] for row in rows}
+        assert live.slug in slugs
+        assert "draft-course" not in slugs
+        assert {key for row in rows for key in row} <= {"slug", "updated_at"}
+
 
 @pytest.mark.django_db
 class TestReviewAPI:

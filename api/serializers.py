@@ -54,6 +54,14 @@ class CategorySerializer(serializers.ModelSerializer):
         return obj.tools.filter(publishable_q()).count()
 
 
+class ToolSitemapSerializer(serializers.ModelSerializer):
+    """Compact payload for sitemap generation. Slug + lastmod only."""
+
+    class Meta:
+        model = Tool
+        fields = ["slug", "updated_at"]
+
+
 class ToolAssessmentSerializerMixin(serializers.Serializer):
     rating_status = serializers.SerializerMethodField()
     security_status = serializers.SerializerMethodField()
