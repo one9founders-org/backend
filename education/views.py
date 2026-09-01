@@ -1,8 +1,10 @@
 from django.db.models import F
 from rest_framework import mixins, viewsets
 from rest_framework.decorators import action
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
+from rest_framework.views import APIView
 from rest_framework_simplejwt.authentication import JWTAuthentication
 
 from .models import (
@@ -35,6 +37,29 @@ from .serializers import (
     OrganizationInquiryCreateSerializer,
     WorkshopRegistrationCreateSerializer,
 )
+
+
+class SitemapPagination(PageNumberPagination):
+    page_size = 2000
+    page_size_query_param = "page_size"
+    max_page_size = 5000
+
+
+class CourseSitemapView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        queryset = (
+            Course.objects.filter(status="published")
+            .only("slug", "updated_at")
+            .order_by("id")
+        )
+        paginator = SitemapPagination()
+        page = paginator.paginate_queryset(queryset, request, view=self)
+        results = [
+            {"slug": course.slug, "updated_at": course.updated_at} for course in page
+        ]
+        return paginator.get_paginated_response(results)
 
 
 class CourseCategoryViewSet(viewsets.ReadOnlyModelViewSet):

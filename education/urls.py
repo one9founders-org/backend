@@ -5,6 +5,7 @@ from .views import (
     AudienceTypeViewSet,
     CourseCategoryViewSet,
     CourseInquiryViewSet,
+    CourseSitemapView,
     CourseViewSet,
     EducationGuideViewSet,
     EducationWorkshopViewSet,
@@ -39,5 +40,6 @@ router.register(
 )
 
 urlpatterns = [
+    path("courses/sitemap/", CourseSitemapView.as_view(), name="course-sitemap"),
     path("", include(router.urls)),
 ]
