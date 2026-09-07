@@ -1,0 +1,6 @@
+---
+description: Verify user-facing web changes with Reticle before calling the work done.
+alwaysApply: true
+---
+
+After any user-facing HTML/UI change, prove it with Reticle (`reticle_act_and_wait` or `reticle_assert`). Reading a diff is not a verdict. Follow `.cursor/skills/reticle/SKILL.md`.
