@@ -22,6 +22,7 @@ from .models import (
     UserFavorite,
     Workshop,
 )
+from .verified_listings import overlay_verified_listing
 
 User = get_user_model()
 
@@ -158,6 +159,15 @@ class ToolListSerializer(ToolAssessmentSerializerMixin, serializers.ModelSeriali
             return round(inr_price * (1 + gst_rate))
         return inr_price
 
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        return overlay_verified_listing(
+            instance,
+            data,
+            exchange_rate=self._get_exchange_rate(),
+            gst_rate=self._get_gst_rate(),
+        )
+
 
 class ToolDetailSerializer(ToolAssessmentSerializerMixin, serializers.ModelSerializer):
     categories = serializers.PrimaryKeyRelatedField(
@@ -228,7 +238,12 @@ class ToolDetailSerializer(ToolAssessmentSerializerMixin, serializers.ModelSeria
         data["categories"] = CategorySerializer(
             instance.categories.all(), many=True
         ).data
-        return data
+        return overlay_verified_listing(
+            instance,
+            data,
+            exchange_rate=self._get_exchange_rate(),
+            gst_rate=self._get_gst_rate(),
+        )
 
 
 class ReviewSerializer(serializers.ModelSerializer):

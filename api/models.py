@@ -338,9 +338,11 @@ class Tool(models.Model):
         # Auto-enrich with AI if only basic fields provided
         if self.name and self.description and not self.tags:
             try:
-                from .ai_enrichment import enrich_tool_data
+                from .ai_enrichment import enrich_tool_data, sanitize_enriched
 
-                enriched = enrich_tool_data(self.name, self.description, self.website)
+                enriched = sanitize_enriched(
+                    enrich_tool_data(self.name, self.description, self.website)
+                )
 
                 self.short_description = enriched.get("short_description", "")[:200]
                 self.tags = enriched.get("tags", [])
@@ -354,8 +356,14 @@ class Tool(models.Model):
                 self.pricing_models = enriched.get("pricing_models", [])
                 self.pricing_tiers = enriched.get("pricing_tiers", [])
                 self.free_tier_available = enriched.get("free_tier_available", False)
-                if not self.free_trial_days:
-                    self.free_trial_days = enriched.get("free_trial_days")
+                trial_days = enriched.get("free_trial_days")
+                if not self.free_trial_days and trial_days:
+                    try:
+                        days = int(trial_days)
+                    except (TypeError, ValueError):
+                        days = 0
+                    if days > 0:
+                        self.free_trial_days = days
             except Exception as e:
                 logger.warning("AI enrichment failed for tool '%s': %s", self.name, e)
 
