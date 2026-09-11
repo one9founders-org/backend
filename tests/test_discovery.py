@@ -7,11 +7,7 @@ from rest_framework.test import APIClient
 
 from api.discovery.facts import Facts
 from api.discovery.quality_gate import passes_quality_gate, similarity_ratio
-from api.discovery.sources import (
-    dedupe_candidates,
-    normalize_name,
-    normalize_url,
-)
+from api.discovery.sources import dedupe_candidates, normalize_name, normalize_url
 from tests.factories import ToolFactory
 
 
@@ -102,6 +98,63 @@ class TestPublishNewTool:
         )
         assert tool.track == OPEN_SOURCE
         assert tool.name == "github/langchain-ai/langchain"
+
+
+class TestGitHubDiscoveryExpansion:
+    def test_seed_list_includes_reticle(self):
+        from api.discovery.sources import GITHUB_SEED_REPOS
+
+        assert "reticlehq/reticle" in GITHUB_SEED_REPOS
+
+    def test_fetch_github_candidates_merges_search_and_seeds(self, settings):
+        from api.discovery.sources import fetch_github_candidates
+
+        settings.GITHUB_TOKEN = "gh-test"
+        search_item = {
+            "html_url": "https://github.com/acme/new-llm-tool",
+            "full_name": "acme/new-llm-tool",
+            "name": "new-llm-tool",
+            "description": "A new LLM helper",
+            "stargazers_count": 12,
+            "pushed_at": "2026-09-01T00:00:00Z",
+            "topics": ["llm"],
+        }
+        seed_item = {
+            "html_url": "https://github.com/reticlehq/reticle",
+            "full_name": "reticlehq/reticle",
+            "name": "reticle",
+            "description": "Verify running web apps from the inside",
+            "stargazers_count": 900,
+            "pushed_at": "2026-09-10T00:00:00Z",
+            "topics": ["devtools"],
+        }
+
+        with (
+            patch(
+                "api.discovery.sources._github_search",
+                return_value=[search_item],
+            ) as search,
+            patch(
+                "api.discovery.sources._github_repo",
+                side_effect=lambda full_name, headers: (
+                    seed_item if full_name == "reticlehq/reticle" else None
+                ),
+            ),
+        ):
+            rows = fetch_github_candidates(days=30)
+
+        urls = {r["url"] for r in rows}
+        assert "https://github.com/reticlehq/reticle" in urls
+        assert "https://github.com/acme/new-llm-tool" in urls
+        assert rows[0]["url"] == "https://github.com/reticlehq/reticle"
+        assert rows[0]["name"] == "github/reticlehq/reticle"
+        assert search.call_count >= 1
+        # Both pushed and created qualifiers should be queried.
+        queries = [
+            call.kwargs.get("q") or call.args[0] for call in search.call_args_list
+        ]
+        assert any("pushed:>" in q for q in queries)
+        assert any("created:>" in q for q in queries)
 
 
 @pytest.mark.django_db

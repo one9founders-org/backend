@@ -14,7 +14,32 @@ from api.models import Tool
 
 logger = logging.getLogger(__name__)
 
-GITHUB_TOPICS = ("artificial-intelligence", "llm-tools")
+# Topic search stays free (GitHub API). Prefer recently *pushed* repos so
+# established projects keep showing up; a created-only window misses them.
+GITHUB_TOPICS = (
+    "artificial-intelligence",
+    "llm-tools",
+    "llm",
+    "generative-ai",
+    "ai-agents",
+    "mcp-server",
+    "model-context-protocol",
+    "rag",
+    "langchain",
+    "developer-tools",
+)
+# Always consider these high-signal open-source repos even when they are
+# older than the search window (deduped against search hits).
+GITHUB_SEED_REPOS = (
+    "reticlehq/reticle",
+    "browser-use/browser-use",
+    "microsoft/playwright-mcp",
+    "modelcontextprotocol/servers",
+    "langchain-ai/langchain",
+    "vercel/ai",
+    "huggingface/transformers",
+    "ggerganov/llama.cpp",
+)
 AI_KEYWORDS = (
     "ai",
     "artificial intelligence",
@@ -28,6 +53,8 @@ AI_KEYWORDS = (
     "copilot",
     "agent",
     "langchain",
+    "mcp",
+    "reticle",
 )
 NAME_SUFFIXES = (" ai", " app", " labs", " hq", " io", " inc", " llc")
 USER_AGENT = "one9-tool-discovery/1.0"
@@ -118,55 +145,131 @@ def _github_headers() -> dict:
     return headers
 
 
-def fetch_github_candidates(days: int = 14) -> list[dict]:
+def _candidate_from_github_item(item: dict) -> dict | None:
+    html_url = item.get("html_url") or ""
+    if not html_url:
+        return None
+    full_name = (item.get("full_name") or "").strip()
+    # Prefer github/owner/repo so open-source bucketing can key off
+    # the same prefix as website paths and agent external ids.
+    display_name = (
+        f"github/{full_name}"
+        if full_name and "/" in full_name
+        else (item.get("name") or full_name or "")
+    )
+    if not display_name:
+        return None
+    return {
+        "name": display_name,
+        "url": html_url,
+        "sourceType": "github",
+        "rawSignal": {
+            "stars": item.get("stargazers_count") or 0,
+            "description": item.get("description") or "",
+            "full_name": full_name,
+            "pushed_at": item.get("pushed_at") or "",
+            "topics": list(item.get("topics") or []),
+        },
+    }
+
+
+def _github_search(query: str, *, headers: dict, per_page: int = 50) -> list[dict]:
+    try:
+        response = requests.get(
+            "https://api.github.com/search/repositories",
+            params={
+                "q": query,
+                "sort": "stars",
+                "order": "desc",
+                "per_page": per_page,
+            },
+            headers=headers,
+            timeout=REQUEST_TIMEOUT,
+        )
+        response.raise_for_status()
+        return list(response.json().get("items") or [])
+    except Exception as exc:
+        logger.warning("GitHub search failed for q=%r: %s", query, exc)
+        return []
+
+
+def _github_repo(full_name: str, *, headers: dict) -> dict | None:
+    """Fetch one repo by owner/name (used for curated seeds like Reticle)."""
+    try:
+        response = requests.get(
+            f"https://api.github.com/repos/{full_name}",
+            headers=headers,
+            timeout=REQUEST_TIMEOUT,
+        )
+        if response.status_code == 404:
+            logger.warning("GitHub seed repo not found: %s", full_name)
+            return None
+        response.raise_for_status()
+        data = response.json()
+        return data if isinstance(data, dict) else None
+    except Exception as exc:
+        logger.warning("GitHub repo lookup failed for %s: %s", full_name, exc)
+        return None
+
+
+def fetch_github_candidates(days: int = 30) -> list[dict]:
+    """Discover open-source AI/devtools repos from GitHub (no Firecrawl).
+
+    Combines:
+    - topic searches for newly *created* repos
+    - topic searches for recently *pushed* (active) repos — catches
+      established projects that keep shipping (e.g. Reticle)
+    - a curated seed list of high-signal repos always worth considering
+    """
     since = (datetime.now(timezone.utc) - timedelta(days=days)).date().isoformat()
     headers = _github_headers()
     if not getattr(settings, "GITHUB_TOKEN", ""):
         logger.warning("GITHUB_TOKEN is unset; GitHub search will be rate-limited")
 
-    candidates = []
-    seen_urls = set()
-    for topic in GITHUB_TOPICS:
-        query = f"topic:{topic} created:>{since}"
-        try:
-            response = requests.get(
-                "https://api.github.com/search/repositories",
-                params={"q": query, "sort": "stars", "order": "desc", "per_page": 50},
-                headers=headers,
-                timeout=REQUEST_TIMEOUT,
-            )
-            response.raise_for_status()
-            items = response.json().get("items") or []
-        except Exception as exc:
-            logger.warning("GitHub search failed for topic=%s: %s", topic, exc)
-            continue
+    candidates: list[dict] = []
+    seen_urls: set[str] = set()
 
-        for item in items:
-            html_url = item.get("html_url") or ""
-            key = normalize_url(html_url)
-            if not key or key in seen_urls:
-                continue
-            seen_urls.add(key)
-            full_name = (item.get("full_name") or "").strip()
-            # Prefer github/owner/repo so open-source bucketing can key off
-            # the same prefix as website paths and agent external ids.
-            display_name = (
-                f"github/{full_name}"
-                if full_name and "/" in full_name
-                else (item.get("name") or full_name or "")
-            )
-            candidates.append(
-                {
-                    "name": display_name,
-                    "url": html_url,
-                    "sourceType": "github",
-                    "rawSignal": {
-                        "stars": item.get("stargazers_count") or 0,
-                        "description": item.get("description") or "",
-                        "full_name": full_name,
-                    },
-                }
-            )
+    def _add(item: dict) -> None:
+        cand = _candidate_from_github_item(item)
+        if not cand:
+            return
+        key = normalize_url(cand["url"])
+        if not key or key in seen_urls:
+            return
+        seen_urls.add(key)
+        candidates.append(cand)
+
+    for topic in GITHUB_TOPICS:
+        # Active repos first (pushed), then brand-new (created).
+        for qualifier in (f"pushed:>{since}", f"created:>{since}"):
+            query = f"topic:{topic} {qualifier}"
+            for item in _github_search(query, headers=headers, per_page=30):
+                _add(item)
+
+    # Keyword fallback for repos that skip GitHub topics entirely.
+    for query in (
+        f"mcp server in:name,description pushed:>{since}",
+        "reticle in:name,description",
+    ):
+        for item in _github_search(query, headers=headers, per_page=20):
+            _add(item)
+
+    for full_name in GITHUB_SEED_REPOS:
+        item = _github_repo(full_name, headers=headers)
+        if item:
+            _add(item)
+
+    # Prefer higher-star repos when the downstream run is capped.
+    candidates.sort(
+        key=lambda c: int((c.get("rawSignal") or {}).get("stars") or 0),
+        reverse=True,
+    )
+    logger.info(
+        "GitHub discovery yielded %s candidates (%s topics, %s seeds)",
+        len(candidates),
+        len(GITHUB_TOPICS),
+        len(GITHUB_SEED_REPOS),
+    )
     return candidates
 
 
