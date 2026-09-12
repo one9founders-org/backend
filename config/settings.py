@@ -256,6 +256,27 @@ FIRECRAWL_DISCOVERY_ENABLED = os.getenv(
     "FIRECRAWL_DISCOVERY_ENABLED", ""
 ).strip().lower() in {"1", "true", "yes", "on"}
 
+# TAAFT has no official API. This opt-in adapter reads only public,
+# robots-allowed pages and stages every result for staff review.
+TAAFT_DISCOVERY_ENABLED = os.getenv("TAAFT_DISCOVERY_ENABLED", "").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
+
+# Existing GitHub/HN discovery remains automatic. Aggregator sources default
+# to review-only; explicitly list source keys here only after policy approval.
+EXTERNAL_DISCOVERY_AUTO_PUBLISH_SOURCES = {
+    value.strip().lower()
+    for value in os.getenv("EXTERNAL_DISCOVERY_AUTO_PUBLISH_SOURCES", "").split(",")
+    if value.strip()
+}
+
+# Product Hunt's API is non-commercial by default. Configure this only after
+# Product Hunt has approved the intended usage; RSS remains the safe fallback.
+PRODUCT_HUNT_API_TOKEN = os.getenv("PRODUCT_HUNT_API_TOKEN", "")
+
 # Directory hygiene pass (api/hygiene/).
 # Popularity ranking uses the free Tranco list; refresh with
 # `manage.py refresh_tranco` (monthly is plenty -- ranks move slowly).

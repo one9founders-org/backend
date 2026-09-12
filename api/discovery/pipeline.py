@@ -1,16 +1,26 @@
 """Orchestrate discover -> facts -> generate -> gate -> publish/refresh."""
 
+import hashlib
+import json
 import logging
 from decimal import Decimal, InvalidOperation
 
+from django.conf import settings
 from django.db import IntegrityError
-from django.db.models import F
+from django.db.models import F, Q
 from django.utils import timezone
 from django.utils.text import slugify
 
 from api.hygiene.logos import resolve_logo
 from api.hygiene.track import classify_track
-from api.models import Category, DiscoveryRun, Tool
+from api.models import (
+    Category,
+    DiscoveryRun,
+    ExternalToolCandidate,
+    Tool,
+    ToolFact,
+    ToolSource,
+)
 
 from . import MAX_FIRECRAWL_TOOLS_PER_RUN, MAX_NEW_TOOLS_PER_RUN, REFRESH_NOOP_RATIO
 from .facts import Facts, fetch_facts
@@ -22,7 +32,15 @@ from .india_sources import (
     looks_like_listicle,
 )
 from .quality_gate import passes_quality_gate, similarity_ratio
-from .sources import candidate_signal, canonicalize_http_url, discover_candidates
+from .sources import (
+    candidate_official_url,
+    candidate_signal,
+    candidate_source_url,
+    canonicalize_http_url,
+    discover_candidates,
+    normalize_url,
+    url_host,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +53,213 @@ RETRY_INSTRUCTION = (
     "Paraphrase more aggressively, use different sentence structure, "
     "and do not reuse wording from typical marketing or README copy."
 )
+REVIEW_SOURCES = {"producthunt", "taaft"}
+
+
+def _source_key(candidate: dict) -> str:
+    return (
+        (candidate.get("sourceType") or candidate.get("source") or "").strip().lower()
+    )
+
+
+def stage_external_candidate(
+    candidate: dict,
+) -> tuple[ExternalToolCandidate, bool]:
+    """Persist a reviewable source observation without exposing its raw payload."""
+    source = _source_key(candidate)
+    source_url = candidate_source_url(candidate)
+    if source not in REVIEW_SOURCES:
+        raise ValueError(f"{source or 'unknown'} is not a review source")
+    if not source_url:
+        raise ValueError("source URL is required")
+    raw_payload = candidate.get("rawSignal") or candidate.get("payload") or {}
+    canonical_payload = json.dumps(raw_payload, sort_keys=True, default=str)
+    defaults = {
+        "external_id": (
+            candidate.get("externalId") or candidate.get("external_id") or ""
+        )[:255],
+        "name": (candidate.get("name") or "")[:255],
+        "official_url": candidate_official_url(candidate)[:500],
+        "payload": raw_payload,
+        "content_hash": hashlib.sha256(canonical_payload.encode()).hexdigest(),
+    }
+    identity = Q(source_url=source_url)
+    if defaults["external_id"]:
+        identity |= Q(external_id=defaults["external_id"])
+    existing = (
+        ExternalToolCandidate.objects.filter(source=source).filter(identity).first()
+    )
+    if existing:
+        changed = False
+        for field, value in defaults.items():
+            if field == "official_url" and not value and existing.official_url:
+                continue
+            if getattr(existing, field) != value:
+                setattr(existing, field, value)
+                changed = True
+        if existing.source_url != source_url:
+            existing.source_url = source_url
+            changed = True
+        if existing.status == ExternalToolCandidate.STATUS_ERROR:
+            existing.status = ExternalToolCandidate.STATUS_PENDING
+            changed = True
+        if changed:
+            existing.save()
+        return existing, False
+    return (
+        ExternalToolCandidate.objects.create(
+            source=source,
+            source_url=source_url,
+            **defaults,
+        ),
+        True,
+    )
+
+
+def _attach_source(tool: Tool, candidate: dict) -> ToolSource | None:
+    source = _source_key(candidate)
+    source_url = candidate_source_url(candidate)
+    if not source or not source_url:
+        return None
+    label = dict(ToolSource._meta.get_field("source").choices).get(source, source)
+    reference, _ = ToolSource.objects.update_or_create(
+        tool=tool,
+        source=source,
+        url=source_url,
+        defaults={
+            "label": label,
+            "external_id": (
+                candidate.get("externalId") or candidate.get("external_id") or ""
+            )[:255],
+            "observed_at": timezone.now(),
+        },
+    )
+    return reference
+
+
+def _persist_first_party_facts(tool: Tool, facts: Facts, source_url: str) -> int:
+    """Upsert structured facts extracted from the official product website."""
+    source_url = canonicalize_http_url(source_url or "") or ""
+    if not source_url or is_aggregator_host(source_url) or is_article_path(source_url):
+        return 0
+    now = timezone.now()
+    ToolSource.objects.update_or_create(
+        tool=tool,
+        source="official",
+        url=source_url,
+        defaults={
+            "label": "Official website",
+            "observed_at": now,
+        },
+    )
+    values = {
+        "meta_description": facts.meta_description,
+        "pricing_type": facts.pricing,
+        "pricing_from_usd": facts.pricing_from,
+        "free_tier_available": facts.free_tier_available,
+        "category": facts.category,
+        "categories": facts.categories,
+        "github_url": facts.github_url,
+        "logo_url": facts.logo_url,
+        "india_focused": facts.india_focused,
+        "has_india_pricing": facts.has_india_pricing,
+    }
+    written = 0
+    for field_name, value in values.items():
+        if value is None or value == "" or value == []:
+            continue
+        field_source_url = canonicalize_http_url(
+            facts.field_sources.get(field_name, source_url)
+        )
+        if (
+            not field_source_url
+            or url_host(field_source_url) != url_host(source_url)
+            or is_article_path(field_source_url)
+        ):
+            field_source_url = source_url
+        ToolFact.objects.update_or_create(
+            tool=tool,
+            field_name=field_name,
+            source_url=field_source_url,
+            defaults={
+                "value": value,
+                "source_name": "Official website",
+                "confidence": Decimal("0.95"),
+                "observed_at": now,
+            },
+        )
+        written += 1
+    for page_type, evidence_url in facts.evidence_urls.items():
+        clean_evidence_url = canonicalize_http_url(evidence_url)
+        if not clean_evidence_url or url_host(clean_evidence_url) != url_host(
+            source_url
+        ):
+            continue
+        ToolFact.objects.update_or_create(
+            tool=tool,
+            field_name=f"source_document_{page_type}"[:64],
+            source_url=clean_evidence_url,
+            defaults={
+                "value": {"type": page_type, "url": clean_evidence_url},
+                "source_name": "Official website",
+                "confidence": Decimal("1.00"),
+                "observed_at": now,
+            },
+        )
+        written += 1
+    return written
+
+
+def _existing_tool_for_candidate(candidate: dict) -> Tool | None:
+    official = candidate_official_url(candidate)
+    if official:
+        normalized = normalize_url(official)
+        host = url_host(official)
+        for tool in Tool.objects.filter(website__icontains=host).only(
+            "id", "name", "website"
+        ):
+            if normalize_url(tool.website or "") == normalized:
+                return tool
+    name = (candidate.get("name") or "").strip()
+    if name:
+        return Tool.objects.filter(name__iexact=name).first()
+    return None
+
+
+def approve_external_candidate(candidate: ExternalToolCandidate) -> Tool:
+    """Run a reviewed candidate through dedupe and the existing quality gate."""
+    payload = {
+        "name": candidate.name,
+        "url": candidate.official_url,
+        "officialUrl": candidate.official_url,
+        "sourceUrl": candidate.source_url,
+        "externalId": candidate.external_id,
+        "sourceType": candidate.source,
+        "rawSignal": candidate.payload,
+    }
+    candidate.status = ExternalToolCandidate.STATUS_APPROVED
+    candidate.review_notes = ""
+    candidate.save(update_fields=["status", "review_notes", "updated_at"])
+
+    try:
+        tool = _existing_tool_for_candidate(payload)
+        if tool is None:
+            if not candidate.official_url:
+                raise ValueError("Resolve an official website before approval")
+            result = process_candidate(payload)
+            if not result["passed"]:
+                raise ValueError("; ".join(result["reasons"]))
+            tool = publish_new_tool(result)
+        _attach_source(tool, payload)
+        candidate.linked_tool = tool
+        candidate.status = ExternalToolCandidate.STATUS_PUBLISHED
+        candidate.save(update_fields=["linked_tool", "status", "updated_at"])
+        return tool
+    except Exception as exc:
+        candidate.status = ExternalToolCandidate.STATUS_ERROR
+        candidate.review_notes = str(exc)
+        candidate.save(update_fields=["status", "review_notes", "updated_at"])
+        raise
 
 
 def log_run(
@@ -89,7 +314,7 @@ def _resolve_product_url(serp_url: str, facts: Facts) -> str | None:
 
 def process_candidate(candidate: dict) -> dict:
     name = (candidate.get("name") or "").strip()
-    url = (candidate.get("url") or "").strip()
+    url = candidate_official_url(candidate)
 
     if looks_like_listicle(name, url):
         return _reject(
@@ -357,6 +582,8 @@ def publish_new_tool(result: dict) -> Tool:
 
     tool.save()
     _apply_categories(tool, facts)
+    _persist_first_party_facts(tool, facts, website)
+    _attach_source(tool, candidate)
     return tool
 
 
@@ -375,24 +602,45 @@ def run_new_tool_discovery(
         to_process = ranked[:max_new]
         deferred = ranked[max_new:]
 
-    published = rejected = errored = 0
+    published = rejected = errored = staged = candidate_updates = 0
+    by_source: dict[str, dict[str, int]] = {}
+
+    def increment(source: str, outcome: str) -> None:
+        source_counts = by_source.setdefault(source or "unknown", {})
+        source_counts[outcome] = source_counts.get(outcome, 0) + 1
+
     for candidate in deferred:
         log_run(
             run_type="new",
             tool_name=candidate.get("name") or "",
-            url=candidate.get("url") or "",
+            url=candidate_source_url(candidate) or candidate_official_url(candidate),
             status="deferred",
             reasons="deferred, over cap",
         )
 
     for candidate in to_process:
         name = candidate.get("name") or ""
-        url = candidate.get("url") or ""
+        url = candidate_source_url(candidate) or candidate_official_url(candidate)
+        source = _source_key(candidate)
+        review_record = None
         try:
+            if source in REVIEW_SOURCES:
+                review_record, created = stage_external_candidate(candidate)
+                can_auto_publish = source in getattr(
+                    settings, "EXTERNAL_DISCOVERY_AUTO_PUBLISH_SOURCES", set()
+                )
+                if not can_auto_publish or not candidate_official_url(candidate):
+                    if created:
+                        staged += 1
+                        increment(source, "staged")
+                    else:
+                        candidate_updates += 1
+                        increment(source, "updated")
+                    continue
             result = process_candidate(candidate)
             if result["passed"]:
                 try:
-                    publish_new_tool(result)
+                    tool = publish_new_tool(result)
                 except IntegrityError as exc:
                     log_run(
                         run_type="new",
@@ -402,7 +650,20 @@ def run_new_tool_discovery(
                         reasons=f"duplicate: {exc}",
                     )
                     rejected += 1
+                    increment(source, "rejected")
+                    if review_record:
+                        review_record.status = ExternalToolCandidate.STATUS_REJECTED
+                        review_record.review_notes = f"duplicate: {exc}"
+                        review_record.save(
+                            update_fields=["status", "review_notes", "updated_at"]
+                        )
                     continue
+                if review_record:
+                    review_record.linked_tool = tool
+                    review_record.status = ExternalToolCandidate.STATUS_PUBLISHED
+                    review_record.save(
+                        update_fields=["linked_tool", "status", "updated_at"]
+                    )
                 log_run(
                     run_type="new",
                     tool_name=name,
@@ -410,6 +671,7 @@ def run_new_tool_discovery(
                     status="published",
                 )
                 published += 1
+                increment(source, "published")
             else:
                 log_run(
                     run_type="new",
@@ -419,6 +681,13 @@ def run_new_tool_discovery(
                     reasons="; ".join(result["reasons"]),
                 )
                 rejected += 1
+                increment(source, "rejected")
+                if review_record:
+                    review_record.status = ExternalToolCandidate.STATUS_REJECTED
+                    review_record.review_notes = "; ".join(result["reasons"])
+                    review_record.save(
+                        update_fields=["status", "review_notes", "updated_at"]
+                    )
         except Exception as exc:
             logger.exception("Discovery failed for %s", name)
             log_run(
@@ -429,6 +698,13 @@ def run_new_tool_discovery(
                 reasons=str(exc),
             )
             errored += 1
+            increment(source, "error")
+            if review_record:
+                review_record.status = ExternalToolCandidate.STATUS_ERROR
+                review_record.review_notes = str(exc)
+                review_record.save(
+                    update_fields=["status", "review_notes", "updated_at"]
+                )
 
     return {
         "candidates_found": len(candidates),
@@ -436,6 +712,9 @@ def run_new_tool_discovery(
         "rejected": rejected,
         "errored": errored,
         "deferred_over_cap": len(deferred),
+        "staged": staged,
+        "candidate_updates": candidate_updates,
+        "by_source": by_source,
     }
 
 
@@ -523,6 +802,7 @@ def run_refresh_descriptions(limit: int = 50) -> dict:
             if facts.pricing and tool.pricing_type == "freemium":
                 updates["pricing_type"] = facts.pricing
             Tool.objects.filter(pk=tool.pk).update(**updates)
+            _persist_first_party_facts(tool, facts, tool.website or "")
             if facts.category or facts.categories:
                 _apply_categories(tool, facts)
             log_run(

@@ -7,6 +7,7 @@ from .models import (
     Category,
     Deal,
     DiscoveryRun,
+    ExternalToolCandidate,
     FintechCheck,
     FintechEvidencePage,
     FintechRating,
@@ -21,6 +22,8 @@ from .models import (
     Review,
     SiteConfig,
     Tool,
+    ToolFact,
+    ToolSource,
     ToolSubmission,
     User,
     UserFavorite,
@@ -119,6 +122,82 @@ class DiscoveryRunAdmin(admin.ModelAdmin):
         "created_at",
     ]
     ordering = ["-created_at"]
+
+
+@admin.register(ExternalToolCandidate)
+class ExternalToolCandidateAdmin(admin.ModelAdmin):
+    list_display = [
+        "name",
+        "source",
+        "status",
+        "linked_tool",
+        "discovered_at",
+    ]
+    list_filter = ["source", "status", "discovered_at"]
+    search_fields = ["name", "source_url", "official_url", "external_id"]
+    readonly_fields = [
+        "source",
+        "external_id",
+        "source_url",
+        "name",
+        "payload",
+        "content_hash",
+        "linked_tool",
+        "discovered_at",
+        "updated_at",
+    ]
+    actions = ["approve_candidates", "reject_candidates"]
+
+    @admin.action(description="Approve selected candidates")
+    def approve_candidates(self, request, queryset):
+        from .discovery.pipeline import approve_external_candidate
+
+        published = failed = 0
+        for candidate in queryset:
+            try:
+                approve_external_candidate(candidate)
+                published += 1
+            except Exception as exc:
+                failed += 1
+                candidate.status = ExternalToolCandidate.STATUS_ERROR
+                candidate.review_notes = str(exc)
+                candidate.save(update_fields=["status", "review_notes", "updated_at"])
+        if published:
+            self.message_user(request, f"Approved {published} candidate(s).")
+        if failed:
+            self.message_user(
+                request, f"{failed} candidate(s) failed approval.", level="error"
+            )
+
+    @admin.action(description="Reject selected candidates")
+    def reject_candidates(self, request, queryset):
+        updated = queryset.exclude(
+            status=ExternalToolCandidate.STATUS_PUBLISHED
+        ).update(status=ExternalToolCandidate.STATUS_REJECTED)
+        self.message_user(request, f"Rejected {updated} candidate(s).")
+
+
+@admin.register(ToolSource)
+class ToolSourceAdmin(admin.ModelAdmin):
+    list_display = ["tool", "source", "label", "observed_at"]
+    list_filter = ["source", "observed_at"]
+    search_fields = ["tool__name", "url", "external_id", "label"]
+    raw_id_fields = ["tool"]
+
+
+@admin.register(ToolFact)
+class ToolFactAdmin(admin.ModelAdmin):
+    list_display = [
+        "tool",
+        "field_name",
+        "source_name",
+        "confidence",
+        "observed_at",
+    ]
+    list_filter = ["field_name", "source_name", "observed_at"]
+    search_fields = ["tool__name", "field_name", "source_url"]
+    raw_id_fields = ["tool"]
+    readonly_fields = ["created_at", "updated_at"]
 
 
 @admin.register(Review)
