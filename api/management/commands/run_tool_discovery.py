@@ -33,3 +33,12 @@ class Command(BaseCommand):
         self.stdout.write(f"Rejected: {summary['rejected']}")
         self.stdout.write(f"Errored: {summary['errored']}")
         self.stdout.write(f"Deferred over cap: {summary['deferred_over_cap']}")
+        self.stdout.write(f"Staged for review: {summary.get('staged', 0)}")
+        self.stdout.write(
+            f"Existing candidates updated: {summary.get('candidate_updates', 0)}"
+        )
+        for source, counts in sorted(summary.get("by_source", {}).items()):
+            formatted = ", ".join(
+                f"{outcome}={count}" for outcome, count in sorted(counts.items())
+            )
+            self.stdout.write(f"{source}: {formatted}")

@@ -173,7 +173,9 @@ def _tool_ordering(raw: str) -> list:
 
 
 class ToolViewSet(viewsets.ModelViewSet):
-    queryset = publishable_queryset().prefetch_related("categories")
+    queryset = publishable_queryset().prefetch_related(
+        "categories", "source_references"
+    )
     authentication_classes = [OptionalJWTAuthentication, SessionAuthentication]
     permission_classes = [IsStaffOrReadOnly]
     lookup_field = "slug"

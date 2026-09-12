@@ -1,4 +1,5 @@
-from unittest.mock import patch
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
 
 import pytest
 from django.urls import reverse
@@ -9,9 +10,12 @@ from api.discovery.facts import Facts
 from api.discovery.quality_gate import passes_quality_gate, similarity_ratio
 from api.discovery.sources import (
     dedupe_candidates,
+    fetch_product_hunt_candidates,
+    fetch_taaft_candidates,
     normalize_name,
     normalize_url,
 )
+from api.models import ExternalToolCandidate, ToolSource
 from tests.factories import ToolFactory
 
 
@@ -78,6 +82,157 @@ class TestDedupe:
         result = dedupe_candidates(candidates)
         assert len(result) == 1
         assert result[0]["name"] == "Brand New Tool"
+
+
+class TestExternalSources:
+    def test_product_hunt_uses_feed_as_source_without_detail_url(self):
+        entry = {
+            "title": "Demo AI — Write faster",
+            "summary": "An AI writing assistant",
+            "link": "https://www.producthunt.com/posts/demo-ai",
+        }
+        with patch(
+            "api.discovery.sources.feedparser.parse",
+            return_value=SimpleNamespace(entries=[entry]),
+        ):
+            candidates = fetch_product_hunt_candidates()
+
+        assert candidates == [
+            {
+                "name": "Demo AI",
+                "url": "",
+                "sourceUrl": "https://www.producthunt.com/posts/demo-ai",
+                "officialUrl": "",
+                "externalId": "demo-ai",
+                "sourceType": "producthunt",
+                "rawSignal": {
+                    "upvotes": 0,
+                    "title": "Demo AI — Write faster",
+                    "summary": "An AI writing assistant",
+                },
+            }
+        ]
+
+    def test_taaft_reads_only_robots_allowed_public_pages(self):
+        listing = Mock()
+        listing.text = '<a href="/ai/demo-ai/">Demo AI</a>'
+        listing.raise_for_status.return_value = None
+        detail = Mock()
+        detail.text = (
+            '<meta name="description" content="A demo assistant">'
+            '<a href="https://demo.example" rel="nofollow">Open website</a>'
+        )
+        detail.raise_for_status.return_value = None
+
+        with (
+            patch("api.discovery.sources._robots_allows", return_value=True) as allowed,
+            patch(
+                "api.discovery.sources.requests.get",
+                side_effect=[listing, detail],
+            ),
+        ):
+            candidates = fetch_taaft_candidates(limit=1)
+
+        assert allowed.call_count == 2
+        assert candidates[0]["sourceType"] == "taaft"
+        assert candidates[0]["sourceUrl"] == (
+            "https://theresanaiforthat.com/ai/demo-ai/"
+        )
+        assert candidates[0]["officialUrl"] == "https://demo.example"
+
+    def test_taaft_stops_when_robots_disallows_listing(self):
+        with (
+            patch("api.discovery.sources._robots_allows", return_value=False),
+            patch("api.discovery.sources.requests.get") as request,
+        ):
+            assert fetch_taaft_candidates() == []
+        request.assert_not_called()
+
+
+@pytest.mark.django_db
+class TestCandidateReview:
+    def test_stage_is_idempotent_and_refreshes_payload(self):
+        from api.discovery.pipeline import stage_external_candidate
+
+        candidate = {
+            "name": "Demo",
+            "sourceType": "producthunt",
+            "sourceUrl": "https://www.producthunt.com/posts/demo",
+            "rawSignal": {"upvotes": 1},
+        }
+        first, created = stage_external_candidate(candidate)
+        candidate["rawSignal"]["upvotes"] = 2
+        second, created_again = stage_external_candidate(candidate)
+
+        assert created is True
+        assert created_again is False
+        assert first.pk == second.pk
+        assert second.payload["upvotes"] == 2
+        assert ExternalToolCandidate.objects.count() == 1
+
+    def test_review_source_is_staged_without_fetching_detail(self, settings):
+        from api.discovery.pipeline import run_new_tool_discovery
+
+        settings.EXTERNAL_DISCOVERY_AUTO_PUBLISH_SOURCES = set()
+        candidate = {
+            "name": "Demo",
+            "url": "",
+            "sourceType": "producthunt",
+            "sourceUrl": "https://www.producthunt.com/posts/demo",
+            "rawSignal": {"summary": "AI demo"},
+        }
+        with patch("api.discovery.pipeline.process_candidate") as process:
+            result = run_new_tool_discovery(candidates=[candidate], max_new=10)
+
+        process.assert_not_called()
+        assert result["staged"] == 1
+        assert result["by_source"] == {"producthunt": {"staged": 1}}
+
+    def test_approval_links_existing_tool_and_publishes_source(self):
+        from api.discovery.pipeline import approve_external_candidate
+
+        tool = ToolFactory(name="Demo Tool", website="https://demo.example")
+        candidate = ExternalToolCandidate.objects.create(
+            source="producthunt",
+            source_url="https://www.producthunt.com/posts/demo-tool",
+            official_url="https://www.demo.example/",
+            external_id="demo-tool",
+            name="Demo Tool",
+            payload={"summary": "Demo"},
+        )
+
+        result = approve_external_candidate(candidate)
+
+        candidate.refresh_from_db()
+        assert result == tool
+        assert candidate.status == ExternalToolCandidate.STATUS_PUBLISHED
+        assert candidate.linked_tool == tool
+        reference = ToolSource.objects.get(tool=tool)
+        assert reference.source == "producthunt"
+        assert reference.url == candidate.source_url
+
+    def test_tool_api_exposes_attribution_but_not_raw_payload(self):
+        tool = ToolFactory()
+        ToolSource.objects.create(
+            tool=tool,
+            source="g2",
+            label="G2",
+            url="https://www.g2.com/products/example",
+        )
+        ExternalToolCandidate.objects.create(
+            source="taaft",
+            source_url="https://theresanaiforthat.com/ai/example/",
+            name=tool.name,
+            payload={"private": "source snippet"},
+            linked_tool=tool,
+        )
+
+        response = APIClient().get(reverse("tool-detail", kwargs={"slug": tool.slug}))
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["sources"][0]["source"] == "g2"
+        assert "payload" not in response.data
+        assert "source snippet" not in str(response.data)
 
 
 @pytest.mark.django_db

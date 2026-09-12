@@ -4,6 +4,7 @@ import math
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django_summernote.fields import SummernoteTextField
+from django.utils import timezone
 from pgvector.django import VectorField
 
 from .hygiene.classify import ENTRY_TYPE_CHOICES
@@ -11,6 +12,15 @@ from .hygiene.linkcheck import LINK_STATUS_CHOICES
 from .hygiene.track import AI_TOOL, TRACK_CHOICES
 
 logger = logging.getLogger(__name__)
+
+EXTERNAL_SOURCE_CHOICES = [
+    ("producthunt", "Product Hunt"),
+    ("taaft", "There's An AI For That"),
+    ("g2", "G2"),
+    ("linkedin", "LinkedIn"),
+    ("github", "GitHub"),
+    ("hackernews", "Hacker News"),
+]
 
 
 class User(AbstractUser):
@@ -1199,6 +1209,103 @@ class DiscoveryRun(models.Model):
 
     def __str__(self):
         return f"{self.run_type} {self.status}: {self.tool_name}"
+
+
+class ExternalToolCandidate(models.Model):
+    """A source observation waiting for review or linked to a Tool."""
+
+    STATUS_PENDING = "pending"
+    STATUS_APPROVED = "approved"
+    STATUS_REJECTED = "rejected"
+    STATUS_PUBLISHED = "published"
+    STATUS_ERROR = "error"
+    STATUS_CHOICES = [
+        (STATUS_PENDING, "Pending"),
+        (STATUS_APPROVED, "Approved"),
+        (STATUS_REJECTED, "Rejected"),
+        (STATUS_PUBLISHED, "Published"),
+        (STATUS_ERROR, "Error"),
+    ]
+
+    source = models.CharField(
+        max_length=32, choices=EXTERNAL_SOURCE_CHOICES, db_index=True
+    )
+    external_id = models.CharField(max_length=255, blank=True)
+    source_url = models.URLField(max_length=500)
+    name = models.CharField(max_length=255)
+    official_url = models.URLField(max_length=500, blank=True)
+    payload = models.JSONField(default=dict, blank=True)
+    content_hash = models.CharField(max_length=64, blank=True, db_index=True)
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default=STATUS_PENDING,
+        db_index=True,
+    )
+    review_notes = models.TextField(blank=True)
+    linked_tool = models.ForeignKey(
+        Tool,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="external_candidates",
+    )
+    discovered_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "external_tool_candidates"
+        ordering = ["-discovered_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["source", "source_url"],
+                name="uniq_external_candidate_source_url",
+            ),
+            models.UniqueConstraint(
+                fields=["source", "external_id"],
+                condition=~models.Q(external_id=""),
+                name="uniq_external_candidate_external_id",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=["source", "status"],
+                name="extcand_source_status_idx",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.get_source_display()}: {self.name}"
+
+
+class ToolSource(models.Model):
+    """Public attribution for a source used to discover or verify a Tool."""
+
+    tool = models.ForeignKey(
+        Tool, on_delete=models.CASCADE, related_name="source_references"
+    )
+    source = models.CharField(
+        max_length=32, choices=EXTERNAL_SOURCE_CHOICES, db_index=True
+    )
+    label = models.CharField(max_length=120, blank=True)
+    url = models.URLField(max_length=500)
+    external_id = models.CharField(max_length=255, blank=True)
+    observed_at = models.DateTimeField(default=timezone.now)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "tool_sources"
+        ordering = ["source", "-observed_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["tool", "source", "url"],
+                name="uniq_tool_source_reference",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.tool.name} — {self.get_source_display()}"
 
 
 def _new_stack_public_id() -> str:
