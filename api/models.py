@@ -3,8 +3,8 @@ import math
 
 from django.contrib.auth.models import AbstractUser
 from django.db import models
-from django_summernote.fields import SummernoteTextField
 from django.utils import timezone
+from django_summernote.fields import SummernoteTextField
 from pgvector.django import VectorField
 
 from .hygiene.classify import ENTRY_TYPE_CHOICES
