@@ -1,0 +1,69 @@
+name: Run full HN catalog publish
+
+# Push-triggered (no workflow_dispatch) so the cloud agent token can start it.
+on:
+  push:
+    paths:
+      - "scripts/run_hn_catalog_full.flag"
+    branches:
+      - main
+      - "cursor/hn-catalog-fetch-logs-e1c4"
+      - "cursor/hn-catalog-lint-fix-deploy-e1c4"
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Start full HN catalogue publish on EC2
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
+          timeout: 180s
+          script: |
+            set -e
+            cd /var/www/one9founders
+            echo "===== containers ====="
+            docker compose ps
+            echo "===== python processes before ====="
+            docker compose exec -T web ps aux | grep -E 'python|manage' | grep -v grep || echo "(none)"
+            echo "===== stop prior HN catalogue ====="
+            docker compose exec -T web bash -lc '
+              pids=$(ps aux | grep -E "discover_hn_catalog|discover_hn_catalog" | grep -v grep | awk "{print \$2}" || true)
+              if [ -n "$pids" ]; then
+                echo "killing: $pids"
+                kill $pids 2>/dev/null || true
+                sleep 2
+              else
+                echo "no prior process"
+              fi
+            '
+            echo "===== truncate prior logs ====="
+            docker compose exec -T web bash -lc '
+              : > /app/backend/hn-catalog-dry-run.log
+              : > /app/backend/hn-catalog-publish.log
+            '
+            echo "===== start nohup dry-run then --max-new 5000 ====="
+            docker compose exec -T web bash -lc '
+              nohup bash -lc "
+                set -o pipefail
+                cd /app/backend
+                python manage.py discover_hn_catalog --dry-run >> /app/backend/hn-catalog-dry-run.log 2>&1
+                echo DRY_RUN_EXIT=\$? >> /app/backend/hn-catalog-dry-run.log
+                python manage.py discover_hn_catalog --max-new 5000 >> /app/backend/hn-catalog-publish.log 2>&1
+                echo PUBLISH_EXIT=\$? >> /app/backend/hn-catalog-publish.log
+              " > /tmp/hn-catalog-launcher.log 2>&1 &
+              echo launched_pid=\$!
+              sleep 3
+              ps aux | grep -E "discover_hn|manage.py" | grep -v grep || echo "(process not visible yet)"
+              echo "--- launcher ---"
+              cat /tmp/hn-catalog-launcher.log 2>/dev/null || true
+              echo "--- dry-run head ---"
+              head -n 20 /app/backend/hn-catalog-dry-run.log 2>/dev/null || true
+            '
+            touch /var/www/one9founders/hn-catalog-bootstrapped-v3
+            echo "Forced start of HN dry-run + full publish (--max-new 5000)"

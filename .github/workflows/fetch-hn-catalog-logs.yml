@@ -27,12 +27,14 @@ jobs:
             set -e
             cd /var/www/one9founders
             echo "===== container processes ====="
-            docker compose exec -T web ps aux | grep -E 'discover_hn|manage.py' | grep -v grep || echo "(no discover_hn process)"
+            docker compose exec -T web ps aux | grep -E 'python|discover_hn|manage.py' | grep -v grep || echo "(no discover_hn process)"
+            echo "===== v3 marker ====="
+            ls -la /var/www/one9founders/hn-catalog-bootstrapped-v3 2>/dev/null || echo "no v3 marker"
             echo "===== dry-run log ====="
             docker compose exec -T web bash -lc '
               if [ -f /app/backend/hn-catalog-dry-run.log ]; then
                 wc -l /app/backend/hn-catalog-dry-run.log
-                grep -E "^(scraped:|already_on_site:|new_candidates:|Dry run complete|DRY_RUN_EXIT|Scraping Hacker News)" /app/backend/hn-catalog-dry-run.log || true
+                cat /app/backend/hn-catalog-dry-run.log || true
                 echo "--- already on site (head) ---"
                 grep "\\[on-site\\]" /app/backend/hn-catalog-dry-run.log | head -40 || true
                 echo "--- new candidates (head) ---"

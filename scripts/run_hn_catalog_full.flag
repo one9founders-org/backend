@@ -1,0 +1,2 @@
+# Push this file to start discover_hn_catalog --max-new 5000 on EC2.
+# trigger: 2026-09-12T23:08Z force full HN publish after silent deploy bootstrap
