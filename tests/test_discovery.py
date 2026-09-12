@@ -675,6 +675,24 @@ class TestGitHubDiscoveryExpansion:
         assert star_clause(100, 119) == "stars:100..119"
         assert star_clause(10000, None) == "stars:>=10000"
 
+
+    def test_hn_attribution_credits_discussion(self):
+        from api.discovery.facts import Facts
+        from api.discovery.generate import hn_attribution_description
+
+        text = hn_attribution_description(
+            "WidgetAI",
+            Facts(meta_description="Show HN: WidgetAI – AI helper for founders"),
+            product_url="https://widget.ai",
+            hn_url="https://news.ycombinator.com/item?id=1",
+            points=42,
+            story_title="Show HN: WidgetAI – AI helper for founders",
+        )
+        assert "WidgetAI" in text
+        assert "Hacker News" in text
+        assert "news.ycombinator.com" in text
+        assert len(text.split()) >= 30
+
     def test_oss_attribution_credits_maintainers(self):
         from api.discovery.facts import Facts
         from api.discovery.generate import oss_attribution_description
