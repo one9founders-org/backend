@@ -167,19 +167,25 @@ def approve_external_candidate(candidate: ExternalToolCandidate) -> Tool:
     candidate.review_notes = ""
     candidate.save(update_fields=["status", "review_notes", "updated_at"])
 
-    tool = _existing_tool_for_candidate(payload)
-    if tool is None:
-        if not candidate.official_url:
-            raise ValueError("Resolve an official website before approval")
-        result = process_candidate(payload)
-        if not result["passed"]:
-            raise ValueError("; ".join(result["reasons"]))
-        tool = publish_new_tool(result)
-    _attach_source(tool, payload)
-    candidate.linked_tool = tool
-    candidate.status = ExternalToolCandidate.STATUS_PUBLISHED
-    candidate.save(update_fields=["linked_tool", "status", "updated_at"])
-    return tool
+    try:
+        tool = _existing_tool_for_candidate(payload)
+        if tool is None:
+            if not candidate.official_url:
+                raise ValueError("Resolve an official website before approval")
+            result = process_candidate(payload)
+            if not result["passed"]:
+                raise ValueError("; ".join(result["reasons"]))
+            tool = publish_new_tool(result)
+        _attach_source(tool, payload)
+        candidate.linked_tool = tool
+        candidate.status = ExternalToolCandidate.STATUS_PUBLISHED
+        candidate.save(update_fields=["linked_tool", "status", "updated_at"])
+        return tool
+    except Exception as exc:
+        candidate.status = ExternalToolCandidate.STATUS_ERROR
+        candidate.review_notes = str(exc)
+        candidate.save(update_fields=["status", "review_notes", "updated_at"])
+        raise
 
 
 def log_run(

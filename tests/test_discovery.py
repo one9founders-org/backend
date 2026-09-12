@@ -10,6 +10,7 @@ from api.discovery.facts import Facts
 from api.discovery.quality_gate import passes_quality_gate, similarity_ratio
 from api.discovery.sources import (
     dedupe_candidates,
+    fetch_all_candidates,
     fetch_product_hunt_candidates,
     fetch_taaft_candidates,
     normalize_name,
@@ -148,6 +149,32 @@ class TestExternalSources:
             assert fetch_taaft_candidates() == []
         request.assert_not_called()
 
+    def test_one_source_failure_does_not_abort_other_sources(self, settings):
+        settings.TAAFT_DISCOVERY_ENABLED = False
+        product_hunt = {
+            "name": "Demo",
+            "sourceType": "producthunt",
+            "sourceUrl": "https://www.producthunt.com/posts/demo",
+        }
+
+        def failing_source():
+            raise RuntimeError("rate limited")
+
+        with (
+            patch(
+                "api.discovery.sources.fetch_github_candidates",
+                new=failing_source,
+            ),
+            patch(
+                "api.discovery.sources.fetch_product_hunt_candidates",
+                return_value=[product_hunt],
+            ),
+            patch(
+                "api.discovery.sources.fetch_hacker_news_candidates", return_value=[]
+            ),
+        ):
+            assert fetch_all_candidates() == [product_hunt]
+
 
 @pytest.mark.django_db
 class TestCandidateReview:
@@ -211,6 +238,22 @@ class TestCandidateReview:
         assert reference.source == "producthunt"
         assert reference.url == candidate.source_url
 
+    def test_failed_approval_records_error_for_review(self):
+        from api.discovery.pipeline import approve_external_candidate
+
+        candidate = ExternalToolCandidate.objects.create(
+            source="producthunt",
+            source_url="https://www.producthunt.com/posts/unresolved-demo",
+            name="Unresolved Demo",
+        )
+
+        with pytest.raises(ValueError, match="official website"):
+            approve_external_candidate(candidate)
+
+        candidate.refresh_from_db()
+        assert candidate.status == ExternalToolCandidate.STATUS_ERROR
+        assert "official website" in candidate.review_notes
+
     def test_tool_api_exposes_attribution_but_not_raw_payload(self):
         tool = ToolFactory()
         ToolSource.objects.create(
@@ -227,12 +270,40 @@ class TestCandidateReview:
             linked_tool=tool,
         )
 
-        response = APIClient().get(reverse("tool-detail", kwargs={"slug": tool.slug}))
+        with (
+            patch(
+                "api.views.ToolViewSet.get_queryset",
+                return_value=tool.__class__.objects.filter(pk=tool.pk).prefetch_related(
+                    "categories", "source_references"
+                ),
+            ),
+            patch("api.serializers.CategorySerializer.get_tool_count", return_value=1),
+        ):
+            response = APIClient().get(
+                reverse("tool-detail", kwargs={"slug": tool.slug})
+            )
 
         assert response.status_code == status.HTTP_200_OK
         assert response.data["sources"][0]["source"] == "g2"
         assert "payload" not in response.data
         assert "source snippet" not in str(response.data)
+
+    def test_anonymous_user_cannot_mutate_candidate_in_admin(self):
+        candidate = ExternalToolCandidate.objects.create(
+            source="producthunt",
+            source_url="https://www.producthunt.com/posts/private-demo",
+            name="Private Demo",
+        )
+
+        response = APIClient().post(
+            reverse("admin:api_externaltoolcandidate_changelist"),
+            {"action": "reject_candidates", "_selected_action": [candidate.pk]},
+        )
+
+        candidate.refresh_from_db()
+        assert response.status_code == status.HTTP_302_FOUND
+        assert "/admin/login/" in response["Location"]
+        assert candidate.status == ExternalToolCandidate.STATUS_PENDING
 
 
 @pytest.mark.django_db
