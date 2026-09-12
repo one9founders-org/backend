@@ -145,6 +145,21 @@ def candidate_official_url(candidate: dict) -> str:
     ).strip()
 
 
+def candidate_identity_url(candidate: dict) -> str:
+    """URL used for self-dedupe / catalog identity.
+
+    Review sources (Product Hunt, TAAFT) key off the listing page because the
+    official site may still be unresolved. Everyone else — especially Hacker
+    News — must key off the official product URL: HN ``sourceUrl`` values look
+    like ``news.ycombinator.com/item?id=…``, and ``normalize_url`` strips the
+    query string, which would collapse every story onto one key.
+    """
+    source = (candidate.get("sourceType") or candidate.get("source") or "").lower()
+    if source in {"producthunt", "taaft"}:
+        return candidate_source_url(candidate) or candidate_official_url(candidate)
+    return candidate_official_url(candidate) or candidate_source_url(candidate)
+
+
 def _github_headers() -> dict:
     headers = {
         "Accept": "application/vnd.github+json",
@@ -1155,13 +1170,13 @@ def partition_against_catalog(
     ranked = sorted(candidates, key=candidate_signal, reverse=True)
     for candidate in ranked:
         name = (candidate.get("name") or "").strip()
-        identity_url = candidate_source_url(candidate) or candidate_official_url(
-            candidate
-        )
+        identity_url = candidate_identity_url(candidate)
         if not name or not identity_url:
             continue
         url_key = normalize_url(identity_url)
         name_key = normalize_name(name)
+        if not url_key:
+            continue
         if url_key in seen_urls or (name_key and name_key in seen_names):
             continue
         seen_urls.add(url_key)
@@ -1415,13 +1430,13 @@ def dedupe_candidates(candidates: list[dict]) -> list[dict]:
     ranked = sorted(candidates, key=candidate_signal, reverse=True)
     for candidate in ranked:
         name = (candidate.get("name") or "").strip()
-        source_url = candidate_source_url(candidate)
-        official_url = candidate_official_url(candidate)
-        identity_url = source_url or official_url
+        identity_url = candidate_identity_url(candidate)
         if not name or not identity_url:
             continue
         url_key = normalize_url(identity_url)
         name_key = normalize_name(name)
+        if not url_key:
+            continue
         if url_key in seen_urls or (name_key and name_key in seen_names):
             continue
         if (candidate.get("sourceType") or "").lower() not in {
