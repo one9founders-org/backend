@@ -7,6 +7,7 @@ on:
       - "scripts/fetch_hn_catalog_logs.flag"
     branches:
       - main
+      - "cursor/hn-catalog-fetch-logs-e1c4"
 
 jobs:
   fetch:
