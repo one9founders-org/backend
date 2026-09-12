@@ -1,0 +1,20 @@
+{
+  "name": "One9Founders Backend (dev)",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "user": "ubuntu",
+  "install": "bash .cursor/install.sh",
+  "start": "bash .cursor/start.sh",
+  "terminals": [
+    {
+      "name": "backend",
+      "command": "cd /agent/repos/backend && . venv/bin/activate && python manage.py runserver 0.0.0.0:8000"
+    },
+    {
+      "name": "frontend",
+      "command": "if [ -d /agent/repos/frontend ]; then cd /agent/repos/frontend && npm run dev; else echo 'frontend repo not present in workspace'; sleep infinity; fi"
+    }
+  ],
+  "ports": [8000, 3000]
+}
