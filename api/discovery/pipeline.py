@@ -24,7 +24,7 @@ from api.models import (
 
 from . import MAX_FIRECRAWL_TOOLS_PER_RUN, MAX_NEW_TOOLS_PER_RUN, REFRESH_NOOP_RATIO
 from .facts import Facts, fetch_facts
-from .generate import generate_description
+from .generate import FORGE_SOURCES, generate_description, oss_attribution_description
 from .india_sources import (
     is_aggregator_host,
     is_article_path,
@@ -441,18 +441,38 @@ def process_candidate(candidate: dict) -> dict:
                 facts=facts,
             )
 
-    generated = generate_description(name, facts)
-    passed, reasons = passes_quality_gate(name, generated, facts, facts.source_text)
-
-    if (
-        not passed
-        and reasons
-        and all(reason.startswith(SIMILARITY_ONLY_PREFIX) for reason in reasons)
-    ):
-        generated = generate_description(
-            name, facts, extra_instruction=RETRY_INSTRUCTION
+    source_type = (candidate.get("sourceType") or "").strip().lower()
+    use_oss_template = source_type in FORGE_SOURCES or bool(
+        candidate.get("useOssTemplate")
+    )
+    if use_oss_template:
+        # Ensure quality gate has pricing/category for forge repos.
+        if not facts.pricing:
+            facts.pricing = "free"
+        if not facts.category:
+            facts.category = "open-source"
+        generated = oss_attribution_description(
+            name,
+            facts,
+            source_url=url,
+            source_type=source_type or "github",
         )
+        passed, reasons = passes_quality_gate(name, generated, facts, source_text="")
+    else:
+        generated = generate_description(name, facts)
         passed, reasons = passes_quality_gate(name, generated, facts, facts.source_text)
+
+        if (
+            not passed
+            and reasons
+            and all(reason.startswith(SIMILARITY_ONLY_PREFIX) for reason in reasons)
+        ):
+            generated = generate_description(
+                name, facts, extra_instruction=RETRY_INSTRUCTION
+            )
+            passed, reasons = passes_quality_gate(
+                name, generated, facts, facts.source_text
+            )
 
     return {
         "name": name,
@@ -591,9 +611,10 @@ def run_new_tool_discovery(
     max_new: int | None = MAX_NEW_TOOLS_PER_RUN,
     *,
     candidates: list[dict] | None = None,
+    full_github_sweep: bool = False,
 ) -> dict:
     if candidates is None:
-        candidates = discover_candidates()
+        candidates = discover_candidates(full_github_sweep=full_github_sweep)
     ranked = sorted(candidates, key=candidate_signal, reverse=True)
     if max_new is None:
         to_process = ranked
