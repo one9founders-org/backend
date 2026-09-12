@@ -1010,6 +1010,49 @@ class TestHackerNewsDiscovery:
         assert len(fresh) == 1
         assert fresh[0]["name"] == "Brand New HN Tool"
 
+    def test_partition_does_not_collapse_hn_item_query_strings(self):
+        """HN sourceUrl is item?id=N; normalize_url strips ?id=, so identity
+        must use the official product URL or every story collapses to one."""
+        from api.discovery.sources import partition_against_catalog
+
+        scraped = [
+            {
+                "name": "Tool Alpha AI",
+                "url": "https://alpha.example",
+                "officialUrl": "https://alpha.example",
+                "sourceUrl": "https://news.ycombinator.com/item?id=111",
+                "sourceType": "hackernews",
+                "rawSignal": {"points": 50},
+            },
+            {
+                "name": "Tool Beta LLM",
+                "url": "https://beta.example",
+                "officialUrl": "https://beta.example",
+                "sourceUrl": "https://news.ycombinator.com/item?id=222",
+                "sourceType": "hackernews",
+                "rawSignal": {"points": 40},
+            },
+            {
+                "name": "Tool Gamma Agent",
+                "url": "https://gamma.example",
+                "officialUrl": "https://gamma.example",
+                "sourceUrl": "https://news.ycombinator.com/item?id=333",
+                "sourceType": "hackernews",
+                "rawSignal": {"points": 30},
+            },
+        ]
+        with patch(
+            "api.discovery.sources._existing_tools_for_candidates",
+            return_value=[],
+        ):
+            already, fresh = partition_against_catalog(scraped)
+        assert already == []
+        assert {row["name"] for row in fresh} == {
+            "Tool Alpha AI",
+            "Tool Beta LLM",
+            "Tool Gamma Agent",
+        }
+
     @pytest.mark.django_db
     def test_hn_catalog_dry_run_reports_cross_check_without_writes(self):
         ToolFactory(name="Known", website="https://known.example")
