@@ -1,0 +1,56 @@
+name: Fetch HN catalog logs
+
+# Push-triggered (no workflow_dispatch) so the cloud agent token can start it.
+on:
+  push:
+    paths:
+      - "scripts/fetch_hn_catalog_logs.flag"
+    branches:
+      - main
+      - "cursor/hn-catalog-fetch-logs-e1c4"
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Print HN catalog logs from EC2
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
+          timeout: 120s
+          script: |
+            set -e
+            cd /var/www/one9founders
+            echo "===== container processes ====="
+            docker compose exec -T web ps aux | grep -E 'discover_hn|manage.py' | grep -v grep || echo "(no discover_hn process)"
+            echo "===== dry-run log ====="
+            docker compose exec -T web bash -lc '
+              if [ -f /app/backend/hn-catalog-dry-run.log ]; then
+                wc -l /app/backend/hn-catalog-dry-run.log
+                grep -E "^(scraped:|already_on_site:|new_candidates:|Dry run complete|DRY_RUN_EXIT|Scraping Hacker News)" /app/backend/hn-catalog-dry-run.log || true
+                echo "--- already on site (head) ---"
+                grep "\\[on-site\\]" /app/backend/hn-catalog-dry-run.log | head -40 || true
+                echo "--- new candidates (head) ---"
+                grep "\\[new\\]" /app/backend/hn-catalog-dry-run.log | head -40 || true
+                echo "--- tail ---"
+                tail -n 40 /app/backend/hn-catalog-dry-run.log
+              else
+                echo "missing /app/backend/hn-catalog-dry-run.log"
+              fi
+            '
+            echo "===== publish log (tail) ====="
+            docker compose exec -T web bash -lc '
+              if [ -f /app/backend/hn-catalog-publish.log ]; then
+                wc -l /app/backend/hn-catalog-publish.log
+                tail -n 100 /app/backend/hn-catalog-publish.log
+              else
+                echo "missing /app/backend/hn-catalog-publish.log (publish may not have started yet)"
+              fi
+            '
+            echo "===== marker ====="
+            ls -la /var/www/one9founders/hn-catalog-bootstrapped 2>/dev/null || echo "no marker"

@@ -220,11 +220,11 @@ jobs:
             # Capped free-source discovery; does not call Firecrawl by default.
             docker compose exec -d web python manage.py run_tool_discovery --max-new 40
 
-            # One-shot HN catalogue bootstrap (dry-run cross-check, then publish).
-            # Run fully detached: full Algolia sweep exceeds the deploy SSH timeout.
-            # Marker prevents re-running on later deploys.
-            if [ ! -f /var/www/one9founders/hn-catalog-bootstrapped ]; then
-              echo "===== HN CATALOGUE (dry-run then publish, detached) ====="
+            # One-shot HN catalogue bootstrap v2 (dry-run cross-check, then publish).
+            # v2 marker: re-run after identity-URL fix (v1 collapsed item?id= keys).
+            # Detached because full Algolia sweep exceeds the deploy SSH timeout.
+            if [ ! -f /var/www/one9founders/hn-catalog-bootstrapped-v2 ]; then
+              echo "===== HN CATALOGUE v2 (dry-run then publish, detached) ====="
               docker compose exec -d web bash -lc '
                 set -o pipefail
                 python manage.py discover_hn_catalog --dry-run \
@@ -234,7 +234,7 @@ jobs:
                   > /app/backend/hn-catalog-publish.log 2>&1
                 echo "PUBLISH_EXIT=$?" >> /app/backend/hn-catalog-publish.log
               '
-              touch /var/www/one9founders/hn-catalog-bootstrapped
+              touch /var/www/one9founders/hn-catalog-bootstrapped-v2
               echo "Started detached HN dry-run + publish (logs in container /app/backend/hn-catalog-*.log)"
             fi
 
