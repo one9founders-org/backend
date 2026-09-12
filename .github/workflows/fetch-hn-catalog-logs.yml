@@ -71,10 +71,23 @@ jobs:
               if [ -f /app/backend/hn-catalog-publish.log ]; then
                 ls -la /app/backend/hn-catalog-publish.log
                 wc -l /app/backend/hn-catalog-publish.log
-                tail -n 100 /app/backend/hn-catalog-publish.log
+                echo "--- progress counts ---"
+                echo -n "embedding_ok_lines="; grep -c "embeddings" /app/backend/hn-catalog-publish.log || true
+                echo -n "PUBLISH_EXIT="; grep "PUBLISH_EXIT=" /app/backend/hn-catalog-publish.log || echo "(not yet)"
+                echo -n "summary_present="; grep -c "HN catalogue publish summary" /app/backend/hn-catalog-publish.log || true
+                echo "--- head (non-embedding) ---"
+                grep -v "embeddings\|RequestsDependencyWarning\|warnings.warn" /app/backend/hn-catalog-publish.log | head -n 80 || true
+                echo "--- tail (non-embedding) ---"
+                grep -v "embeddings\|RequestsDependencyWarning\|warnings.warn" /app/backend/hn-catalog-publish.log | tail -n 40 || true
+                echo "--- raw tail ---"
+                tail -n 20 /app/backend/hn-catalog-publish.log
               else
                 echo "missing /app/backend/hn-catalog-publish.log (publish may not have started yet)"
               fi
             '
+            echo "===== DB hackernews ToolSource count ====="
+            docker compose exec -T web bash -lc '
+              python manage.py shell -c "from api.models import ToolSource, Tool; print(\"tool_sources_hackernews\", ToolSource.objects.filter(source=\"hackernews\").count()); print(\"tools_with_hn_tag\", Tool.objects.filter(tags__contains=[\"hackernews\"]).count())"
+            ' || true
             echo "===== marker ====="
             ls -la /var/www/one9founders/hn-catalog-bootstrapped 2>/dev/null || echo "no marker"
