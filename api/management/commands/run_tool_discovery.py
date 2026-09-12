@@ -28,6 +28,14 @@ class Command(BaseCommand):
                 "bins over 1,000 hits so every 100+ star AI repo is considered."
             ),
         )
+        parser.add_argument(
+            "--full-hn-sweep",
+            action="store_true",
+            help=(
+                "Paginate Hacker News Algolia AI/Show HN queries across history "
+                "and merge official Firebase show/top/best/new feeds."
+            ),
+        )
 
     def handle(self, *args, **options):
         max_new = options["max_new"]
@@ -37,6 +45,7 @@ class Command(BaseCommand):
         summary = run_new_tool_discovery(
             max_new=max_new,
             full_github_sweep=bool(options.get("full_github_sweep")),
+            full_hn_sweep=bool(options.get("full_hn_sweep")),
         )
         self.stdout.write("--- Discovery summary ---")
         self.stdout.write(f"Candidates found: {summary['candidates_found']}")

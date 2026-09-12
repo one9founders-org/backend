@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       action:
-        description: inspect logs only, start capped discovery, or full OSS catalogue
+        description: inspect logs only, start capped discovery, OSS catalogue, or HN catalogue
         required: true
         default: inspect-and-run
         type: choice
@@ -12,6 +12,7 @@ on:
           - inspect
           - inspect-and-run
           - oss-catalog
+          - hn-catalog
 
 jobs:
   discovery:

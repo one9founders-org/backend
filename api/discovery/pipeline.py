@@ -612,9 +612,13 @@ def run_new_tool_discovery(
     *,
     candidates: list[dict] | None = None,
     full_github_sweep: bool = False,
+    full_hn_sweep: bool = False,
 ) -> dict:
     if candidates is None:
-        candidates = discover_candidates(full_github_sweep=full_github_sweep)
+        candidates = discover_candidates(
+            full_github_sweep=full_github_sweep,
+            full_hn_sweep=full_hn_sweep,
+        )
     ranked = sorted(candidates, key=candidate_signal, reverse=True)
     if max_new is None:
         to_process = ranked
