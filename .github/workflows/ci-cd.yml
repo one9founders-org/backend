@@ -220,4 +220,16 @@ jobs:
             # Capped free-source discovery; does not call Firecrawl by default.
             docker compose exec -d web python manage.py run_tool_discovery --max-new 40
 
+            # One-shot HN catalogue bootstrap (dry-run cross-check, then publish).
+            # Marker file prevents re-running on every subsequent deploy.
+            if [ ! -f /var/log/hn-catalog-bootstrapped ]; then
+              echo "===== HN CROSS-CHECK (dry-run) ====="
+              docker compose exec -T web python manage.py discover_hn_catalog --dry-run \
+                | tee /var/log/hn-catalog-dry-run.log
+              echo "===== HN CATALOGUE PUBLISH ====="
+              docker compose exec -d web python manage.py discover_hn_catalog --max-new 100
+              touch /var/log/hn-catalog-bootstrapped
+              echo "Started detached discover_hn_catalog --max-new 100"
+            fi
+
             echo "Deploy complete."
