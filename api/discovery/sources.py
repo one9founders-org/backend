@@ -838,7 +838,10 @@ def _hn_product_name(title: str) -> str:
     lowered = text.lower()
     for prefix in ("show hn:", "show hn -", "launch hn:", "launch hn -"):
         if lowered.startswith(prefix):
-            text = text[len(prefix) :].strip()
+            # Avoid `text[len(prefix) :]` — Black inserts a space before `:` and
+            # flake8 E203 rejects it (.flake8 does not ignore E203).
+            start = len(prefix)
+            text = text[start:].strip()
             lowered = text.lower()
             break
     if not text or text.endswith("?"):
