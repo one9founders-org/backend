@@ -32,17 +32,37 @@ jobs:
             echo "===== processes before (docker top) ====="
             docker compose top web || true
             echo "===== stop prior HN catalogue ====="
-            # web image has no ps; match /proc cmdlines and kill by pid.
+            # web image has no ps; match python discover_hn cmdlines only (never the
+            # inspector bash that contains this string in its own argv).
             docker compose exec -T web bash -lc '
+              self=$$
               for cmdline in /proc/[0-9]*/cmdline; do
                 pid=$(basename "$(dirname "$cmdline")")
-                if tr "\0" " " < "$cmdline" 2>/dev/null | grep -q "discover_hn_catalog"; then
-                  echo "killing pid=$pid $(tr "\0" " " < "$cmdline")"
-                  kill "$pid" 2>/dev/null || true
-                fi
+                [ "$pid" = "$self" ] && continue
+                [ "$pid" = "$$" ] && continue
+                line=$(tr "\0" " " < "$cmdline" 2>/dev/null || true)
+                case "$line" in
+                  *python*discover_hn_catalog*)
+                    echo "killing pid=$pid $line"
+                    kill "$pid" 2>/dev/null || true
+                    ;;
+                esac
               done
               sleep 2
-            '
+              # Also stop leftover wrapper bash parents if python children are gone.
+              for cmdline in /proc/[0-9]*/cmdline; do
+                pid=$(basename "$(dirname "$cmdline")")
+                [ "$pid" = "$self" ] && continue
+                line=$(tr "\0" " " < "$cmdline" 2>/dev/null || true)
+                case "$line" in
+                  *bash*-lc*discover_hn_catalog*)
+                    echo "killing wrapper pid=$pid"
+                    kill "$pid" 2>/dev/null || true
+                    ;;
+                esac
+              done
+              sleep 1
+            ' || true
             echo "===== truncate prior logs ====="
             docker compose exec -T web bash -lc '
               : > /app/backend/hn-catalog-dry-run.log
