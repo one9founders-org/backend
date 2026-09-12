@@ -258,13 +258,21 @@ class TestExternalSources:
             "sourceUrl": "https://www.producthunt.com/posts/demo",
         }
 
-        def failing_source():
+        def failing_source(**_kwargs):
             raise RuntimeError("rate limited")
 
         with (
             patch(
                 "api.discovery.sources.fetch_github_candidates",
                 new=failing_source,
+            ),
+            patch(
+                "api.discovery.sources.fetch_gitlab_candidates",
+                return_value=[],
+            ),
+            patch(
+                "api.discovery.sources.fetch_codeberg_candidates",
+                return_value=[],
             ),
             patch(
                 "api.discovery.sources.fetch_product_hunt_candidates",
