@@ -27,21 +27,17 @@ jobs:
             cd /var/www/one9founders
             echo "===== container processes ====="
             docker compose exec -T web ps aux | grep -E 'discover_hn|manage.py' | grep -v grep || echo "(no discover_hn process)"
-            echo "===== dry-run log (tail) ====="
+            echo "===== dry-run log ====="
             docker compose exec -T web bash -lc '
               if [ -f /app/backend/hn-catalog-dry-run.log ]; then
                 wc -l /app/backend/hn-catalog-dry-run.log
-                # Prefer the summary section if present
-                if grep -q "HN cross-check" /app/backend/hn-catalog-dry-run.log; then
-                  grep -A2 "HN cross-check" /app/backend/hn-catalog-dry-run.log || true
-                  echo "--- already on site (head) ---"
-                  grep "\\[on-site\\]" /app/backend/hn-catalog-dry-run.log | head -40 || true
-                  echo "--- new candidates (head) ---"
-                  grep "\\[new\\]" /app/backend/hn-catalog-dry-run.log | head -40 || true
-                  grep -E "Dry run complete|DRY_RUN_EXIT|scraped:|already_on_site:|new_candidates:" /app/backend/hn-catalog-dry-run.log || true
-                else
-                  tail -n 80 /app/backend/hn-catalog-dry-run.log
-                fi
+                grep -E "^(scraped:|already_on_site:|new_candidates:|Dry run complete|DRY_RUN_EXIT|Scraping Hacker News)" /app/backend/hn-catalog-dry-run.log || true
+                echo "--- already on site (head) ---"
+                grep "\\[on-site\\]" /app/backend/hn-catalog-dry-run.log | head -40 || true
+                echo "--- new candidates (head) ---"
+                grep "\\[new\\]" /app/backend/hn-catalog-dry-run.log | head -40 || true
+                echo "--- tail ---"
+                tail -n 40 /app/backend/hn-catalog-dry-run.log
               else
                 echo "missing /app/backend/hn-catalog-dry-run.log"
               fi
