@@ -1,4 +1,14 @@
+import hashlib
+
 from django.db import models
+from django.utils.text import slugify
+
+
+def generate_author_slug(name, suffix=""):
+    base = slugify(name)[:300] or "author"
+    if suffix:
+        return f"{base}-{suffix}"
+    return base
 
 
 class Paper(models.Model):
@@ -52,10 +62,27 @@ class Paper(models.Model):
 
 class Author(models.Model):
     name = models.CharField(max_length=300, db_index=True)
+    slug = models.SlugField(max_length=320, unique=True)
     paper_count = models.IntegerField(default=0)
     first_seen = models.DateTimeField(auto_now_add=True)
     last_seen = models.DateTimeField(auto_now=True)
     papers = models.ManyToManyField(Paper, related_name="author_records", blank=True)
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            candidate = generate_author_slug(self.name)
+            conflicts = Author.objects.exclude(pk=self.pk).filter(slug=candidate)
+            if conflicts.exists():
+                digest = hashlib.sha256(self.name.encode("utf-8")).hexdigest()[:8]
+                candidate = generate_author_slug(self.name, digest)
+                number = 2
+                while (
+                    Author.objects.exclude(pk=self.pk).filter(slug=candidate).exists()
+                ):
+                    candidate = generate_author_slug(self.name, f"{digest}-{number}")
+                    number += 1
+            self.slug = candidate
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return self.name
