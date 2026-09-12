@@ -39,7 +39,9 @@ def hn_attribution_description(
     about = re.sub(r"\s+", " ", about)
     if about.lower().startswith(bare.lower()):
         # Avoid "Foo — Foo is an AI…" repetition from Show HN titles.
-        remainder = about[len(bare) :].lstrip(" -–—:|")
+        # Explicit start index keeps Black and flake8 E203 aligned.
+        start = len(bare)
+        remainder = about[start:].lstrip(" -–—:|")
         if remainder:
             about = remainder
     if len(about) > 220:
