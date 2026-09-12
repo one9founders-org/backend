@@ -195,6 +195,7 @@ class ToolViewSet(viewsets.ModelViewSet):
         startup_friendly = self.request.query_params.get("startup_friendly")
         rated = (self.request.query_params.get("rated") or "").strip().lower()
         track = (self.request.query_params.get("track") or "").strip()
+        source = (self.request.query_params.get("source") or "").strip().lower()
         india = (self.request.query_params.get("india") or "").strip().lower()
 
         if category:
@@ -213,6 +214,8 @@ class ToolViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(startup_friendly=True)
         if track:
             queryset = queryset.filter(track=track)
+        if source:
+            queryset = queryset.filter(source_references__source=source)
         if india in {"1", "true", "yes"}:
             queryset = queryset.filter(
                 Q(tags__contains=["india"]) | Q(pricing_has_india_plan=True)
