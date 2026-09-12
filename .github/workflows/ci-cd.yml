@@ -221,15 +221,21 @@ jobs:
             docker compose exec -d web python manage.py run_tool_discovery --max-new 40
 
             # One-shot HN catalogue bootstrap (dry-run cross-check, then publish).
-            # Marker file prevents re-running on every subsequent deploy.
-            if [ ! -f /var/log/hn-catalog-bootstrapped ]; then
-              echo "===== HN CROSS-CHECK (dry-run) ====="
-              docker compose exec -T web python manage.py discover_hn_catalog --dry-run \
-                | tee /var/log/hn-catalog-dry-run.log
-              echo "===== HN CATALOGUE PUBLISH ====="
-              docker compose exec -d web python manage.py discover_hn_catalog --max-new 100
-              touch /var/log/hn-catalog-bootstrapped
-              echo "Started detached discover_hn_catalog --max-new 100"
+            # Run fully detached: full Algolia sweep exceeds the deploy SSH timeout.
+            # Marker prevents re-running on later deploys.
+            if [ ! -f /var/www/one9founders/hn-catalog-bootstrapped ]; then
+              echo "===== HN CATALOGUE (dry-run then publish, detached) ====="
+              docker compose exec -d web bash -lc '
+                set -o pipefail
+                python manage.py discover_hn_catalog --dry-run \
+                  > /app/backend/hn-catalog-dry-run.log 2>&1
+                echo "DRY_RUN_EXIT=$?" >> /app/backend/hn-catalog-dry-run.log
+                python manage.py discover_hn_catalog --max-new 100 \
+                  > /app/backend/hn-catalog-publish.log 2>&1
+                echo "PUBLISH_EXIT=$?" >> /app/backend/hn-catalog-publish.log
+              '
+              touch /var/www/one9founders/hn-catalog-bootstrapped
+              echo "Started detached HN dry-run + publish (logs in container /app/backend/hn-catalog-*.log)"
             fi
 
             echo "Deploy complete."
