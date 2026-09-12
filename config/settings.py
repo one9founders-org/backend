@@ -273,6 +273,10 @@ EXTERNAL_DISCOVERY_AUTO_PUBLISH_SOURCES = {
     if value.strip()
 }
 
+# Product Hunt's API is non-commercial by default. Configure this only after
+# Product Hunt has approved the intended usage; RSS remains the safe fallback.
+PRODUCT_HUNT_API_TOKEN = os.getenv("PRODUCT_HUNT_API_TOKEN", "")
+
 # Directory hygiene pass (api/hygiene/).
 # Popularity ranking uses the free Tranco list; refresh with
 # `manage.py refresh_tranco` (monthly is plenty -- ranks move slowly).

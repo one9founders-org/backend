@@ -22,6 +22,7 @@ from .models import (
     Review,
     SiteConfig,
     Tool,
+    ToolFact,
     ToolSource,
     ToolSubmission,
     User,
@@ -182,6 +183,21 @@ class ToolSourceAdmin(admin.ModelAdmin):
     list_filter = ["source", "observed_at"]
     search_fields = ["tool__name", "url", "external_id", "label"]
     raw_id_fields = ["tool"]
+
+
+@admin.register(ToolFact)
+class ToolFactAdmin(admin.ModelAdmin):
+    list_display = [
+        "tool",
+        "field_name",
+        "source_name",
+        "confidence",
+        "observed_at",
+    ]
+    list_filter = ["field_name", "source_name", "observed_at"]
+    search_fields = ["tool__name", "field_name", "source_url"]
+    raw_id_fields = ["tool"]
+    readonly_fields = ["created_at", "updated_at"]
 
 
 @admin.register(Review)

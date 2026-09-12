@@ -38,6 +38,7 @@ REQUEST_TIMEOUT = 20
 TAAFT_BASE_URL = "https://theresanaiforthat.com"
 TAAFT_NEW_URL = f"{TAAFT_BASE_URL}/newly-added/"
 TAAFT_MAX_CANDIDATES = 40
+PRODUCT_HUNT_API_URL = "https://api.producthunt.com/v2/api/graphql"
 
 
 def normalize_url(url: str) -> str:
@@ -199,7 +200,135 @@ def _mentions_ai(text: str) -> bool:
     return any(keyword in haystack for keyword in AI_KEYWORDS)
 
 
-def fetch_product_hunt_candidates() -> list[dict]:
+def _resolve_product_hunt_redirect(url: str) -> str:
+    """Resolve an RSS/API-provided outbound redirect without scraping a PH page."""
+    clean = canonicalize_http_url(url)
+    if not clean:
+        return ""
+    parsed = urlparse(clean)
+    if parsed.netloc.lower().removeprefix("www.") != "producthunt.com":
+        return clean
+    if not parsed.path.startswith("/r/p/"):
+        return ""
+    try:
+        response = requests.get(
+            clean,
+            headers={
+                "User-Agent": USER_AGENT,
+                "Accept": "text/html",
+                "Referer": "https://www.producthunt.com/feed",
+            },
+            timeout=REQUEST_TIMEOUT,
+            allow_redirects=False,
+        )
+    except Exception as exc:
+        logger.info("Product Hunt outbound redirect could not be resolved: %s", exc)
+        return ""
+    if response.status_code not in {301, 302, 303, 307, 308}:
+        return ""
+    target = canonicalize_http_url(response.headers.get("Location") or "")
+    if not target or url_host(target).endswith("producthunt.com"):
+        return ""
+    return target
+
+
+def _product_hunt_candidate(
+    *,
+    name: str,
+    source_url: str,
+    external_id: str,
+    summary: str,
+    website: str = "",
+    published_at: str = "",
+    updated_at: str = "",
+    author: str = "",
+    upvotes: int = 0,
+    logo_url: str = "",
+) -> dict:
+    official = _resolve_product_hunt_redirect(website)
+    return {
+        "name": name.strip(),
+        "url": official,
+        "sourceUrl": source_url,
+        "officialUrl": official,
+        "externalId": external_id,
+        "sourceType": "producthunt",
+        "rawSignal": {
+            "upvotes": upvotes,
+            "summary": summary.strip(),
+            "published_at": published_at,
+            "updated_at": updated_at,
+            "author": author,
+            "logo_url": logo_url,
+            "outbound_url": website,
+        },
+    }
+
+
+def fetch_product_hunt_api_candidates(token: str, first: int = 50) -> list[dict]:
+    """Use Product Hunt's authorized API when a commercially approved token exists."""
+    query = """
+    query ProductHuntPosts($first: Int!) {
+      posts(first: $first, order: NEWEST) {
+        edges {
+          node {
+            id
+            name
+            tagline
+            description
+            url
+            website
+            votesCount
+            createdAt
+            thumbnail { url }
+          }
+        }
+      }
+    }
+    """
+    try:
+        response = requests.post(
+            PRODUCT_HUNT_API_URL,
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json",
+                "User-Agent": USER_AGENT,
+            },
+            json={"query": query, "variables": {"first": max(1, min(first, 100))}},
+            timeout=REQUEST_TIMEOUT,
+        )
+        response.raise_for_status()
+        payload = response.json()
+        if payload.get("errors"):
+            raise ValueError(payload["errors"][0].get("message") or "GraphQL error")
+    except Exception as exc:
+        logger.warning("Product Hunt API failed: %s", exc)
+        return []
+
+    candidates = []
+    for edge in ((payload.get("data") or {}).get("posts") or {}).get("edges") or []:
+        node = edge.get("node") or {}
+        name = node.get("name") or ""
+        summary = node.get("description") or node.get("tagline") or ""
+        if not name or not _mentions_ai(f"{name} {summary}"):
+            continue
+        thumbnail = node.get("thumbnail") or {}
+        candidates.append(
+            _product_hunt_candidate(
+                name=name,
+                source_url=node.get("url") or "",
+                external_id=str(node.get("id") or ""),
+                summary=summary,
+                website=node.get("website") or "",
+                published_at=node.get("createdAt") or "",
+                upvotes=int(node.get("votesCount") or 0),
+                logo_url=thumbnail.get("url") or "",
+            )
+        )
+    return [candidate for candidate in candidates if candidate_source_url(candidate)]
+
+
+def fetch_product_hunt_rss_candidates() -> list[dict]:
     try:
         feed = feedparser.parse(
             "https://www.producthunt.com/feed",
@@ -212,12 +341,25 @@ def fetch_product_hunt_candidates() -> list[dict]:
     candidates = []
     for entry in feed.entries:
         title = entry.get("title") or ""
-        summary = entry.get("summary") or entry.get("description") or ""
+        content = entry.get("content") or []
+        content_html = content[0].get("value", "") if content else ""
+        content_soup = BeautifulSoup(content_html, "html.parser")
+        paragraphs = content_soup.find_all("p")
+        summary = (
+            paragraphs[0].get_text(" ", strip=True)
+            if paragraphs
+            else entry.get("summary") or entry.get("description") or ""
+        )
         if not _mentions_ai(f"{title} {summary}"):
             continue
         url = entry.get("link") or ""
         if not url:
             continue
+        outbound = ""
+        for link in content_soup.select('a[href*="/r/p/"]'):
+            outbound = (link.get("href") or "").strip()
+            if outbound:
+                break
         votes = 0
         for key in ("pheedloop_votes", "votes"):
             if entry.get(key) is not None:
@@ -225,21 +367,35 @@ def fetch_product_hunt_candidates() -> list[dict]:
                     votes = int(entry.get(key))
                 except (TypeError, ValueError):
                     votes = 0
+        entry_id = entry.get("id") or ""
+        external_id = (
+            entry_id.rsplit("/", 1)[-1]
+            if entry_id
+            else urlparse(url).path.rstrip("/").split("/")[-1]
+        )
         candidates.append(
-            {
-                "name": title.split("—")[0].split("-")[0].strip() or title,
-                # The feed is the authorized discovery surface. Do not fetch
-                # Product Hunt detail pages; an editor can resolve the official
-                # website before approval.
-                "url": "",
-                "sourceUrl": url,
-                "officialUrl": "",
-                "externalId": urlparse(url).path.rstrip("/").split("/")[-1],
-                "sourceType": "producthunt",
-                "rawSignal": {"upvotes": votes, "title": title, "summary": summary},
-            }
+            _product_hunt_candidate(
+                name=title,
+                source_url=url,
+                external_id=external_id,
+                summary=summary,
+                website=outbound,
+                published_at=entry.get("published") or "",
+                updated_at=entry.get("updated") or "",
+                author=(entry.get("author") or "").strip(),
+                upvotes=votes,
+            )
         )
     return candidates
+
+
+def fetch_product_hunt_candidates() -> list[dict]:
+    token = (getattr(settings, "PRODUCT_HUNT_API_TOKEN", "") or "").strip()
+    if token:
+        api_candidates = fetch_product_hunt_api_candidates(token)
+        if api_candidates:
+            return api_candidates
+    return fetch_product_hunt_rss_candidates()
 
 
 @lru_cache(maxsize=8)
@@ -251,6 +407,11 @@ def _robots_parser(origin: str) -> RobotFileParser | None:
             headers={"User-Agent": USER_AGENT, "Accept": "text/plain"},
             timeout=REQUEST_TIMEOUT,
         )
+        if response.status_code == 404:
+            parser = RobotFileParser()
+            parser.set_url(robots_url)
+            parser.parse([])
+            return parser
         response.raise_for_status()
     except Exception as exc:
         logger.warning("Could not verify robots.txt for %s: %s", origin, exc)

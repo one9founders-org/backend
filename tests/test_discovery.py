@@ -1,22 +1,27 @@
+from io import StringIO
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 import pytest
+from django.core.management import call_command
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from api.discovery.facts import Facts
+from api.discovery.facts import Facts, _fetch_html_facts
 from api.discovery.quality_gate import passes_quality_gate, similarity_ratio
 from api.discovery.sources import (
     dedupe_candidates,
     fetch_all_candidates,
+    fetch_product_hunt_api_candidates,
     fetch_product_hunt_candidates,
+    fetch_product_hunt_rss_candidates,
     fetch_taaft_candidates,
     normalize_name,
     normalize_url,
+    _resolve_product_hunt_redirect,
 )
-from api.models import ExternalToolCandidate, ToolSource
+from api.models import ExternalToolCandidate, ToolFact, ToolSource
 from tests.factories import ToolFactory
 
 
@@ -86,33 +91,117 @@ class TestDedupe:
 
 
 class TestExternalSources:
+    def test_product_hunt_redirect_requires_normal_redirect_response(self):
+        response = Mock(
+            status_code=302,
+            headers={"Location": "https://demo.example/product"},
+        )
+        with patch("api.discovery.sources.requests.get", return_value=response):
+            assert (
+                _resolve_product_hunt_redirect("https://www.producthunt.com/r/p/demo")
+                == "https://demo.example/product"
+            )
+
+        blocked = Mock(status_code=403, headers={})
+        with patch("api.discovery.sources.requests.get", return_value=blocked):
+            assert (
+                _resolve_product_hunt_redirect("https://www.producthunt.com/r/p/demo")
+                == ""
+            )
+
     def test_product_hunt_uses_feed_as_source_without_detail_url(self):
         entry = {
             "title": "Demo AI — Write faster",
-            "summary": "An AI writing assistant",
             "link": "https://www.producthunt.com/posts/demo-ai",
+            "id": "tag:www.producthunt.com,2005:Post/123",
+            "published": "2026-09-12T01:00:00Z",
+            "updated": "2026-09-12T02:00:00Z",
+            "author": "Demo Maker",
+            "content": [
+                {
+                    "value": (
+                        "<p>An AI writing assistant</p>"
+                        '<a href="https://www.producthunt.com/r/p/123">Link</a>'
+                    )
+                }
+            ],
         }
-        with patch(
-            "api.discovery.sources.feedparser.parse",
-            return_value=SimpleNamespace(entries=[entry]),
+        with (
+            patch(
+                "api.discovery.sources.feedparser.parse",
+                return_value=SimpleNamespace(entries=[entry]),
+            ),
+            patch(
+                "api.discovery.sources._resolve_product_hunt_redirect",
+                return_value="",
+            ) as resolve,
         ):
-            candidates = fetch_product_hunt_candidates()
+            candidates = fetch_product_hunt_rss_candidates()
 
-        assert candidates == [
-            {
-                "name": "Demo AI",
-                "url": "",
-                "sourceUrl": "https://www.producthunt.com/posts/demo-ai",
-                "officialUrl": "",
-                "externalId": "demo-ai",
-                "sourceType": "producthunt",
-                "rawSignal": {
-                    "upvotes": 0,
-                    "title": "Demo AI — Write faster",
-                    "summary": "An AI writing assistant",
+        resolve.assert_called_once_with("https://www.producthunt.com/r/p/123")
+        assert candidates[0]["name"] == "Demo AI — Write faster"
+        assert candidates[0]["sourceUrl"] == (
+            "https://www.producthunt.com/posts/demo-ai"
+        )
+        assert candidates[0]["externalId"] == "123"
+        assert candidates[0]["officialUrl"] == ""
+        assert candidates[0]["rawSignal"] == {
+            "upvotes": 0,
+            "summary": "An AI writing assistant",
+            "published_at": "2026-09-12T01:00:00Z",
+            "updated_at": "2026-09-12T02:00:00Z",
+            "author": "Demo Maker",
+            "logo_url": "",
+            "outbound_url": "https://www.producthunt.com/r/p/123",
+        }
+
+    def test_product_hunt_api_maps_authorized_structured_fields(self):
+        response = Mock()
+        response.raise_for_status.return_value = None
+        response.json.return_value = {
+            "data": {
+                "posts": {
+                    "edges": [
+                        {
+                            "node": {
+                                "id": "123",
+                                "name": "Demo AI",
+                                "tagline": "AI writing assistant",
+                                "description": "Draft startup updates with AI",
+                                "url": "https://www.producthunt.com/products/demo-ai",
+                                "website": "https://demo.example",
+                                "votesCount": 42,
+                                "createdAt": "2026-09-12T01:00:00Z",
+                                "thumbnail": {"url": "https://img.example/demo.png"},
+                            }
+                        }
+                    ]
                 },
             }
-        ]
+        }
+        with patch("api.discovery.sources.requests.post", return_value=response):
+            candidates = fetch_product_hunt_api_candidates("approved-token")
+
+        assert candidates[0]["officialUrl"] == "https://demo.example"
+        assert candidates[0]["rawSignal"]["upvotes"] == 42
+        assert candidates[0]["rawSignal"]["logo_url"] == (
+            "https://img.example/demo.png"
+        )
+
+    def test_product_hunt_api_falls_back_to_rss_when_unavailable(self, settings):
+        settings.PRODUCT_HUNT_API_TOKEN = "approved-token"
+        with (
+            patch(
+                "api.discovery.sources.fetch_product_hunt_api_candidates",
+                return_value=[],
+            ),
+            patch(
+                "api.discovery.sources.fetch_product_hunt_rss_candidates",
+                return_value=[{"name": "RSS Demo"}],
+            ) as rss,
+        ):
+            assert fetch_product_hunt_candidates() == [{"name": "RSS Demo"}]
+        rss.assert_called_once_with()
 
     def test_taaft_reads_only_robots_allowed_public_pages(self):
         listing = Mock()
@@ -174,6 +263,79 @@ class TestExternalSources:
             ),
         ):
             assert fetch_all_candidates() == [product_hunt]
+
+
+class TestFirstPartyFacts:
+    def test_crawls_allowed_same_host_pricing_and_tracks_provenance(self):
+        homepage = Mock(
+            url="https://demo.example/",
+            text=(
+                '<meta name="description" content="AI research workspace">'
+                '<a href="/pricing">Pricing</a>'
+                '<a href="/login">Log in</a>'
+                '<a href="https://other.example/pricing">External pricing</a>'
+            ),
+        )
+        homepage.raise_for_status.return_value = None
+        pricing = Mock(
+            url="https://demo.example/pricing",
+            text="<main>Free plan forever. Pro starts at $12 per month.</main>",
+        )
+        pricing.raise_for_status.return_value = None
+
+        with (
+            patch(
+                "api.discovery.sources._robots_allows",
+                side_effect=lambda url: "/login" not in url,
+            ) as robots,
+            patch(
+                "api.discovery.facts.requests.get",
+                side_effect=[homepage, pricing],
+            ) as request,
+        ):
+            facts = _fetch_html_facts("https://demo.example/")
+
+        assert request.call_count == 2
+        assert robots.call_count == 2
+        assert facts.pricing == "paid"
+        assert facts.pricing_from == 12
+        assert facts.free_tier_available is True
+        assert facts.evidence_urls["pricing"] == "https://demo.example/pricing"
+        assert facts.field_sources["pricing_from_usd"] == "https://demo.example/pricing"
+
+    def test_does_not_fetch_robots_disallowed_first_party_page(self):
+        homepage = Mock(
+            url="https://demo.example/",
+            text='<a href="/pricing">Pricing</a>',
+        )
+        homepage.raise_for_status.return_value = None
+
+        with (
+            patch(
+                "api.discovery.sources._robots_allows",
+                side_effect=[True, False],
+            ),
+            patch(
+                "api.discovery.facts.requests.get",
+                return_value=homepage,
+            ) as request,
+        ):
+            facts = _fetch_html_facts("https://demo.example/")
+
+        request.assert_called_once()
+        assert "pricing" not in facts.evidence_urls
+
+    def test_rejects_cross_host_redirect_from_official_page(self):
+        homepage = Mock(
+            url="https://login-provider.example/challenge",
+            text="<p>Challenge</p>",
+        )
+        homepage.raise_for_status.return_value = None
+        with (
+            patch("api.discovery.sources._robots_allows", return_value=True),
+            patch("api.discovery.facts.requests.get", return_value=homepage),
+        ):
+            assert _fetch_html_facts("https://demo.example/") == Facts()
 
 
 @pytest.mark.django_db
@@ -328,6 +490,146 @@ class TestPublishNewTool:
         )
         assert tool.track == OPEN_SOURCE
         assert tool.name == "github/langchain-ai/langchain"
+
+    def test_persists_first_party_facts_with_observed_source(self):
+        from api.discovery.pipeline import publish_new_tool
+
+        tool = publish_new_tool(
+            {
+                "name": "Sourced Demo",
+                "url": "https://sourced-demo.example",
+                "generated": (
+                    "Sourced Demo helps founders organize product research and "
+                    "turn verified notes into concise launch briefs for their teams."
+                ),
+                "facts": Facts(
+                    meta_description="Official product research workspace",
+                    pricing="freemium",
+                    pricing_from=12,
+                    free_tier_available=True,
+                    evidence_urls={
+                        "homepage": "https://sourced-demo.example",
+                        "pricing": "https://sourced-demo.example/pricing",
+                    },
+                    field_sources={
+                        "pricing_type": "https://sourced-demo.example/pricing",
+                        "pricing_from_usd": "https://sourced-demo.example/pricing",
+                        "free_tier_available": ("https://sourced-demo.example/pricing"),
+                    },
+                ),
+                "candidate": {
+                    "name": "Sourced Demo",
+                    "sourceType": "producthunt",
+                    "sourceUrl": "https://www.producthunt.com/products/sourced-demo",
+                    "externalId": "123",
+                },
+            }
+        )
+
+        assert ToolSource.objects.filter(tool=tool, source="official").exists()
+        assert ToolSource.objects.filter(tool=tool, source="producthunt").exists()
+        pricing = ToolFact.objects.get(tool=tool, field_name="pricing_from_usd")
+        assert pricing.value == 12
+        assert str(pricing.confidence) == "0.95"
+        assert pricing.source_url == "https://sourced-demo.example/pricing"
+        evidence = ToolFact.objects.get(
+            tool=tool,
+            field_name="source_document_pricing",
+        )
+        assert evidence.value["type"] == "pricing"
+        assert evidence.source_url == "https://sourced-demo.example/pricing"
+
+
+@pytest.mark.django_db
+class TestProductHuntCommand:
+    def test_dry_run_reports_resolution_without_database_writes(self):
+        candidates = [
+            {
+                "name": "Resolved",
+                "sourceType": "producthunt",
+                "sourceUrl": "https://www.producthunt.com/posts/resolved",
+                "officialUrl": "https://resolved.example",
+            },
+            {
+                "name": "Review",
+                "sourceType": "producthunt",
+                "sourceUrl": "https://www.producthunt.com/posts/review",
+                "officialUrl": "",
+            },
+        ]
+        output = StringIO()
+        with (
+            patch(
+                "api.management.commands.discover_product_hunt."
+                "fetch_product_hunt_candidates",
+                return_value=candidates,
+            ),
+            patch(
+                "api.management.commands.discover_product_hunt.dedupe_candidates",
+                side_effect=lambda items: items,
+            ),
+        ):
+            call_command("discover_product_hunt", "--dry-run", stdout=output)
+
+        assert "Candidates: 2" in output.getvalue()
+        assert "Official websites resolved: 1" in output.getvalue()
+        assert ExternalToolCandidate.objects.count() == 0
+
+    def test_default_command_stages_candidates_without_auto_publish(self, settings):
+        settings.EXTERNAL_DISCOVERY_AUTO_PUBLISH_SOURCES = set()
+        candidate = {
+            "name": "Demo",
+            "sourceType": "producthunt",
+            "sourceUrl": "https://www.producthunt.com/posts/demo",
+            "officialUrl": "https://demo.example",
+            "rawSignal": {"summary": "AI assistant"},
+        }
+        with (
+            patch(
+                "api.management.commands.discover_product_hunt."
+                "fetch_product_hunt_candidates",
+                return_value=[candidate],
+            ),
+            patch(
+                "api.management.commands.discover_product_hunt.dedupe_candidates",
+                side_effect=lambda items: items,
+            ),
+            patch("api.discovery.pipeline.process_candidate") as process,
+        ):
+            call_command("discover_product_hunt")
+
+        process.assert_not_called()
+        staged = ExternalToolCandidate.objects.get()
+        assert staged.status == ExternalToolCandidate.STATUS_PENDING
+
+    def test_auto_publish_must_be_explicit(self, settings):
+        settings.EXTERNAL_DISCOVERY_AUTO_PUBLISH_SOURCES = set()
+        candidate = {
+            "name": "Demo",
+            "sourceType": "producthunt",
+            "sourceUrl": "https://www.producthunt.com/posts/demo",
+            "officialUrl": "https://demo.example",
+        }
+        with (
+            patch(
+                "api.management.commands.discover_product_hunt."
+                "fetch_product_hunt_candidates",
+                return_value=[candidate],
+            ),
+            patch(
+                "api.management.commands.discover_product_hunt.dedupe_candidates",
+                side_effect=lambda items: items,
+            ),
+            patch(
+                "api.management.commands.discover_product_hunt."
+                "run_new_tool_discovery",
+                return_value={},
+            ) as run,
+        ):
+            call_command("discover_product_hunt", "--auto-publish")
+
+        assert "producthunt" in settings.EXTERNAL_DISCOVERY_AUTO_PUBLISH_SOURCES
+        run.assert_called_once_with(max_new=40, candidates=[candidate])
 
 
 @pytest.mark.django_db

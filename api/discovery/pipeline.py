@@ -18,6 +18,7 @@ from api.models import (
     DiscoveryRun,
     ExternalToolCandidate,
     Tool,
+    ToolFact,
     ToolSource,
 )
 
@@ -134,6 +135,79 @@ def _attach_source(tool: Tool, candidate: dict) -> ToolSource | None:
         },
     )
     return reference
+
+
+def _persist_first_party_facts(tool: Tool, facts: Facts, source_url: str) -> int:
+    """Upsert structured facts extracted from the official product website."""
+    source_url = canonicalize_http_url(source_url or "") or ""
+    if not source_url or is_aggregator_host(source_url) or is_article_path(source_url):
+        return 0
+    now = timezone.now()
+    ToolSource.objects.update_or_create(
+        tool=tool,
+        source="official",
+        url=source_url,
+        defaults={
+            "label": "Official website",
+            "observed_at": now,
+        },
+    )
+    values = {
+        "meta_description": facts.meta_description,
+        "pricing_type": facts.pricing,
+        "pricing_from_usd": facts.pricing_from,
+        "free_tier_available": facts.free_tier_available,
+        "category": facts.category,
+        "categories": facts.categories,
+        "github_url": facts.github_url,
+        "logo_url": facts.logo_url,
+        "india_focused": facts.india_focused,
+        "has_india_pricing": facts.has_india_pricing,
+    }
+    written = 0
+    for field_name, value in values.items():
+        if value is None or value == "" or value == []:
+            continue
+        field_source_url = canonicalize_http_url(
+            facts.field_sources.get(field_name, source_url)
+        )
+        if (
+            not field_source_url
+            or url_host(field_source_url) != url_host(source_url)
+            or is_article_path(field_source_url)
+        ):
+            field_source_url = source_url
+        ToolFact.objects.update_or_create(
+            tool=tool,
+            field_name=field_name,
+            source_url=field_source_url,
+            defaults={
+                "value": value,
+                "source_name": "Official website",
+                "confidence": Decimal("0.95"),
+                "observed_at": now,
+            },
+        )
+        written += 1
+    for page_type, evidence_url in facts.evidence_urls.items():
+        clean_evidence_url = canonicalize_http_url(evidence_url)
+        if not clean_evidence_url or url_host(clean_evidence_url) != url_host(
+            source_url
+        ):
+            continue
+        ToolFact.objects.update_or_create(
+            tool=tool,
+            field_name=f"source_document_{page_type}"[:64],
+            source_url=clean_evidence_url,
+            defaults={
+                "value": {"type": page_type, "url": clean_evidence_url},
+                "source_name": "Official website",
+                "confidence": Decimal("1.00"),
+                "observed_at": now,
+            },
+        )
+        written += 1
+    return written
 
 
 def _existing_tool_for_candidate(candidate: dict) -> Tool | None:
@@ -508,6 +582,7 @@ def publish_new_tool(result: dict) -> Tool:
 
     tool.save()
     _apply_categories(tool, facts)
+    _persist_first_party_facts(tool, facts, website)
     _attach_source(tool, candidate)
     return tool
 
@@ -727,6 +802,7 @@ def run_refresh_descriptions(limit: int = 50) -> dict:
             if facts.pricing and tool.pricing_type == "freemium":
                 updates["pricing_type"] = facts.pricing
             Tool.objects.filter(pk=tool.pk).update(**updates)
+            _persist_first_party_facts(tool, facts, tool.website or "")
             if facts.category or facts.categories:
                 _apply_categories(tool, facts)
             log_run(

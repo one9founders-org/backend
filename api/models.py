@@ -14,6 +14,7 @@ from .hygiene.track import AI_TOOL, TRACK_CHOICES
 logger = logging.getLogger(__name__)
 
 EXTERNAL_SOURCE_CHOICES = [
+    ("official", "Official website"),
     ("producthunt", "Product Hunt"),
     ("taaft", "There's An AI For That"),
     ("g2", "G2"),
@@ -1306,6 +1307,35 @@ class ToolSource(models.Model):
 
     def __str__(self):
         return f"{self.tool.name} — {self.get_source_display()}"
+
+
+class ToolFact(models.Model):
+    """A field-level fact with first-party provenance and freshness metadata."""
+
+    tool = models.ForeignKey(
+        Tool, on_delete=models.CASCADE, related_name="sourced_facts"
+    )
+    field_name = models.CharField(max_length=64, db_index=True)
+    value = models.JSONField()
+    source_name = models.CharField(max_length=120, default="Official website")
+    source_url = models.URLField(max_length=500)
+    confidence = models.DecimalField(max_digits=3, decimal_places=2, default=1)
+    observed_at = models.DateTimeField(default=timezone.now, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "tool_facts"
+        ordering = ["field_name", "-observed_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["tool", "field_name", "source_url"],
+                name="uniq_tool_fact_source",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.tool.name} — {self.field_name}"
 
 
 def _new_stack_public_id() -> str:

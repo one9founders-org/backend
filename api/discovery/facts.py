@@ -3,7 +3,7 @@
 import logging
 import re
 from dataclasses import dataclass, field
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
 import requests
 from bs4 import BeautifulSoup
@@ -16,6 +16,16 @@ from .sources import USER_AGENT, canonicalize_http_url
 logger = logging.getLogger(__name__)
 
 REQUEST_TIMEOUT = 15
+MAX_FIRST_PARTY_PAGES = 6
+BLOCKED_CRAWL_PATH_PARTS = (
+    "/account",
+    "/auth",
+    "/checkout",
+    "/login",
+    "/sign-in",
+    "/signin",
+    "/signup",
+)
 GITHUB_REPO_RE = re.compile(
     r"^https?://(?:www\.)?github\.com/([^/]+)/([^/#?]+)", re.IGNORECASE
 )
@@ -48,6 +58,8 @@ class Facts:
     has_india_pricing: bool = False
     official_website: str | None = None
     is_single_product_page: bool | None = None
+    evidence_urls: dict[str, str] = field(default_factory=dict)
+    field_sources: dict[str, str] = field(default_factory=dict)
 
 
 def parse_github_repo(url: str) -> str | None:
@@ -106,6 +118,30 @@ def _infer_category(text: str, topics: list[str] | None = None) -> str | None:
     return None
 
 
+def _host(url: str) -> str:
+    return urlparse(url).netloc.lower().removeprefix("www.")
+
+
+def _safe_first_party_url(url: str, official_host: str) -> str | None:
+    clean = canonicalize_http_url(url)
+    if not clean:
+        return None
+    parsed = urlparse(clean)
+    if _host(clean) != official_host or parsed.username or parsed.password:
+        return None
+    path = parsed.path.lower()
+    if any(part in path for part in BLOCKED_CRAWL_PATH_PARTS):
+        return None
+    if re.search(r"\.(?:pdf|zip|exe|dmg|pkg|csv|json|xml)$", path):
+        return None
+    return parsed._replace(fragment="").geturl()
+
+
+def _response_url(response, requested_url: str) -> str:
+    final = getattr(response, "url", "")
+    return final if isinstance(final, str) and final else requested_url
+
+
 def _fetch_github_facts(repo: str) -> Facts:
     try:
         response = requests.get(
@@ -134,6 +170,11 @@ def _fetch_github_facts(repo: str) -> Facts:
 
 
 def _fetch_html_facts(url: str) -> Facts:
+    from .sources import _robots_allows
+
+    if not _robots_allows(url):
+        logger.warning("HTML fetch skipped because robots.txt disallows %s", url)
+        return Facts()
     try:
         response = requests.get(
             url,
@@ -145,6 +186,12 @@ def _fetch_html_facts(url: str) -> Facts:
         html = response.text[:80_000]
     except Exception as exc:
         logger.warning("HTML fetch failed for %s: %s", url, exc)
+        return Facts()
+
+    final_url = _response_url(response, url)
+    requested_host = _host(url)
+    if not requested_host or _host(final_url) != requested_host:
+        logger.warning("HTML fetch left official host: %s -> %s", url, final_url)
         return Facts()
 
     soup = BeautifulSoup(html, "html.parser")
@@ -165,12 +212,104 @@ def _fetch_html_facts(url: str) -> Facts:
     visible = " ".join(soup.stripped_strings)[:4000]
     source_text = meta or title
     pricing_haystack = " ".join(filter(None, [meta, title, visible[:1500]]))
+    pricing = _infer_pricing(pricing_haystack)
+    pricing_from = None
+    free_tier_available = True if pricing == "free" else None
+    evidence_urls = {"homepage": final_url}
+    field_sources = {
+        "meta_description": final_url,
+        "pricing_type": final_url,
+        "category": final_url,
+    }
+
+    relevant_paths = {
+        "pricing": ("pricing", "plans"),
+        "features": ("features", "product"),
+        "integrations": ("integrations", "apps"),
+        "docs": ("docs", "documentation"),
+        "security": ("security", "trust"),
+        "privacy": ("privacy",),
+        "terms": ("terms",),
+        "changelog": ("changelog", "releases", "updates"),
+    }
+    base_host = _host(final_url)
+    discovered: dict[str, str] = {}
+    for link in soup.select("a[href]"):
+        target = _safe_first_party_url(
+            urljoin(final_url, (link.get("href") or "").strip()),
+            base_host,
+        )
+        if not target:
+            continue
+        path = urlparse(target).path.lower().rstrip("/")
+        for page_type, markers in relevant_paths.items():
+            if page_type not in discovered and any(
+                marker in path for marker in markers
+            ):
+                discovered[page_type] = target
+
+    page_summaries = []
+    for page_type, target in list(discovered.items())[:MAX_FIRST_PARTY_PAGES]:
+        if not _robots_allows(target):
+            continue
+        try:
+            page_response = requests.get(
+                target,
+                headers={"User-Agent": USER_AGENT, "Accept": "text/html"},
+                timeout=REQUEST_TIMEOUT,
+                allow_redirects=True,
+            )
+            page_response.raise_for_status()
+        except Exception as exc:
+            logger.info(
+                "Official %s page fetch failed for %s: %s",
+                page_type,
+                target,
+                exc,
+            )
+            continue
+        page_url = _response_url(page_response, target)
+        if _host(page_url) != base_host:
+            logger.info(
+                "Official %s page left first-party host: %s",
+                page_type,
+                page_url,
+            )
+            continue
+        page_soup = BeautifulSoup(page_response.text[:80_000], "html.parser")
+        page_text = " ".join(page_soup.stripped_strings)[:3000]
+        evidence_urls[page_type] = page_url
+        if page_text:
+            page_summaries.append(page_text[:800])
+        if page_type == "pricing":
+            pricing = _infer_pricing(page_text) or pricing
+            amount_match = re.search(
+                r"(?:US)?\$\s*(\d+(?:\.\d{1,2})?)", page_text, re.IGNORECASE
+            )
+            if amount_match:
+                try:
+                    pricing_from = float(amount_match.group(1))
+                except ValueError:
+                    pricing_from = None
+            lowered = page_text.lower()
+            if re.search(r"\bfree (?:plan|tier|forever)\b", lowered):
+                free_tier_available = True
+            elif pricing == "paid":
+                free_tier_available = False
+            field_sources["pricing_type"] = page_url
+            field_sources["pricing_from_usd"] = page_url
+            field_sources["free_tier_available"] = page_url
+
     return Facts(
         title=title or None,
         meta_description=meta or None,
-        pricing=_infer_pricing(pricing_haystack),
+        pricing=pricing,
+        pricing_from=pricing_from,
+        free_tier_available=free_tier_available,
         category=_infer_category(" ".join(filter(None, [title, meta]))),
-        source_text=source_text,
+        source_text=" ".join([source_text, *page_summaries])[:3000],
+        evidence_urls=evidence_urls,
+        field_sources=field_sources,
     )
 
 
