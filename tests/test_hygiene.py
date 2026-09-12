@@ -208,7 +208,7 @@ class TestFreeSignals:
         assert tranco_rank_score(80_000) > tranco_rank_score(900_000)
 
     def test_is_shared_host_matches_platform_subdomains(self):
-        assert is_shared_host("foo.netlify.app")
+        assert is_shared_host("foo.vercel.app")
         assert is_shared_host("github.io")
         assert not is_shared_host("figma.com")
 

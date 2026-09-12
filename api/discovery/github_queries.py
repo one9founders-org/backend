@@ -107,6 +107,7 @@ GITHUB_SEED_REPOS = (
     "microsoft/playwright-mcp",
     "modelcontextprotocol/servers",
     "langchain-ai/langchain",
+    "vercel/ai",
     "huggingface/transformers",
     "ggerganov/llama.cpp",
     "ollama/ollama",
