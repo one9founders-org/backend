@@ -123,10 +123,10 @@ for row in DiscoveryRun.objects.order_by("-id")[:20]:
 echo "===== CANDIDATES (dry) ====="
 docker compose exec -T web python manage.py discover_candidates
 
-if [ "${DISCOVERY_ACTION:-inspect-and-run}" = "inspect-and-run" ]; then
+if [ "${DISCOVERY_ACTION:-inspect-and-run}" = "inspect-and-run" ] || [ "${DISCOVERY_ACTION}" = "oss-catalog" ]; then
   echo "===== START RUN ====="
   docker compose exec -T web bash -lc '
-    for pat in run_tool_discovery discover_india; do
+    for pat in run_tool_discovery discover_india discover_oss_catalog; do
       pids=$(ps aux | grep "$pat" | grep -v grep | awk "{print \$2}")
       if [ -n "$pids" ]; then
         echo "killing $pat: $pids"
@@ -137,8 +137,15 @@ if [ "${DISCOVERY_ACTION:-inspect-and-run}" = "inspect-and-run" ]; then
     done
   '
 
-  docker compose exec -d web python manage.py run_tool_discovery
-  sleep 5
-  docker compose exec -T web ps aux | grep run_tool_discovery | grep -v grep || echo "process not visible yet"
-  echo "Started detached run_tool_discovery"
+  if [ "${DISCOVERY_ACTION}" = "oss-catalog" ]; then
+    docker compose exec -d web python manage.py discover_oss_catalog --max-new 200
+    sleep 5
+    docker compose exec -T web ps aux | grep discover_oss_catalog | grep -v grep || echo "process not visible yet"
+    echo "Started detached discover_oss_catalog --max-new 200"
+  else
+    docker compose exec -d web python manage.py run_tool_discovery
+    sleep 5
+    docker compose exec -T web ps aux | grep run_tool_discovery | grep -v grep || echo "process not visible yet"
+    echo "Started detached run_tool_discovery"
+  fi
 fi
