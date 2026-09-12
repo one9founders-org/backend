@@ -10,36 +10,15 @@ import requests
 from django.conf import settings
 from django.db.models import Q
 
+from api.discovery.github_queries import (
+    GITHUB_SEED_REPOS,
+    GITHUB_STAR_QUERIES,
+    GITHUB_TOPICS,
+)
 from api.models import Tool
 
 logger = logging.getLogger(__name__)
 
-# Topic search stays free (GitHub API). Prefer recently *pushed* repos so
-# established projects keep showing up; a created-only window misses them.
-GITHUB_TOPICS = (
-    "artificial-intelligence",
-    "llm-tools",
-    "llm",
-    "generative-ai",
-    "ai-agents",
-    "mcp-server",
-    "model-context-protocol",
-    "rag",
-    "langchain",
-    "developer-tools",
-)
-# Always consider these high-signal open-source repos even when they are
-# older than the search window (deduped against search hits).
-GITHUB_SEED_REPOS = (
-    "reticlehq/reticle",
-    "browser-use/browser-use",
-    "microsoft/playwright-mcp",
-    "modelcontextprotocol/servers",
-    "langchain-ai/langchain",
-    "vercel/ai",
-    "huggingface/transformers",
-    "ggerganov/llama.cpp",
-)
 AI_KEYWORDS = (
     "ai",
     "artificial intelligence",
@@ -146,6 +125,13 @@ def _github_headers() -> dict:
 
 
 def _candidate_from_github_item(item: dict) -> dict | None:
+    """Normalize a GitHub repo payload into a discovery candidate.
+
+    Skips forks and archived repos — those are not usable products for the
+    open-source tools directory.
+    """
+    if item.get("fork") or item.get("archived"):
+        return None
     html_url = item.get("html_url") or ""
     if not html_url:
         return None
@@ -159,6 +145,12 @@ def _candidate_from_github_item(item: dict) -> dict | None:
     )
     if not display_name:
         return None
+    license_info = item.get("license") or {}
+    license_spdx = ""
+    if isinstance(license_info, dict):
+        license_spdx = (
+            license_info.get("spdx_id") or license_info.get("key") or ""
+        ).strip()
     return {
         "name": display_name,
         "url": html_url,
@@ -169,6 +161,8 @@ def _candidate_from_github_item(item: dict) -> dict | None:
             "full_name": full_name,
             "pushed_at": item.get("pushed_at") or "",
             "topics": list(item.get("topics") or []),
+            "license": license_spdx,
+            "homepage": item.get("homepage") or "",
         },
     }
 
@@ -215,10 +209,10 @@ def _github_repo(full_name: str, *, headers: dict) -> dict | None:
 def fetch_github_candidates(days: int = 30) -> list[dict]:
     """Discover open-source AI/devtools repos from GitHub (no Firecrawl).
 
-    Combines:
-    - topic searches for newly *created* repos
-    - topic searches for recently *pushed* (active) repos — catches
-      established projects that keep shipping (e.g. Reticle)
+    Combines, in priority order:
+    - **most-starred** topic/keyword searches (no date window) so established
+      user-facing tools like Reticle, Aider, Ollama surface by popularity
+    - topic searches for recently *pushed* / newly *created* repos
     - a curated seed list of high-signal repos always worth considering
     """
     since = (datetime.now(timezone.utc) - timedelta(days=days)).date().isoformat()
@@ -239,21 +233,19 @@ def fetch_github_candidates(days: int = 30) -> list[dict]:
         seen_urls.add(key)
         candidates.append(cand)
 
-    for topic in GITHUB_TOPICS:
-        # Active repos first (pushed), then brand-new (created).
-        for qualifier in (f"pushed:>{since}", f"created:>{since}"):
-            query = f"topic:{topic} {qualifier}"
-            for item in _github_search(query, headers=headers, per_page=30):
-                _add(item)
-
-    # Keyword fallback for repos that skip GitHub topics entirely.
-    for query in (
-        f"mcp server in:name,description pushed:>{since}",
-        "reticle in:name,description",
-    ):
-        for item in _github_search(query, headers=headers, per_page=20):
+    # 1) Most-starred user-facing tools (primary ask).
+    for query in GITHUB_STAR_QUERIES:
+        for item in _github_search(query, headers=headers, per_page=50):
             _add(item)
 
+    # 2) Fresh / active topic hits so brand-new tools still appear.
+    for topic in GITHUB_TOPICS:
+        for qualifier in (f"pushed:>{since}", f"created:>{since}"):
+            query = f"topic:{topic} {qualifier} fork:false"
+            for item in _github_search(query, headers=headers, per_page=20):
+                _add(item)
+
+    # 3) Curated seeds (always include Reticle-class tools).
     for full_name in GITHUB_SEED_REPOS:
         item = _github_repo(full_name, headers=headers)
         if item:
@@ -265,8 +257,10 @@ def fetch_github_candidates(days: int = 30) -> list[dict]:
         reverse=True,
     )
     logger.info(
-        "GitHub discovery yielded %s candidates (%s topics, %s seeds)",
+        "GitHub discovery yielded %s candidates "
+        "(%s star queries, %s topics, %s seeds)",
         len(candidates),
+        len(GITHUB_STAR_QUERIES),
         len(GITHUB_TOPICS),
         len(GITHUB_SEED_REPOS),
     )
