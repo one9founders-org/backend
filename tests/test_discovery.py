@@ -675,7 +675,6 @@ class TestGitHubDiscoveryExpansion:
         assert star_clause(100, 119) == "stars:100..119"
         assert star_clause(10000, None) == "stars:>=10000"
 
-
     def test_hn_attribution_credits_discussion(self):
         from api.discovery.facts import Facts
         from api.discovery.generate import hn_attribution_description
