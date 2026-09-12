@@ -29,41 +29,54 @@ jobs:
             cd /var/www/one9founders
             echo "===== containers ====="
             docker compose ps
-            echo "===== python processes before ====="
-            docker compose exec -T web ps aux | grep -E 'python|manage' | grep -v grep || echo "(none)"
+            echo "===== processes before (docker top) ====="
+            docker compose top web || true
             echo "===== stop prior HN catalogue ====="
+            # web image has no ps; match /proc cmdlines and kill by pid.
             docker compose exec -T web bash -lc '
-              pids=$(ps aux | grep -E "discover_hn_catalog|discover_hn_catalog" | grep -v grep | awk "{print \$2}" || true)
-              if [ -n "$pids" ]; then
-                echo "killing: $pids"
-                kill $pids 2>/dev/null || true
-                sleep 2
-              else
-                echo "no prior process"
-              fi
+              for cmdline in /proc/[0-9]*/cmdline; do
+                pid=$(basename "$(dirname "$cmdline")")
+                if tr "\0" " " < "$cmdline" 2>/dev/null | grep -q "discover_hn_catalog"; then
+                  echo "killing pid=$pid $(tr "\0" " " < "$cmdline")"
+                  kill "$pid" 2>/dev/null || true
+                fi
+              done
+              sleep 2
             '
             echo "===== truncate prior logs ====="
             docker compose exec -T web bash -lc '
               : > /app/backend/hn-catalog-dry-run.log
               : > /app/backend/hn-catalog-publish.log
             '
-            echo "===== start nohup dry-run then --max-new 5000 ====="
+            echo "===== start detached dry-run then --max-new 5000 ====="
+            # Use compose exec -d (same as deploy bootstrap). Backgrounding
+            # inside a non-detached exec is killed when the SSH/exec session ends.
+            docker compose exec -d web bash -lc '
+              set -o pipefail
+              export PYTHONUNBUFFERED=1
+              cd /app/backend
+              python manage.py discover_hn_catalog --dry-run >> /app/backend/hn-catalog-dry-run.log 2>&1
+              echo DRY_RUN_EXIT=$? >> /app/backend/hn-catalog-dry-run.log
+              python manage.py discover_hn_catalog --max-new 5000 >> /app/backend/hn-catalog-publish.log 2>&1
+              echo PUBLISH_EXIT=$? >> /app/backend/hn-catalog-publish.log
+            '
+            sleep 5
+            echo "===== processes after (docker top) ====="
+            docker compose top web || true
+            echo "===== /proc discover_hn match ====="
             docker compose exec -T web bash -lc '
-              nohup bash -lc "
-                set -o pipefail
-                cd /app/backend
-                python manage.py discover_hn_catalog --dry-run >> /app/backend/hn-catalog-dry-run.log 2>&1
-                echo DRY_RUN_EXIT=\$? >> /app/backend/hn-catalog-dry-run.log
-                python manage.py discover_hn_catalog --max-new 5000 >> /app/backend/hn-catalog-publish.log 2>&1
-                echo PUBLISH_EXIT=\$? >> /app/backend/hn-catalog-publish.log
-              " > /tmp/hn-catalog-launcher.log 2>&1 &
-              echo launched_pid=\$!
-              sleep 3
-              ps aux | grep -E "discover_hn|manage.py" | grep -v grep || echo "(process not visible yet)"
-              echo "--- launcher ---"
-              cat /tmp/hn-catalog-launcher.log 2>/dev/null || true
+              found=0
+              for cmdline in /proc/[0-9]*/cmdline; do
+                if tr "\0" " " < "$cmdline" 2>/dev/null | grep -q "discover_hn_catalog"; then
+                  echo "RUNNING $(basename "$(dirname "$cmdline")") $(tr "\0" " " < "$cmdline")"
+                  found=1
+                fi
+              done
+              if [ "$found" = "0" ]; then
+                echo "(no discover_hn_catalog cmdline in /proc)"
+              fi
               echo "--- dry-run head ---"
-              head -n 20 /app/backend/hn-catalog-dry-run.log 2>/dev/null || true
+              head -n 30 /app/backend/hn-catalog-dry-run.log 2>/dev/null || true
             '
             touch /var/www/one9founders/hn-catalog-bootstrapped-v3
             echo "Forced start of HN dry-run + full publish (--max-new 5000)"

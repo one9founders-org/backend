@@ -26,28 +26,50 @@ jobs:
           script: |
             set -e
             cd /var/www/one9founders
-            echo "===== container processes ====="
-            docker compose exec -T web ps aux | grep -E 'python|discover_hn|manage.py' | grep -v grep || echo "(no discover_hn process)"
+            echo "===== docker top web ====="
+            docker compose top web || true
+            echo "===== /proc discover_hn match ====="
+            docker compose exec -T web bash -lc '
+              found=0
+              for cmdline in /proc/[0-9]*/cmdline; do
+                if tr "\0" " " < "$cmdline" 2>/dev/null | grep -Eq "discover_hn_catalog|manage.py"; then
+                  line=$(tr "\0" " " < "$cmdline")
+                  case "$line" in
+                    *gunicorn*) ;;
+                    *)
+                      echo "PID $(basename "$(dirname "$cmdline")") $line"
+                      found=1
+                      ;;
+                  esac
+                fi
+              done
+              if [ "$found" = "0" ]; then
+                echo "(no discover_hn / non-gunicorn manage.py in /proc)"
+              fi
+            '
             echo "===== v3 marker ====="
             ls -la /var/www/one9founders/hn-catalog-bootstrapped-v3 2>/dev/null || echo "no v3 marker"
             echo "===== dry-run log ====="
             docker compose exec -T web bash -lc '
               if [ -f /app/backend/hn-catalog-dry-run.log ]; then
+                ls -la /app/backend/hn-catalog-dry-run.log
                 wc -l /app/backend/hn-catalog-dry-run.log
-                cat /app/backend/hn-catalog-dry-run.log || true
+                echo "--- full (or first 200 lines) ---"
+                head -n 200 /app/backend/hn-catalog-dry-run.log || true
                 echo "--- already on site (head) ---"
-                grep "\\[on-site\\]" /app/backend/hn-catalog-dry-run.log | head -40 || true
+                grep "\[on-site\]" /app/backend/hn-catalog-dry-run.log | head -40 || true
                 echo "--- new candidates (head) ---"
-                grep "\\[new\\]" /app/backend/hn-catalog-dry-run.log | head -40 || true
+                grep "\[new\]" /app/backend/hn-catalog-dry-run.log | head -40 || true
                 echo "--- tail ---"
                 tail -n 40 /app/backend/hn-catalog-dry-run.log
               else
                 echo "missing /app/backend/hn-catalog-dry-run.log"
               fi
             '
-            echo "===== publish log (tail) ====="
+            echo "===== publish log ====="
             docker compose exec -T web bash -lc '
               if [ -f /app/backend/hn-catalog-publish.log ]; then
+                ls -la /app/backend/hn-catalog-publish.log
                 wc -l /app/backend/hn-catalog-publish.log
                 tail -n 100 /app/backend/hn-catalog-publish.log
               else
