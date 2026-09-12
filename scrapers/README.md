@@ -10,7 +10,7 @@ This system provides modular, CLI-driven scrapers that collect AI tool and model
 2. **There's An AI For That (TAAFT)** - Newly added AI tools directory
 3. **Futurepedia** - Category-organized AI tools database
 4. **Hugging Face** - New AI models from the ML community
-
+5. **GitHub** - Most-starred open-source tools (Reticle-class, MCP, LLM CLIs)
 All scrapers output data in a standardized JSON format suitable for n8n ingestion and Airtable storage.
 
 ## Requirements
@@ -175,6 +175,33 @@ python -m scrapers.huggingface.scraper \
 - `--days-back`: Filter to recent days (default: 7)
 - `--min-downloads`: Minimum download count filter (default: 1000)
 - `--output`: Custom output file path
+
+### GitHub (most-starred OSS tools)
+
+Scrapes highly starred, user-facing open-source tool repos via the GitHub
+Search API (no browser). Uses shared star queries + curated seeds (including
+`reticlehq/reticle`). Set `GITHUB_TOKEN` for higher rate limits.
+
+```bash
+python -m scrapers.github.scraper --limit 50
+
+# With filters
+python -m scrapers.github.scraper \
+  --limit 100 \
+  --min-stars 100 \
+  --output /path/to/output.json
+```
+
+**CLI Options:**
+- `--limit`: Maximum repos to return (default: 100)
+- `--min-stars`: Minimum stars for non-seed repos (default: 50)
+- `--output`: Custom output file path
+
+To publish into the tools directory (quality gate + open_source track):
+
+```bash
+python manage.py run_tool_discovery --max-new 40
+```
 
 ## n8n Integration
 
