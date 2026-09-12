@@ -29,6 +29,8 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           port: 22
-          timeout: 420s
+          # HN full-sweep dry-run can take >7m; allow headroom for scrape + start.
+          timeout: 1800s
+          command_timeout: 30m
           envs: DISCOVERY_ACTION
           script_path: scripts/inspect_and_run_discovery.sh

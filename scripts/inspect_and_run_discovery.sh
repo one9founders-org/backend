@@ -143,6 +143,9 @@ if [ "${DISCOVERY_ACTION:-inspect-and-run}" = "inspect-and-run" ] || [ "${DISCOV
     docker compose exec -T web ps aux | grep discover_oss_catalog | grep -v grep || echo "process not visible yet"
     echo "Started detached discover_oss_catalog --max-new 200"
   elif [ "${DISCOVERY_ACTION}" = "hn-catalog" ]; then
+    echo "===== HN CROSS-CHECK (dry-run) ====="
+    docker compose exec -T web python manage.py discover_hn_catalog --dry-run
+    echo "===== HN CATALOGUE PUBLISH ====="
     docker compose exec -d web python manage.py discover_hn_catalog --max-new 100
     sleep 5
     docker compose exec -T web ps aux | grep discover_hn_catalog | grep -v grep || echo "process not visible yet"
