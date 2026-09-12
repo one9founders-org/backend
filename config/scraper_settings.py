@@ -84,3 +84,15 @@ class HuggingFaceConfig(ScraperConfig):
     DEFAULT_DAYS_BACK: int = 7
     DEFAULT_LIMIT: int = 100
     MIN_DOWNLOADS: int = 1000
+
+
+class GitHubConfig(ScraperConfig):
+    """Configuration for most-starred GitHub OSS tool discovery."""
+
+    API_BASE_URL: str = "https://api.github.com"
+    DEFAULT_LIMIT: int = 100
+    MIN_STARS: int = 50
+    USER_AGENT: str = os.getenv(
+        "SCRAPER_USER_AGENT",
+        "one9-github-scraper/1.0",
+    )
