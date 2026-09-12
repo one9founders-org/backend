@@ -1,0 +1,4 @@
+# Touch/bump this file to trigger .github/workflows/fetch-hn-catalog-logs.yml on main.
+# Fetches discover_hn_catalog dry-run + publish logs from the live EC2 container.
+triggered_at: 2026-09-12T20:20:00Z
+reason: fetch HN catalog dry-run and publish results after detached bootstrap
