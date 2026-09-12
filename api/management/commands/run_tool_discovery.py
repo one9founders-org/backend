@@ -20,13 +20,24 @@ class Command(BaseCommand):
                 f"Cap on new Tool rows this run " f"(default {MAX_NEW_TOOLS_PER_RUN})."
             ),
         )
+        parser.add_argument(
+            "--full-github-sweep",
+            action="store_true",
+            help=(
+                "Partition GitHub Search by topic×star-bin and auto-split "
+                "bins over 1,000 hits so every 100+ star AI repo is considered."
+            ),
+        )
 
     def handle(self, *args, **options):
         max_new = options["max_new"]
         if max_new is not None and max_new < 1:
             self.stderr.write("--max-new must be >= 1")
             return
-        summary = run_new_tool_discovery(max_new=max_new)
+        summary = run_new_tool_discovery(
+            max_new=max_new,
+            full_github_sweep=bool(options.get("full_github_sweep")),
+        )
         self.stdout.write("--- Discovery summary ---")
         self.stdout.write(f"Candidates found: {summary['candidates_found']}")
         self.stdout.write(f"Published: {summary['published']}")

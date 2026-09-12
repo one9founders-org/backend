@@ -2,6 +2,7 @@
 
 import logging
 import re
+import time
 from datetime import datetime, timedelta, timezone
 from functools import lru_cache
 from urllib.parse import urljoin, urlparse
@@ -14,9 +15,15 @@ from django.conf import settings
 from django.db.models import Q
 
 from api.discovery.github_queries import (
+    GITHUB_SEARCH_MIN_INTERVAL_SEC,
+    GITHUB_SEARCH_RESULT_CAP,
     GITHUB_SEED_REPOS,
     GITHUB_STAR_QUERIES,
     GITHUB_TOPICS,
+    MIN_OSS_STARS,
+    iter_base_github_queries,
+    split_star_bin,
+    star_clause,
 )
 from api.models import Tool
 
@@ -192,7 +199,28 @@ def _candidate_from_github_item(item: dict) -> dict | None:
     }
 
 
-def _github_search(query: str, *, headers: dict, per_page: int = 50) -> list[dict]:
+_github_search_last_at = 0.0
+
+
+def _throttle_github_search() -> None:
+    """Hold authenticated Search under ~30 requests/minute."""
+    global _github_search_last_at
+    elapsed = time.monotonic() - _github_search_last_at
+    wait = GITHUB_SEARCH_MIN_INTERVAL_SEC - elapsed
+    if wait > 0:
+        time.sleep(wait)
+    _github_search_last_at = time.monotonic()
+
+
+def _github_search_page(
+    query: str,
+    *,
+    headers: dict,
+    page: int = 1,
+    per_page: int = 100,
+) -> tuple[list[dict], int]:
+    """Return (items, total_count). total_count is 0 on failure."""
+    _throttle_github_search()
     try:
         response = requests.get(
             "https://api.github.com/search/repositories",
@@ -201,15 +229,105 @@ def _github_search(query: str, *, headers: dict, per_page: int = 50) -> list[dic
                 "sort": "stars",
                 "order": "desc",
                 "per_page": per_page,
+                "page": page,
             },
             headers=headers,
             timeout=REQUEST_TIMEOUT,
         )
+        if response.status_code in {403, 429}:
+            retry_after = int(response.headers.get("Retry-After") or "60")
+            logger.warning(
+                "GitHub search rate-limited (q=%r); sleeping %ss",
+                query,
+                retry_after,
+            )
+            time.sleep(retry_after)
+            return _github_search_page(
+                query, headers=headers, page=page, per_page=per_page
+            )
         response.raise_for_status()
-        return list(response.json().get("items") or [])
+        payload = response.json()
+        return list(payload.get("items") or []), int(payload.get("total_count") or 0)
     except Exception as exc:
         logger.warning("GitHub search failed for q=%r: %s", query, exc)
+        return [], 0
+
+
+def _github_search(query: str, *, headers: dict, per_page: int = 50) -> list[dict]:
+    """Compatibility wrapper — first page only (used by tests / light probes)."""
+    items, _total = _github_search_page(
+        query, headers=headers, page=1, per_page=per_page
+    )
+    return items
+
+
+def _github_search_all(
+    qualifier: str,
+    lo: int,
+    hi: int | None,
+    *,
+    headers: dict,
+    depth: int = 0,
+) -> list[dict]:
+    """Fetch every match for qualifier×star-bin, splitting when total_count >= 1000."""
+    if depth > 12:
+        logger.warning(
+            "GitHub bin-split depth exceeded for %r stars %s..%s",
+            qualifier,
+            lo,
+            hi,
+        )
         return []
+
+    query = f"{qualifier} {star_clause(lo, hi)}"
+    first_page, total = _github_search_page(
+        query, headers=headers, page=1, per_page=100
+    )
+    if total <= 0:
+        return []
+
+    if total >= GITHUB_SEARCH_RESULT_CAP:
+        parts = split_star_bin(lo, hi)
+        if parts == [(lo, hi)]:
+            logger.warning(
+                "Cannot split GitHub bin further (%r %s..%s, total=%s); "
+                "returning first 1000 only",
+                qualifier,
+                lo,
+                hi,
+                total,
+            )
+        else:
+            logger.info(
+                "Splitting GitHub bin %r stars %s..%s (total=%s) -> %s",
+                qualifier,
+                lo,
+                hi,
+                total,
+                parts,
+            )
+            rows: list[dict] = []
+            for next_lo, next_hi in parts:
+                rows.extend(
+                    _github_search_all(
+                        qualifier,
+                        next_lo,
+                        next_hi,
+                        headers=headers,
+                        depth=depth + 1,
+                    )
+                )
+            return rows
+
+    # Paginate up to the Search API's 1,000-result ceiling (10 × 100).
+    items = list(first_page)
+    max_pages = min(10, (min(total, GITHUB_SEARCH_RESULT_CAP) + 99) // 100)
+    for page in range(2, max_pages + 1):
+        more, _ = _github_search_page(query, headers=headers, page=page, per_page=100)
+        if not more:
+            break
+        items.extend(more)
+    return items
 
 
 def _github_repo(full_name: str, *, headers: dict) -> dict | None:
@@ -231,14 +349,19 @@ def _github_repo(full_name: str, *, headers: dict) -> dict | None:
         return None
 
 
-def fetch_github_candidates(days: int = 30) -> list[dict]:
+def fetch_github_candidates(
+    days: int = 30,
+    *,
+    full_sweep: bool = False,
+) -> list[dict]:
     """Discover open-source AI/devtools repos from GitHub (no Firecrawl).
 
-    Combines, in priority order:
-    - **most-starred** topic/keyword searches (no date window) so established
-      user-facing tools like Reticle, Aider, Ollama surface by popularity
-    - topic searches for recently *pushed* / newly *created* repos
-    - a curated seed list of high-signal repos always worth considering
+    Default (incremental) mode keeps the cheap star-query + recent-activity
+    mix used by daily discovery.
+
+    ``full_sweep=True`` walks every topic/keyword × star-bin partition with
+    automatic 1,000-result splits so we can catalogue *all* AI/LLM repos at
+    ``MIN_OSS_STARS``+ stars (subject to API rate limits).
     """
     since = (datetime.now(timezone.utc) - timedelta(days=days)).date().isoformat()
     headers = _github_headers()
@@ -252,23 +375,41 @@ def fetch_github_candidates(days: int = 30) -> list[dict]:
         cand = _candidate_from_github_item(item)
         if not cand:
             return
+        stars = int((cand.get("rawSignal") or {}).get("stars") or 0)
+        if stars < MIN_OSS_STARS and item.get("full_name") not in GITHUB_SEED_REPOS:
+            return
         key = normalize_url(cand["url"])
         if not key or key in seen_urls:
             return
         seen_urls.add(key)
+        # Credit / attribution fields for directory cards.
+        raw = cand.setdefault("rawSignal", {})
+        raw["attribution"] = (
+            f"Open-source project by {(raw.get('full_name') or '').split('/')[0]} "
+            f"on GitHub. Source: {cand['url']}"
+        )
+        raw["min_stars_gate"] = MIN_OSS_STARS
         candidates.append(cand)
 
-    # 1) Most-starred user-facing tools (primary ask).
-    for query in GITHUB_STAR_QUERIES:
-        for item in _github_search(query, headers=headers, per_page=50):
-            _add(item)
-
-    # 2) Fresh / active topic hits so brand-new tools still appear.
-    for topic in GITHUB_TOPICS:
-        for qualifier in (f"pushed:>{since}", f"created:>{since}"):
-            query = f"topic:{topic} {qualifier} fork:false"
-            for item in _github_search(query, headers=headers, per_page=20):
+    if full_sweep:
+        for qualifier, lo, hi in iter_base_github_queries():
+            for item in _github_search_all(qualifier, lo, hi, headers=headers):
                 _add(item)
+    else:
+        # 1) Popularity-first flat queries (daily / deploy path).
+        for query in GITHUB_STAR_QUERIES:
+            for item in _github_search(query, headers=headers, per_page=100):
+                _add(item)
+
+        # 2) Fresh / active topic hits so brand-new tools still appear.
+        for topic in GITHUB_TOPICS:
+            for qualifier in (f"pushed:>{since}", f"created:>{since}"):
+                query = (
+                    f"topic:{topic} {qualifier} "
+                    f"stars:>={MIN_OSS_STARS} fork:false archived:false"
+                )
+                for item in _github_search(query, headers=headers, per_page=50):
+                    _add(item)
 
     # 3) Curated seeds (always include Reticle-class tools).
     for full_name in GITHUB_SEED_REPOS:
@@ -276,16 +417,14 @@ def fetch_github_candidates(days: int = 30) -> list[dict]:
         if item:
             _add(item)
 
-    # Prefer higher-star repos when the downstream run is capped.
     candidates.sort(
         key=lambda c: int((c.get("rawSignal") or {}).get("stars") or 0),
         reverse=True,
     )
     logger.info(
-        "GitHub discovery yielded %s candidates "
-        "(%s star queries, %s topics, %s seeds)",
+        "GitHub discovery yielded %s candidates (full_sweep=%s, topics=%s, seeds=%s)",
         len(candidates),
-        len(GITHUB_STAR_QUERIES),
+        full_sweep,
         len(GITHUB_TOPICS),
         len(GITHUB_SEED_REPOS),
     )
@@ -665,13 +804,171 @@ def fetch_hacker_news_candidates(days: int = 14) -> list[dict]:
     return candidates
 
 
-def fetch_all_candidates() -> list[dict]:
+def fetch_gitlab_candidates(*, min_stars: int = MIN_OSS_STARS) -> list[dict]:
+    """Discover public GitLab projects with AI/LLM keywords and enough stars."""
+    token = getattr(settings, "GITLAB_TOKEN", "") or ""
+    headers = {"User-Agent": USER_AGENT}
+    if token:
+        headers["PRIVATE-TOKEN"] = token
+
+    keywords = (
+        "llm",
+        "ai agent",
+        "langchain",
+        "rag",
+        "openai",
+        "generative ai",
+        "mcp",
+        "ollama",
+    )
+    candidates: list[dict] = []
+    seen: set[str] = set()
+    for keyword in keywords:
+        page = 1
+        while page <= 5:
+            try:
+                response = requests.get(
+                    "https://gitlab.com/api/v4/projects",
+                    params={
+                        "search": keyword,
+                        "order_by": "star_count",
+                        "sort": "desc",
+                        "visibility": "public",
+                        "per_page": 100,
+                        "page": page,
+                    },
+                    headers=headers,
+                    timeout=REQUEST_TIMEOUT,
+                )
+                response.raise_for_status()
+                rows = response.json()
+            except Exception as exc:
+                logger.warning("GitLab search failed for %r: %s", keyword, exc)
+                break
+            if not isinstance(rows, list) or not rows:
+                break
+            for item in rows:
+                stars = int(item.get("star_count") or 0)
+                if stars < min_stars or item.get("forked_from_project"):
+                    continue
+                if item.get("archived"):
+                    continue
+                web_url = (item.get("web_url") or "").strip()
+                full_name = (item.get("path_with_namespace") or "").strip()
+                if not web_url or not full_name or web_url in seen:
+                    continue
+                seen.add(web_url)
+                candidates.append(
+                    {
+                        "name": f"gitlab/{full_name}",
+                        "url": web_url,
+                        "sourceType": "gitlab",
+                        "rawSignal": {
+                            "stars": stars,
+                            "description": item.get("description") or "",
+                            "full_name": full_name,
+                            "pushed_at": item.get("last_activity_at") or "",
+                            "topics": list(item.get("topics") or []),
+                            "license": "",
+                            "homepage": item.get("http_url_to_repo") or web_url,
+                            "attribution": (
+                                f"Open-source project by {full_name.split('/')[0]} "
+                                f"on GitLab. Source: {web_url}"
+                            ),
+                        },
+                    }
+                )
+            if len(rows) < 100:
+                break
+            page += 1
+            time.sleep(0.4)
+
+    candidates.sort(
+        key=lambda c: int((c.get("rawSignal") or {}).get("stars") or 0),
+        reverse=True,
+    )
+    logger.info("GitLab discovery yielded %s candidates", len(candidates))
+    return candidates
+
+
+def fetch_codeberg_candidates(*, min_stars: int = MIN_OSS_STARS) -> list[dict]:
+    """Discover Codeberg (Gitea) repos matching AI keywords."""
+    keywords = ("llm", "ai", "langchain", "rag", "ollama", "mcp")
+    candidates: list[dict] = []
+    seen: set[str] = set()
+    for keyword in keywords:
+        try:
+            response = requests.get(
+                "https://codeberg.org/api/v1/repos/search",
+                params={
+                    "q": keyword,
+                    "sort": "stars",
+                    "order": "desc",
+                    "limit": 50,
+                },
+                headers={"User-Agent": USER_AGENT},
+                timeout=REQUEST_TIMEOUT,
+            )
+            response.raise_for_status()
+            rows = list((response.json() or {}).get("data") or [])
+        except Exception as exc:
+            logger.warning("Codeberg search failed for %r: %s", keyword, exc)
+            continue
+        for item in rows:
+            stars = int(item.get("stars_count") or 0)
+            if stars < min_stars or item.get("fork") or item.get("archived"):
+                continue
+            html_url = (item.get("html_url") or "").strip()
+            full_name = (item.get("full_name") or "").strip()
+            if not html_url or not full_name or html_url in seen:
+                continue
+            seen.add(html_url)
+            candidates.append(
+                {
+                    "name": f"codeberg/{full_name}",
+                    "url": html_url,
+                    "sourceType": "codeberg",
+                    "rawSignal": {
+                        "stars": stars,
+                        "description": item.get("description") or "",
+                        "full_name": full_name,
+                        "pushed_at": item.get("updated_at") or "",
+                        "topics": list(item.get("topics") or []),
+                        "license": (
+                            (item.get("license") or {}).get("spdx_id")
+                            if isinstance(item.get("license"), dict)
+                            else ""
+                        ),
+                        "homepage": item.get("website") or html_url,
+                        "attribution": (
+                            f"Open-source project by {full_name.split('/')[0]} "
+                            f"on Codeberg. Source: {html_url}"
+                        ),
+                    },
+                }
+            )
+        time.sleep(0.3)
+
+    candidates.sort(
+        key=lambda c: int((c.get("rawSignal") or {}).get("stars") or 0),
+        reverse=True,
+    )
+    logger.info("Codeberg discovery yielded %s candidates", len(candidates))
+    return candidates
+
+
+def fetch_all_candidates(*, full_github_sweep: bool = False) -> list[dict]:
     """Cheap public sources by default. Firecrawl only when explicitly enabled."""
     from .firecrawl import firecrawl_discovery_enabled
     from .india_sources import fetch_firecrawl_candidates
 
+    def _github() -> list[dict]:
+        return fetch_github_candidates(full_sweep=full_github_sweep)
+
     fetchers = [
-        fetch_github_candidates,
+        _github,
+        fetch_gitlab_candidates,
+        fetch_codeberg_candidates,
         fetch_product_hunt_candidates,
         fetch_hacker_news_candidates,
     ]
@@ -762,5 +1059,5 @@ def dedupe_candidates(candidates: list[dict]) -> list[dict]:
     return unique
 
 
-def discover_candidates() -> list[dict]:
-    return dedupe_candidates(fetch_all_candidates())
+def discover_candidates(*, full_github_sweep: bool = False) -> list[dict]:
+    return dedupe_candidates(fetch_all_candidates(full_github_sweep=full_github_sweep))

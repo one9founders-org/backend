@@ -695,6 +695,14 @@ class TestFirecrawlCreditGuards:
                 return_value=[],
             ),
             patch(
+                "api.discovery.sources.fetch_gitlab_candidates",
+                return_value=[],
+            ),
+            patch(
+                "api.discovery.sources.fetch_codeberg_candidates",
+                return_value=[],
+            ),
+            patch(
                 "api.discovery.sources.fetch_product_hunt_candidates",
                 return_value=[],
             ),

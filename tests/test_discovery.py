@@ -258,13 +258,21 @@ class TestExternalSources:
             "sourceUrl": "https://www.producthunt.com/posts/demo",
         }
 
-        def failing_source():
+        def failing_source(**_kwargs):
             raise RuntimeError("rate limited")
 
         with (
             patch(
                 "api.discovery.sources.fetch_github_candidates",
                 new=failing_source,
+            ),
+            patch(
+                "api.discovery.sources.fetch_gitlab_candidates",
+                return_value=[],
+            ),
+            patch(
+                "api.discovery.sources.fetch_codeberg_candidates",
+                return_value=[],
             ),
             patch(
                 "api.discovery.sources.fetch_product_hunt_candidates",
@@ -651,13 +659,40 @@ class TestGitHubDiscoveryExpansion:
         assert "reticlehq/reticle" in GITHUB_SEED_REPOS
 
     def test_star_queries_target_user_facing_tools(self):
-        from api.discovery.github_queries import GITHUB_STAR_QUERIES
+        from api.discovery.github_queries import GITHUB_STAR_QUERIES, MIN_OSS_STARS
 
         blob = " ".join(GITHUB_STAR_QUERIES).lower()
-        assert "stars:>=" in blob
+        assert f"stars:>={MIN_OSS_STARS}" in blob
         assert "fork:false" in blob
-        assert "llm-tools" in blob or "mcp-server" in blob
+        assert "llm-tools" in blob or "mcp-server" in blob or "ai-agents" in blob
         assert "reticle" in blob
+
+    def test_star_bin_splitter_bisects_and_peels_open_ended(self):
+        from api.discovery.github_queries import split_star_bin, star_clause
+
+        assert split_star_bin(100, 199) == [(100, 149), (150, 199)]
+        assert split_star_bin(10000, None) == [(10000, 19999), (20000, None)]
+        assert star_clause(100, 119) == "stars:100..119"
+        assert star_clause(10000, None) == "stars:>=10000"
+
+    def test_oss_attribution_credits_maintainers(self):
+        from api.discovery.facts import Facts
+        from api.discovery.generate import oss_attribution_description
+
+        text = oss_attribution_description(
+            "github/ollama/ollama",
+            Facts(
+                meta_description="Run large language models locally",
+                stars=180000,
+                category="llm",
+                pricing="free",
+            ),
+            source_url="https://github.com/ollama/ollama",
+            source_type="github",
+        )
+        assert "ollama" in text.lower()
+        assert "GitHub" in text
+        assert "credit" in text.lower() or "One9Founders" in text
 
     def test_candidate_skips_forks_and_archived(self):
         from api.discovery.sources import _candidate_from_github_item
@@ -694,7 +729,7 @@ class TestGitHubDiscoveryExpansion:
             "full_name": "acme/new-llm-tool",
             "name": "new-llm-tool",
             "description": "A new LLM helper",
-            "stargazers_count": 12,
+            "stargazers_count": 150,
             "pushed_at": "2026-09-01T00:00:00Z",
             "topics": ["llm"],
             "fork": False,
@@ -726,7 +761,7 @@ class TestGitHubDiscoveryExpansion:
         }
 
         def _fake_search(query, *, headers, per_page=50):
-            if "stars:>=" in query or query.startswith("topic:mcp"):
+            if "stars:>=" in query or "stars:" in query or "topic:mcp" in query:
                 return [starred_item]
             return [search_item]
 
@@ -753,13 +788,66 @@ class TestGitHubDiscoveryExpansion:
         queries = [
             call.kwargs.get("q") or call.args[0] for call in search.call_args_list
         ]
-        assert any("stars:>=" in q for q in queries)
+        assert any("stars:>=" in q or "stars:" in q for q in queries)
         assert any("pushed:>" in q for q in queries)
         assert any("created:>" in q for q in queries)
         assert any("fork:false" in q for q in queries)
 
+    def test_github_search_all_splits_when_total_hits_cap(self, settings):
+        from api.discovery.sources import _github_search_all
 
-@pytest.mark.django_db
+        settings.GITHUB_TOKEN = "gh-test"
+        calls: list[str] = []
+
+        def fake_page(query, *, headers, page=1, per_page=100):
+            calls.append(query)
+            if "stars:100..199" in query and page == 1:
+                return [], 1500
+            if "stars:100..149" in query:
+                return (
+                    [
+                        {
+                            "html_url": "https://github.com/acme/a",
+                            "full_name": "acme/a",
+                            "stargazers_count": 120,
+                            "fork": False,
+                            "archived": False,
+                        }
+                    ],
+                    10,
+                )
+            if "stars:150..199" in query:
+                return (
+                    [
+                        {
+                            "html_url": "https://github.com/acme/b",
+                            "full_name": "acme/b",
+                            "stargazers_count": 180,
+                            "fork": False,
+                            "archived": False,
+                        }
+                    ],
+                    10,
+                )
+            return [], 0
+
+        with patch("api.discovery.sources._github_search_page", side_effect=fake_page):
+            items = _github_search_all(
+                "topic:llm fork:false archived:false",
+                100,
+                199,
+                headers={"Authorization": "Bearer x"},
+            )
+
+        urls = {i["html_url"] for i in items}
+        assert urls == {
+            "https://github.com/acme/a",
+            "https://github.com/acme/b",
+        }
+        assert any("stars:100..149" in q for q in calls)
+        assert any("stars:150..199" in q for q in calls)
+
+
 class TestDiscoveryTrigger:
     def test_forbidden_without_secret(self):
         client = APIClient()
