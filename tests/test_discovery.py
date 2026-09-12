@@ -848,6 +848,207 @@ class TestGitHubDiscoveryExpansion:
         assert any("stars:150..199" in q for q in calls)
 
 
+class TestHackerNewsDiscovery:
+    def test_product_name_strips_show_hn_prefix(self):
+        from api.discovery.sources import _hn_product_name
+
+        assert _hn_product_name("Show HN: Cursor – AI code editor") == "Cursor"
+        assert _hn_product_name("Ask HN: What AI tools do you use?") == ""
+        assert _hn_product_name("Who is hiring?") == ""
+
+    def test_skips_news_and_social_hosts(self):
+        from api.discovery.sources import _hn_candidate_from_fields
+
+        assert (
+            _hn_candidate_from_fields(
+                title="Show HN: Demo AI Writer",
+                url="https://www.youtube.com/watch?v=abc",
+                points=50,
+                object_id="1",
+            )
+            is None
+        )
+        assert (
+            _hn_candidate_from_fields(
+                title="Show HN: Demo AI Writer",
+                url="https://news.ycombinator.com/item?id=1",
+                points=50,
+                object_id="1",
+            )
+            is None
+        )
+
+    def test_requires_ai_signal_and_maps_candidate(self):
+        from api.discovery.sources import _hn_candidate_from_fields
+
+        assert (
+            _hn_candidate_from_fields(
+                title="Show HN: Calendar Sync",
+                url="https://calendarsync.example",
+                points=20,
+                object_id="99",
+            )
+            is None
+        )
+        candidate = _hn_candidate_from_fields(
+            title="Show HN: DemoLLM – local inference",
+            url="https://demollm.example/app",
+            points=42,
+            object_id="123",
+            feed="showstories",
+        )
+        assert candidate is not None
+        assert candidate["name"] == "DemoLLM"
+        assert candidate["sourceType"] == "hackernews"
+        assert candidate["url"] == "https://demollm.example/app"
+        assert candidate["sourceUrl"] == ("https://news.ycombinator.com/item?id=123")
+        assert candidate["rawSignal"]["points"] == 42
+        assert "Hacker News" in candidate["rawSignal"]["attribution"]
+
+    def test_firebase_feed_maps_ai_stories(self):
+        from api.discovery.sources import fetch_hacker_news_firebase_candidates
+
+        item = {
+            "id": 42,
+            "type": "story",
+            "title": "Show HN: AgentPad – AI agent IDE",
+            "url": "https://agentpad.example",
+            "score": 88,
+            "time": 1720000000,
+        }
+        with (
+            patch(
+                "api.discovery.sources._hn_firebase_get",
+                side_effect=lambda path: (
+                    [42, 99] if path == "showstories.json" else item
+                ),
+            ),
+            patch(
+                "api.discovery.sources._hn_firebase_item",
+                side_effect=lambda item_id: item if item_id == 42 else None,
+            ),
+            patch("api.discovery.sources.time.sleep"),
+        ):
+            rows = fetch_hacker_news_firebase_candidates(feeds=("showstories",))
+
+        assert len(rows) == 1
+        assert rows[0]["name"] == "AgentPad"
+        assert rows[0]["rawSignal"]["feed"] == "showstories"
+
+    def test_algolia_full_sweep_paginates(self):
+        from api.discovery.sources import fetch_hacker_news_algolia_candidates
+
+        page0 = [
+            {
+                "objectID": "1",
+                "title": "Show HN: PageOne AI",
+                "url": "https://pageone.example",
+                "points": 30,
+                "created_at": "2024-01-01T00:00:00.000Z",
+            }
+        ]
+        page1 = [
+            {
+                "objectID": "2",
+                "title": "Show HN: PageTwo LLM",
+                "url": "https://pagetwo.example",
+                "points": 20,
+                "created_at": "2024-02-01T00:00:00.000Z",
+            }
+        ]
+
+        def fake_search(
+            query, *, tags, since=None, page=0, hits_per_page=100, by_date=False
+        ):
+            if page == 0:
+                return page0, 2
+            if page == 1:
+                return page1, 2
+            return [], 2
+
+        with (
+            patch(
+                "api.discovery.sources._hn_algolia_search",
+                side_effect=fake_search,
+            ),
+            patch(
+                "api.discovery.sources.HN_FULL_SWEEP_QUERIES",
+                (("AI", "show_hn"),),
+            ),
+            patch("api.discovery.sources.time.sleep"),
+        ):
+            rows = fetch_hacker_news_algolia_candidates(full_sweep=True)
+
+        urls = {r["url"] for r in rows}
+        assert urls == {
+            "https://pageone.example",
+            "https://pagetwo.example",
+        }
+
+    @pytest.mark.django_db
+    def test_partition_cross_checks_existing_tools(self):
+        from api.discovery.sources import partition_against_catalog
+
+        ToolFactory(name="Cursor", website="https://www.cursor.com/")
+        scraped = [
+            {
+                "name": "Cursor",
+                "url": "https://cursor.com",
+                "sourceType": "hackernews",
+                "rawSignal": {"points": 100},
+            },
+            {
+                "name": "Brand New HN Tool",
+                "url": "https://brand-new-hn.example",
+                "sourceType": "hackernews",
+                "rawSignal": {"points": 10},
+            },
+        ]
+        already, fresh = partition_against_catalog(scraped)
+        assert len(already) == 1
+        assert already[0]["name"] == "Cursor"
+        assert len(fresh) == 1
+        assert fresh[0]["name"] == "Brand New HN Tool"
+
+    @pytest.mark.django_db
+    def test_hn_catalog_dry_run_reports_cross_check_without_writes(self):
+        ToolFactory(name="Known", website="https://known.example")
+        scraped = [
+            {
+                "name": "Known",
+                "url": "https://known.example",
+                "sourceType": "hackernews",
+                "rawSignal": {"points": 5},
+            },
+            {
+                "name": "Fresh AI Kit",
+                "url": "https://fresh-ai-kit.example",
+                "sourceType": "hackernews",
+                "rawSignal": {"points": 9},
+            },
+        ]
+        output = StringIO()
+        with (
+            patch(
+                "api.management.commands.discover_hn_catalog."
+                "fetch_hacker_news_candidates",
+                return_value=scraped,
+            ),
+            patch(
+                "api.management.commands.discover_hn_catalog." "run_new_tool_discovery",
+            ) as run,
+        ):
+            call_command("discover_hn_catalog", "--dry-run", stdout=output)
+
+        text = output.getvalue()
+        assert "scraped: 2" in text
+        assert "already_on_site: 1" in text
+        assert "new_candidates: 1" in text
+        assert "[on-site] Known" in text
+        assert "[new] Fresh AI Kit" in text
+        run.assert_not_called()
+
+
 class TestDiscoveryTrigger:
     def test_forbidden_without_secret(self):
         client = APIClient()

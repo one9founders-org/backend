@@ -764,44 +764,411 @@ def fetch_taaft_candidates(limit: int = TAAFT_MAX_CANDIDATES) -> list[dict]:
     return candidates
 
 
-def fetch_hacker_news_candidates(days: int = 14) -> list[dict]:
-    since = int((datetime.now(timezone.utc) - timedelta(days=days)).timestamp())
+# Official Firebase HN API (https://github.com/HackerNews/API) + Algolia search.
+HN_FIREBASE_BASE = "https://hacker-news.firebaseio.com/v0"
+HN_ALGOLIA_SEARCH = "https://hn.algolia.com/api/v1/search"
+HN_ALGOLIA_BY_DATE = "https://hn.algolia.com/api/v1/search_by_date"
+HN_FIREBASE_FEEDS = ("showstories", "topstories", "beststories", "newstories")
+HN_ALGOLIA_PAGE_SIZE = 100
+HN_ALGOLIA_MAX_PAGES = 10  # Algolia HN caps ~1,000 hits per query
+HN_MIN_POINTS_FULL = 5
+HN_SKIP_HOSTS = {
+    "news.ycombinator.com",
+    "ycombinator.com",
+    "youtube.com",
+    "youtu.be",
+    "twitter.com",
+    "x.com",
+    "facebook.com",
+    "instagram.com",
+    "reddit.com",
+    "linkedin.com",
+    "medium.com",
+    "substack.com",
+    "wikipedia.org",
+    "en.wikipedia.org",
+    "arxiv.org",
+    "doi.org",
+    "nytimes.com",
+    "wsj.com",
+    "bloomberg.com",
+    "techcrunch.com",
+    "theverge.com",
+    "wired.com",
+    "bbc.com",
+    "bbc.co.uk",
+    "cnn.com",
+}
+
+# Algolia queries for AI/devtools Show HN + story launches (full sweep).
+HN_FULL_SWEEP_QUERIES: tuple[tuple[str, str], ...] = (
+    ("AI", "show_hn"),
+    ("LLM", "show_hn"),
+    ("GPT", "show_hn"),
+    ("OpenAI", "show_hn"),
+    ("Claude", "show_hn"),
+    ("Copilot", "show_hn"),
+    ("machine learning", "show_hn"),
+    ("generative", "show_hn"),
+    ("langchain", "show_hn"),
+    ("MCP", "show_hn"),
+    ("agent", "show_hn"),
+    ("RAG", "show_hn"),
+    ("vector database", "show_hn"),
+    ("AI tool", "story"),
+    ("AI agent", "story"),
+    ("open source AI", "story"),
+    ("LLM tool", "story"),
+    ("MCP server", "story"),
+)
+
+# Cheaper daily mix (recent window only).
+HN_INCREMENTAL_QUERIES: tuple[tuple[str, str], ...] = (
+    ("AI", "show_hn"),
+    ("LLM", "show_hn"),
+    ("MCP", "show_hn"),
+    ("AI tool", "story"),
+    ("AI agent", "story"),
+)
+
+
+def _hn_product_name(title: str) -> str:
+    """Derive a product-ish name from an HN story title."""
+    text = (title or "").strip()
+    lowered = text.lower()
+    for prefix in ("show hn:", "show hn -", "launch hn:", "launch hn -"):
+        if lowered.startswith(prefix):
+            text = text[len(prefix) :].strip()
+            lowered = text.lower()
+            break
+    if not text or text.endswith("?"):
+        return ""
+    if lowered.startswith(("ask hn", "tell hn", "who is hiring", "poll:")):
+        return ""
+    # Prefer the product fragment before em-dash / colon / paren.
+    for sep in (" — ", " – ", " - ", ": ", " ("):
+        if sep in text:
+            head = text.split(sep, 1)[0].strip()
+            if 1 <= len(head.split()) <= 8:
+                text = head
+                break
+    words = text.split()
+    if not words or len(words) > 12:
+        return ""
+    return text.strip()
+
+
+def _hn_skip_host(url: str) -> bool:
+    host = url_host(url)
+    if not host:
+        return True
+    return any(
+        host == skipped or host.endswith("." + skipped) for skipped in HN_SKIP_HOSTS
+    )
+
+
+def _hn_candidate_from_fields(
+    *,
+    title: str,
+    url: str,
+    points: int = 0,
+    object_id: str = "",
+    created_at: str = "",
+    feed: str = "",
+) -> dict | None:
+    """Normalize one HN story into a discovery candidate, or None if unusable."""
+    clean_url = canonicalize_http_url(url) or ""
+    if not clean_url or _hn_skip_host(clean_url):
+        return None
+    name = _hn_product_name(title)
+    if not name or not _mentions_ai(f"{title} {name}"):
+        return None
+    source_url = (
+        f"https://news.ycombinator.com/item?id={object_id}" if object_id else ""
+    )
+    return {
+        "name": name[:255],
+        "url": clean_url,
+        "officialUrl": clean_url,
+        "sourceUrl": source_url or clean_url,
+        "externalId": str(object_id or ""),
+        "sourceType": "hackernews",
+        "rawSignal": {
+            "points": int(points or 0),
+            "title": (title or "")[:500],
+            "created_at": created_at or "",
+            "feed": feed or "",
+            "attribution": (
+                f"Discovered on Hacker News"
+                f"{f' ({feed})' if feed else ''}. "
+                f"Source: {source_url or clean_url}"
+            ),
+        },
+    }
+
+
+def _hn_firebase_get(path: str):
+    response = requests.get(
+        f"{HN_FIREBASE_BASE}/{path}",
+        headers={"User-Agent": USER_AGENT, "Accept": "application/json"},
+        timeout=REQUEST_TIMEOUT,
+    )
+    response.raise_for_status()
+    return response.json()
+
+
+def _hn_firebase_item(item_id: int) -> dict | None:
+    try:
+        payload = _hn_firebase_get(f"item/{int(item_id)}.json")
+    except Exception as exc:
+        logger.debug("HN Firebase item %s failed: %s", item_id, exc)
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def fetch_hacker_news_firebase_candidates(
+    *,
+    feeds: tuple[str, ...] = HN_FIREBASE_FEEDS,
+    max_items_per_feed: int = 200,
+) -> list[dict]:
+    """Pull live story IDs from the official Firebase HN API and map AI tools."""
+    candidates: list[dict] = []
+    seen_ids: set[int] = set()
+    for feed in feeds:
+        try:
+            ids = _hn_firebase_get(f"{feed}.json")
+        except Exception as exc:
+            logger.warning("HN Firebase feed %s failed: %s", feed, exc)
+            continue
+        if not isinstance(ids, list):
+            continue
+        for item_id in ids[: max(1, max_items_per_feed)]:
+            try:
+                numeric_id = int(item_id)
+            except (TypeError, ValueError):
+                continue
+            if numeric_id in seen_ids:
+                continue
+            seen_ids.add(numeric_id)
+            item = _hn_firebase_item(numeric_id)
+            if not item or item.get("deleted") or item.get("dead"):
+                continue
+            if (item.get("type") or "") != "story":
+                continue
+            created = ""
+            if item.get("time"):
+                try:
+                    created = datetime.fromtimestamp(
+                        int(item["time"]), tz=timezone.utc
+                    ).isoformat()
+                except (TypeError, ValueError, OSError):
+                    created = ""
+            candidate = _hn_candidate_from_fields(
+                title=item.get("title") or "",
+                url=item.get("url") or "",
+                points=int(item.get("score") or 0),
+                object_id=str(numeric_id),
+                created_at=created,
+                feed=feed,
+            )
+            if candidate:
+                candidates.append(candidate)
+            time.sleep(0.02)
+    logger.info(
+        "HN Firebase feeds yielded %s AI tool candidates from %s story ids",
+        len(candidates),
+        len(seen_ids),
+    )
+    return candidates
+
+
+def _hn_algolia_search(
+    query: str,
+    *,
+    tags: str,
+    since: int | None = None,
+    page: int = 0,
+    hits_per_page: int = HN_ALGOLIA_PAGE_SIZE,
+    by_date: bool = False,
+) -> tuple[list[dict], int]:
+    """Return (hits, nbPages). Empty on failure."""
+    params: dict = {
+        "query": query,
+        "tags": tags,
+        "hitsPerPage": max(1, min(hits_per_page, 100)),
+        "page": max(0, page),
+    }
+    if since is not None:
+        params["numericFilters"] = f"created_at_i>{int(since)}"
+    url = HN_ALGOLIA_BY_DATE if by_date else HN_ALGOLIA_SEARCH
     try:
         response = requests.get(
-            "http://hn.algolia.com/api/v1/search_by_date",
-            params={
-                "query": "AI tool",
-                "tags": "story",
-                "numericFilters": f"created_at_i>{since}",
-                "hitsPerPage": 50,
-            },
+            url,
+            params=params,
             headers={"User-Agent": USER_AGENT},
             timeout=REQUEST_TIMEOUT,
         )
         response.raise_for_status()
-        hits = response.json().get("hits") or []
+        payload = response.json()
+        hits = list(payload.get("hits") or [])
+        nb_pages = int(payload.get("nbPages") or 0)
+        return hits, nb_pages
     except Exception as exc:
-        logger.warning("Hacker News search failed: %s", exc)
-        return []
-
-    candidates = []
-    for hit in hits:
-        url = hit.get("url") or ""
-        title = hit.get("title") or ""
-        if not url or not title:
-            continue
-        candidates.append(
-            {
-                "name": title,
-                "url": url,
-                "sourceType": "hackernews",
-                "rawSignal": {
-                    "points": hit.get("points") or 0,
-                    "title": title,
-                },
-            }
+        logger.warning(
+            "HN Algolia search failed (q=%r tags=%r page=%s): %s",
+            query,
+            tags,
+            page,
+            exc,
         )
+        return [], 0
+
+
+def fetch_hacker_news_algolia_candidates(
+    *,
+    queries: tuple[tuple[str, str], ...] = HN_INCREMENTAL_QUERIES,
+    days: int | None = 14,
+    full_sweep: bool = False,
+    min_points: int = 0,
+) -> list[dict]:
+    """Search HN via Algolia; full_sweep paginates each query up to the 1k cap."""
+    since = None
+    if days is not None and not full_sweep:
+        since = int((datetime.now(timezone.utc) - timedelta(days=days)).timestamp())
+    if full_sweep:
+        queries = HN_FULL_SWEEP_QUERIES
+        min_points = max(min_points, HN_MIN_POINTS_FULL)
+
+    candidates: list[dict] = []
+    seen_ids: set[str] = set()
+    for query, tags in queries:
+        max_pages = HN_ALGOLIA_MAX_PAGES if full_sweep else 1
+        for page in range(max_pages):
+            hits, nb_pages = _hn_algolia_search(
+                query,
+                tags=tags,
+                since=since,
+                page=page,
+                by_date=not full_sweep,
+            )
+            if not hits:
+                break
+            for hit in hits:
+                object_id = str(hit.get("objectID") or hit.get("story_id") or "")
+                if object_id and object_id in seen_ids:
+                    continue
+                points = int(hit.get("points") or 0)
+                if points < min_points:
+                    continue
+                candidate = _hn_candidate_from_fields(
+                    title=hit.get("title") or "",
+                    url=hit.get("url") or "",
+                    points=points,
+                    object_id=object_id,
+                    created_at=hit.get("created_at") or "",
+                    feed=f"algolia:{tags}",
+                )
+                if not candidate:
+                    continue
+                if object_id:
+                    seen_ids.add(object_id)
+                candidates.append(candidate)
+            if page + 1 >= nb_pages:
+                break
+            time.sleep(0.15)
+    logger.info(
+        "HN Algolia yielded %s candidates (full_sweep=%s, queries=%s)",
+        len(candidates),
+        full_sweep,
+        len(queries),
+    )
     return candidates
+
+
+def fetch_hacker_news_candidates(
+    days: int = 14,
+    *,
+    full_sweep: bool = False,
+) -> list[dict]:
+    """Discover AI tools from Hacker News (Firebase live feeds + Algolia).
+
+    Incremental mode: recent Algolia windows + Firebase show/top/best/new.
+    ``full_sweep=True`` paginates AI/Show HN Algolia queries across history
+    (subject to Algolia's ~1,000-hit cap per query) and still merges Firebase.
+    """
+    combined: list[dict] = []
+    seen_urls: set[str] = set()
+
+    def _add(rows: list[dict]) -> None:
+        for candidate in rows:
+            key = normalize_url(candidate_official_url(candidate))
+            if not key or key in seen_urls:
+                continue
+            seen_urls.add(key)
+            combined.append(candidate)
+
+    try:
+        _add(fetch_hacker_news_firebase_candidates())
+    except Exception as exc:
+        logger.warning("HN Firebase discovery failed: %s", exc)
+
+    try:
+        _add(
+            fetch_hacker_news_algolia_candidates(
+                days=None if full_sweep else days,
+                full_sweep=full_sweep,
+            )
+        )
+    except Exception as exc:
+        logger.warning("HN Algolia discovery failed: %s", exc)
+
+    combined.sort(
+        key=lambda c: int((c.get("rawSignal") or {}).get("points") or 0),
+        reverse=True,
+    )
+    logger.info(
+        "HN discovery yielded %s unique AI tool candidates (full_sweep=%s)",
+        len(combined),
+        full_sweep,
+    )
+    return combined
+
+
+def partition_against_catalog(
+    candidates: list[dict],
+) -> tuple[list[dict], list[dict]]:
+    """Cross-check scraped candidates against Tool rows already on the site.
+
+    Returns ``(already_on_site, new_unique)``. ``new_unique`` is also
+    self-deduped by URL/name the same way ``dedupe_candidates`` does for
+    non-review sources.
+    """
+    existing = _existing_tools_for_candidates(candidates)
+    already: list[dict] = []
+    fresh: list[dict] = []
+    seen_urls: set[str] = set()
+    seen_names: set[str] = set()
+
+    ranked = sorted(candidates, key=candidate_signal, reverse=True)
+    for candidate in ranked:
+        name = (candidate.get("name") or "").strip()
+        identity_url = candidate_source_url(candidate) or candidate_official_url(
+            candidate
+        )
+        if not name or not identity_url:
+            continue
+        url_key = normalize_url(identity_url)
+        name_key = normalize_name(name)
+        if url_key in seen_urls or (name_key and name_key in seen_names):
+            continue
+        seen_urls.add(url_key)
+        if name_key:
+            seen_names.add(name_key)
+        if _matches_existing(candidate, existing):
+            already.append(candidate)
+        else:
+            fresh.append(candidate)
+    return already, fresh
 
 
 def fetch_gitlab_candidates(*, min_stars: int = MIN_OSS_STARS) -> list[dict]:
@@ -957,7 +1324,11 @@ def fetch_codeberg_candidates(*, min_stars: int = MIN_OSS_STARS) -> list[dict]:
     return candidates
 
 
-def fetch_all_candidates(*, full_github_sweep: bool = False) -> list[dict]:
+def fetch_all_candidates(
+    *,
+    full_github_sweep: bool = False,
+    full_hn_sweep: bool = False,
+) -> list[dict]:
     """Cheap public sources by default. Firecrawl only when explicitly enabled."""
     from .firecrawl import firecrawl_discovery_enabled
     from .india_sources import fetch_firecrawl_candidates
@@ -965,12 +1336,15 @@ def fetch_all_candidates(*, full_github_sweep: bool = False) -> list[dict]:
     def _github() -> list[dict]:
         return fetch_github_candidates(full_sweep=full_github_sweep)
 
+    def _hacker_news() -> list[dict]:
+        return fetch_hacker_news_candidates(full_sweep=full_hn_sweep)
+
     fetchers = [
         _github,
         fetch_gitlab_candidates,
         fetch_codeberg_candidates,
         fetch_product_hunt_candidates,
-        fetch_hacker_news_candidates,
+        _hacker_news,
     ]
     if getattr(settings, "TAAFT_DISCOVERY_ENABLED", False):
         fetchers.append(fetch_taaft_candidates)
@@ -1059,5 +1433,14 @@ def dedupe_candidates(candidates: list[dict]) -> list[dict]:
     return unique
 
 
-def discover_candidates(*, full_github_sweep: bool = False) -> list[dict]:
-    return dedupe_candidates(fetch_all_candidates(full_github_sweep=full_github_sweep))
+def discover_candidates(
+    *,
+    full_github_sweep: bool = False,
+    full_hn_sweep: bool = False,
+) -> list[dict]:
+    return dedupe_candidates(
+        fetch_all_candidates(
+            full_github_sweep=full_github_sweep,
+            full_hn_sweep=full_hn_sweep,
+        )
+    )
