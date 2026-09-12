@@ -155,6 +155,18 @@ class TestExternalSources:
             "outbound_url": "https://www.producthunt.com/r/p/123",
         }
 
+    def test_product_hunt_does_not_treat_ai_inside_a_word_as_ai_signal(self):
+        entry = {
+            "title": "Captain Switch",
+            "link": "https://www.producthunt.com/posts/captain-switch",
+            "summary": "Manage emergency shutdown procedures",
+        }
+        with patch(
+            "api.discovery.sources.feedparser.parse",
+            return_value=SimpleNamespace(entries=[entry]),
+        ):
+            assert fetch_product_hunt_rss_candidates() == []
+
     def test_product_hunt_api_maps_authorized_structured_fields(self):
         response = Mock()
         response.raise_for_status.return_value = None

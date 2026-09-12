@@ -197,7 +197,9 @@ def fetch_github_candidates(days: int = 14) -> list[dict]:
 
 def _mentions_ai(text: str) -> bool:
     haystack = (text or "").lower()
-    return any(keyword in haystack for keyword in AI_KEYWORDS)
+    return bool(re.search(r"\bai\b", haystack)) or any(
+        keyword in haystack for keyword in AI_KEYWORDS if keyword != "ai"
+    )
 
 
 def _resolve_product_hunt_redirect(url: str) -> str:
