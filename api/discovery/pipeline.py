@@ -24,7 +24,13 @@ from api.models import (
 
 from . import MAX_FIRECRAWL_TOOLS_PER_RUN, MAX_NEW_TOOLS_PER_RUN, REFRESH_NOOP_RATIO
 from .facts import Facts, fetch_facts
-from .generate import FORGE_SOURCES, generate_description, oss_attribution_description
+from .generate import (
+    FORGE_SOURCES,
+    HN_SOURCES,
+    generate_description,
+    hn_attribution_description,
+    oss_attribution_description,
+)
 from .india_sources import (
     is_aggregator_host,
     is_article_path,
@@ -312,9 +318,116 @@ def _resolve_product_url(serp_url: str, facts: Facts) -> str | None:
     return None
 
 
+def _website_already_listed(url: str) -> bool:
+    if not url:
+        return False
+    if Tool.objects.filter(website__iexact=url).exists():
+        return True
+    trimmed = url.rstrip("/")
+    return (
+        Tool.objects.filter(website__iexact=trimmed).exists()
+        or Tool.objects.filter(website__iexact=trimmed + "/").exists()
+    )
+
+
+def _process_hn_candidate(candidate: dict, name: str, url: str) -> dict:
+    """Fast HN publish path: no LLM, no HTTP facts crawl."""
+    if not name:
+        return _reject(candidate, name, url, ["tool name is empty"])
+    if not url:
+        return _reject(candidate, name, url, ["no official product website found"])
+    if looks_like_listicle(name, url):
+        return _reject(
+            candidate, name, url, ["listicle or roundup page, not a product"]
+        )
+    if is_aggregator_host(url) or is_article_path(url):
+        return _reject(
+            candidate,
+            name,
+            url,
+            ["website is a directory or article, not a product"],
+        )
+    if Tool.objects.filter(name__iexact=name).exists():
+        return _reject(
+            candidate,
+            name,
+            url,
+            [f"tool named {name!r} already exists"],
+        )
+    if _website_already_listed(url):
+        return _reject(
+            candidate,
+            name,
+            url,
+            ["website already in directory"],
+        )
+
+    raw = candidate.get("rawSignal") or {}
+    story_title = str(raw.get("title") or "").strip()
+    try:
+        points = int(raw.get("points") or 0)
+    except (TypeError, ValueError):
+        points = 0
+    hn_url = candidate_source_url(candidate) or ""
+    about = story_title or name
+    facts = Facts(
+        title=name,
+        meta_description=_clip(about, 280),
+        pricing="freemium",
+        category="ai-tool",
+        source_text="",
+        official_website=url,
+        is_single_product_page=True,
+    )
+    generated = hn_attribution_description(
+        name,
+        facts,
+        product_url=url,
+        hn_url=hn_url,
+        points=points,
+        story_title=story_title,
+    )
+    passed, reasons = passes_quality_gate(name, generated, facts, source_text="")
+    return {
+        "name": name,
+        "url": url,
+        "candidate": candidate,
+        "facts": facts,
+        "generated": generated,
+        "passed": passed,
+        "reasons": reasons,
+        "skip_logo": True,
+    }
+
+
+def attach_hn_sources_for_existing(candidates: list[dict]) -> dict:
+    """Attach hackernews ToolSource rows for tools already on the site."""
+    attached = skipped = missing = 0
+    for candidate in candidates:
+        tool = _existing_tool_for_candidate(candidate)
+        if tool is None:
+            missing += 1
+            continue
+        reference = _attach_source(tool, candidate)
+        if reference is None:
+            skipped += 1
+            continue
+        tags = list(tool.tags or [])
+        if "hackernews" not in tags:
+            tags.append("hackernews")
+            tool.tags = tags
+            tool.save(update_fields=["tags"])
+        attached += 1
+    return {"attached": attached, "skipped": skipped, "missing": missing}
+
+
 def process_candidate(candidate: dict) -> dict:
     name = (candidate.get("name") or "").strip()
     url = candidate_official_url(candidate)
+    source_type = (candidate.get("sourceType") or "").strip().lower()
+
+    if source_type in HN_SOURCES:
+        return _process_hn_candidate(candidate, name, url)
 
     if looks_like_listicle(name, url):
         return _reject(
@@ -441,7 +554,6 @@ def process_candidate(candidate: dict) -> dict:
                 facts=facts,
             )
 
-    source_type = (candidate.get("sourceType") or "").strip().lower()
     use_oss_template = source_type in FORGE_SOURCES or bool(
         candidate.get("useOssTemplate")
     )
@@ -596,9 +708,10 @@ def publish_new_tool(result: dict) -> Tool:
     elif facts.india_focused:
         tool.gst_applicable = True
 
-    logo = _resolve_logo_url(website, facts)
-    if logo:
-        tool.logo_url = logo
+    if not result.get("skip_logo"):
+        logo = _resolve_logo_url(website, facts)
+        if logo:
+            tool.logo_url = logo
 
     tool.save()
     _apply_categories(tool, facts)

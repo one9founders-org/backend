@@ -34,6 +34,20 @@ def compute_tool_directory_stats():
         }
         for row in by_track_rows
     ]
+    by_source_rows = list(
+        qs.filter(source_references__isnull=False)
+        .values(source=F("source_references__source"))
+        .annotate(count=Count("id", distinct=True))
+        .order_by("-count", "source")
+    )
+    by_source = [
+        {
+            "source": row["source"],
+            "count": row["count"],
+        }
+        for row in by_source_rows
+        if row.get("source")
+    ]
     return {
         "count": qs.count(),
         "fully_assessed_count": qs.filter(criteria_completed=10).count(),
@@ -43,6 +57,7 @@ def compute_tool_directory_stats():
         "total_tools": Tool.objects.count(),
         "by_category": by_category,
         "by_track": by_track,
+        "by_source": by_source,
     }
 
 

@@ -6,7 +6,10 @@ AI story search. Drops stories already present as Tool rows (URL or name).
 
 from django.core.management.base import BaseCommand
 
-from api.discovery.pipeline import run_new_tool_discovery
+from api.discovery.pipeline import (
+    attach_hn_sources_for_existing,
+    run_new_tool_discovery,
+)
 from api.discovery.sources import (
     candidate_signal,
     fetch_hacker_news_candidates,
@@ -24,8 +27,8 @@ class Command(BaseCommand):
         parser.add_argument(
             "--max-new",
             type=int,
-            default=100,
-            help="Cap on new Tool rows this run (default 100).",
+            default=5000,
+            help="Cap on new Tool rows this run (default 5000).",
         )
         parser.add_argument(
             "--full-sweep",
@@ -45,6 +48,11 @@ class Command(BaseCommand):
                 "Fetch and cross-check only: print already-on-site vs new, "
                 "do not write Tool rows."
             ),
+        )
+        parser.add_argument(
+            "--skip-attach-existing",
+            action="store_true",
+            help="Do not attach Hacker News ToolSource rows for on-site matches.",
         )
         parser.add_argument(
             "--limit-print",
@@ -96,6 +104,12 @@ class Command(BaseCommand):
         if options["dry_run"]:
             self.stdout.write("\nDry run complete (no writes).")
             return
+
+        if not options["skip_attach_existing"] and already:
+            attach_summary = attach_hn_sources_for_existing(already)
+            self.stdout.write("\n--- HN sources on existing tools ---")
+            for key, value in attach_summary.items():
+                self.stdout.write(f"{key}: {value}")
 
         summary = run_new_tool_discovery(
             max_new=max_new,

@@ -193,7 +193,7 @@ REST_FRAMEWORK = {
         "rest_framework.throttling.UserRateThrottle",
     ],
     "DEFAULT_THROTTLE_RATES": {
-        # Directory SSG and browsing issue many GETs from a few IPs (Vercel/Cloudflare).
+        # Directory SSG and browsing issue many GETs from a few IPs (CDN/edge).
         # Keep smart-search scopes tighter; this is the global API budget.
         "anon": "1000/hour",
         "user": "5000/hour",
@@ -211,8 +211,7 @@ CORS_ALLOWED_ORIGINS = [
     "https://www.one9founders.com",
 ]
 CORS_ALLOWED_ORIGIN_REGEXES = [
-    r"^https://one9founders-git-.*-one9founders-projects\.vercel\.app$",
-    r"^https://one9founders-.*-one9founders-projects\.vercel\.app$",
+    r"^https://[a-z0-9-]+\.d[a-z0-9]+\.amplifyapp\.com$",
 ]
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_ALL_ORIGINS = DEBUG

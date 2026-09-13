@@ -1,1 +1,9 @@
+<<<<<<< HEAD
 publish check 2026-09-13T00:34:00Z
+=======
+# Touch/bump this file to trigger .github/workflows/fetch-hn-catalog-logs.yml.
+# Fetches discover_hn_catalog dry-run + publish logs from the live EC2 container.
+triggered_at: 2026-09-12T21:07:47Z
+reason: fetch HN catalog v2 publish completion
+attempt: 5
+>>>>>>> origin/main
