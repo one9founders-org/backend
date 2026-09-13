@@ -60,8 +60,30 @@ class NewsletterResource(resources.ModelResource):
         model = NewsletterSubscription
 
 
+class UserResource(resources.ModelResource):
+    """Export users for SES campaigns (email, name, startup flags)."""
+
+    class Meta:
+        model = User
+        fields = (
+            "id",
+            "email",
+            "username",
+            "first_name",
+            "last_name",
+            "is_startup",
+            "startup_name",
+            "user_role",
+            "is_active",
+            "date_joined",
+            "last_login",
+        )
+        export_order = fields
+
+
 @admin.register(User)
-class UserAdmin(admin.ModelAdmin):
+class UserAdmin(ImportExportModelAdmin):
+    resource_class = UserResource
     list_display = [
         "email",
         "username",
