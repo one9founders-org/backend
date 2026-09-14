@@ -10,8 +10,8 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import Paper
-from .serializers import PaperDetailSerializer, PaperListSerializer
+from .models import Author, Paper
+from .serializers import AuthorSerializer, PaperDetailSerializer, PaperListSerializer
 
 
 class SitemapPagination(PageNumberPagination):
@@ -32,6 +32,44 @@ class PaperSitemapView(APIView):
             for paper in page
         ]
         return paginator.get_paginated_response(results)
+
+
+class AuthorSitemapView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        queryset = (
+            Author.objects.filter(paper_count__gt=0)
+            .only("slug", "last_seen")
+            .order_by("id")
+        )
+        paginator = SitemapPagination()
+        page = paginator.paginate_queryset(queryset, request, view=self)
+        results = [
+            {"slug": author.slug, "last_seen": author.last_seen} for author in page
+        ]
+        return paginator.get_paginated_response(results)
+
+
+class AuthorDetailView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, slug):
+        try:
+            author = Author.objects.get(slug=slug)
+        except Author.DoesNotExist:
+            return Response({"detail": "Not found."}, status=404)
+
+        queryset = author.papers.order_by("-published_at")
+        paginator = PaperPagination()
+        page = paginator.paginate_queryset(queryset, request, view=self)
+        response = paginator.get_paginated_response(
+            PaperListSerializer(page, many=True).data
+        )
+        author_data = AuthorSerializer(author).data
+        author_data["paper_count"] = response.data["count"]
+        response.data["author"] = author_data
+        return response
 
 
 logger = logging.getLogger(__name__)

@@ -1,0 +1,93 @@
+name: Fetch HN catalog logs
+
+# Push-triggered (no workflow_dispatch) so the cloud agent token can start it.
+on:
+  push:
+    paths:
+      - "scripts/fetch_hn_catalog_logs.flag"
+    branches:
+      - main
+      - "cursor/hn-catalog-fetch-logs-e1c4"
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Print HN catalog logs from EC2
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
+          timeout: 120s
+          script: |
+            set -e
+            cd /var/www/one9founders
+            echo "===== docker top web ====="
+            docker compose top web || true
+            echo "===== /proc discover_hn match ====="
+            docker compose exec -T web bash -lc '
+              found=0
+              for cmdline in /proc/[0-9]*/cmdline; do
+                if tr "\0" " " < "$cmdline" 2>/dev/null | grep -Eq "discover_hn_catalog|manage.py"; then
+                  line=$(tr "\0" " " < "$cmdline")
+                  case "$line" in
+                    *gunicorn*) ;;
+                    *)
+                      echo "PID $(basename "$(dirname "$cmdline")") $line"
+                      found=1
+                      ;;
+                  esac
+                fi
+              done
+              if [ "$found" = "0" ]; then
+                echo "(no discover_hn / non-gunicorn manage.py in /proc)"
+              fi
+            '
+            echo "===== v3 marker ====="
+            ls -la /var/www/one9founders/hn-catalog-bootstrapped-v3 2>/dev/null || echo "no v3 marker"
+            echo "===== dry-run log ====="
+            docker compose exec -T web bash -lc '
+              if [ -f /app/backend/hn-catalog-dry-run.log ]; then
+                ls -la /app/backend/hn-catalog-dry-run.log
+                wc -l /app/backend/hn-catalog-dry-run.log
+                echo "--- full (or first 200 lines) ---"
+                head -n 200 /app/backend/hn-catalog-dry-run.log || true
+                echo "--- already on site (head) ---"
+                grep "\[on-site\]" /app/backend/hn-catalog-dry-run.log | head -40 || true
+                echo "--- new candidates (head) ---"
+                grep "\[new\]" /app/backend/hn-catalog-dry-run.log | head -40 || true
+                echo "--- tail ---"
+                tail -n 40 /app/backend/hn-catalog-dry-run.log
+              else
+                echo "missing /app/backend/hn-catalog-dry-run.log"
+              fi
+            '
+            echo "===== publish log ====="
+            docker compose exec -T web bash -lc '
+              if [ -f /app/backend/hn-catalog-publish.log ]; then
+                ls -la /app/backend/hn-catalog-publish.log
+                wc -l /app/backend/hn-catalog-publish.log
+                echo "--- progress counts ---"
+                echo -n "embedding_ok_lines="; grep -c "embeddings" /app/backend/hn-catalog-publish.log || true
+                echo -n "PUBLISH_EXIT="; grep "PUBLISH_EXIT=" /app/backend/hn-catalog-publish.log || echo "(not yet)"
+                echo -n "summary_present="; grep -c "HN catalogue publish summary" /app/backend/hn-catalog-publish.log || true
+                echo "--- head (non-embedding) ---"
+                grep -v "embeddings\|RequestsDependencyWarning\|warnings.warn" /app/backend/hn-catalog-publish.log | head -n 80 || true
+                echo "--- tail (non-embedding) ---"
+                grep -v "embeddings\|RequestsDependencyWarning\|warnings.warn" /app/backend/hn-catalog-publish.log | tail -n 40 || true
+                echo "--- raw tail ---"
+                tail -n 20 /app/backend/hn-catalog-publish.log
+              else
+                echo "missing /app/backend/hn-catalog-publish.log (publish may not have started yet)"
+              fi
+            '
+            echo "===== DB hackernews ToolSource count ====="
+            docker compose exec -T web bash -lc '
+              python manage.py shell -c "from api.models import ToolSource, Tool; print(\"tool_sources_hackernews\", ToolSource.objects.filter(source=\"hackernews\").count()); print(\"tools_with_hn_tag\", Tool.objects.filter(tags__contains=[\"hackernews\"]).count())"
+            ' || true
+            echo "===== marker ====="
+            ls -la /var/www/one9founders/hn-catalog-bootstrapped 2>/dev/null || echo "no marker"

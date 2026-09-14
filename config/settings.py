@@ -193,7 +193,7 @@ REST_FRAMEWORK = {
         "rest_framework.throttling.UserRateThrottle",
     ],
     "DEFAULT_THROTTLE_RATES": {
-        # Directory SSG and browsing issue many GETs from a few IPs (Vercel/Cloudflare).
+        # Directory SSG and browsing issue many GETs from a few IPs (CDN/edge).
         # Keep smart-search scopes tighter; this is the global API budget.
         "anon": "1000/hour",
         "user": "5000/hour",
@@ -211,8 +211,7 @@ CORS_ALLOWED_ORIGINS = [
     "https://www.one9founders.com",
 ]
 CORS_ALLOWED_ORIGIN_REGEXES = [
-    r"^https://one9founders-git-.*-one9founders-projects\.vercel\.app$",
-    r"^https://one9founders-.*-one9founders-projects\.vercel\.app$",
+    r"^https://[a-z0-9-]+\.d[a-z0-9]+\.amplifyapp\.com$",
 ]
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_ALL_ORIGINS = DEBUG
@@ -255,6 +254,27 @@ FIRECRAWL_API_KEY = os.getenv("FIRECRAWL_API_KEY", "")
 FIRECRAWL_DISCOVERY_ENABLED = os.getenv(
     "FIRECRAWL_DISCOVERY_ENABLED", ""
 ).strip().lower() in {"1", "true", "yes", "on"}
+
+# TAAFT has no official API. This opt-in adapter reads only public,
+# robots-allowed pages and stages every result for staff review.
+TAAFT_DISCOVERY_ENABLED = os.getenv("TAAFT_DISCOVERY_ENABLED", "").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
+
+# Existing GitHub/HN discovery remains automatic. Aggregator sources default
+# to review-only; explicitly list source keys here only after policy approval.
+EXTERNAL_DISCOVERY_AUTO_PUBLISH_SOURCES = {
+    value.strip().lower()
+    for value in os.getenv("EXTERNAL_DISCOVERY_AUTO_PUBLISH_SOURCES", "").split(",")
+    if value.strip()
+}
+
+# Product Hunt's API is non-commercial by default. Configure this only after
+# Product Hunt has approved the intended usage; RSS remains the safe fallback.
+PRODUCT_HUNT_API_TOKEN = os.getenv("PRODUCT_HUNT_API_TOKEN", "")
 
 # Directory hygiene pass (api/hygiene/).
 # Popularity ranking uses the free Tranco list; refresh with

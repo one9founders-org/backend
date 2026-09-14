@@ -17,6 +17,7 @@ from .models import (
     SiteConfig,
     Tool,
     ToolClick,
+    ToolSource,
     ToolSubmission,
     ToolUsage,
     UserFavorite,
@@ -74,8 +75,26 @@ class ToolAssessmentSerializerMixin(serializers.Serializer):
         return obj.get_security_status()
 
 
+class ToolSourceSerializer(serializers.ModelSerializer):
+    source_label = serializers.CharField(source="get_source_display", read_only=True)
+
+    class Meta:
+        model = ToolSource
+        fields = [
+            "source",
+            "source_label",
+            "label",
+            "url",
+            "external_id",
+            "observed_at",
+        ]
+
+
 class ToolListSerializer(ToolAssessmentSerializerMixin, serializers.ModelSerializer):
     categories = CategorySerializer(many=True, read_only=True)
+    sources = ToolSourceSerializer(
+        source="source_references", many=True, read_only=True
+    )
     similarity = serializers.FloatField(read_only=True, required=False)
     pricing_inr = serializers.SerializerMethodField()
     pricing_inr_with_gst = serializers.SerializerMethodField()
@@ -90,6 +109,7 @@ class ToolListSerializer(ToolAssessmentSerializerMixin, serializers.ModelSeriali
             "logo_url",
             "website",
             "categories",
+            "sources",
             "pricing_type",
             "pricing_models",
             "pricing_from",
@@ -174,6 +194,9 @@ class ToolDetailSerializer(ToolAssessmentSerializerMixin, serializers.ModelSeria
         many=True, queryset=Category.objects.all(), required=False
     )
     alternatives = ToolListSerializer(many=True, read_only=True)
+    sources = ToolSourceSerializer(
+        source="source_references", many=True, read_only=True
+    )
     pricing_inr = serializers.SerializerMethodField()
     pricing_inr_with_gst = serializers.SerializerMethodField()
 

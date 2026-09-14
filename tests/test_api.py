@@ -130,6 +130,57 @@ class TestPaperSitemapAPI:
 
 
 @pytest.mark.django_db
+class TestAuthorAPI:
+    def test_author_detail_returns_profile_and_papers(self, api_client):
+        from django.utils import timezone
+
+        from research_papers.models import Author, Paper
+
+        paper = Paper.objects.create(
+            arxiv_id="2401.00002",
+            title="An Author Paper",
+            abstract="Abstract",
+            authors=["Romain Fabre"],
+            published_at=timezone.now(),
+            pdf_url="https://arxiv.org/pdf/2401.00002",
+            arxiv_url="https://arxiv.org/abs/2401.00002",
+        )
+        author = Author.objects.create(name="Romain Fabre", paper_count=1)
+        author.papers.add(paper)
+
+        response = api_client.get(
+            reverse("author-detail", kwargs={"slug": author.slug})
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["author"]["name"] == "Romain Fabre"
+        assert response.data["author"]["slug"] == "romain-fabre"
+        assert response.data["count"] == 1
+        assert response.data["results"][0]["arxiv_id"] == paper.arxiv_id
+
+        paper_response = api_client.get(
+            reverse("paper-detail", kwargs={"arxiv_id": paper.arxiv_id})
+        )
+        assert paper_response.status_code == status.HTTP_200_OK
+        assert paper_response.data["authors_detail"] == [
+            {"name": "Romain Fabre", "slug": "romain-fabre"}
+        ]
+
+    def test_author_sitemap_returns_authors_with_papers(self, api_client):
+        from research_papers.models import Author
+
+        Author.objects.create(name="Included Author", paper_count=2)
+        Author.objects.create(name="Empty Author", paper_count=0)
+
+        response = api_client.get(reverse("author-sitemap"))
+
+        assert response.status_code == status.HTTP_200_OK
+        slugs = {row["slug"] for row in response.data["results"]}
+        assert "included-author" in slugs
+        assert "empty-author" not in slugs
+
+
+@pytest.mark.django_db
 class TestCourseSitemapAPI:
     def test_course_sitemap_returns_published_slugs(self, api_client):
         from education.models import Course

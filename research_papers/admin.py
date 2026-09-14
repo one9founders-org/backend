@@ -27,6 +27,7 @@ class PaperAdmin(admin.ModelAdmin):
 
 @admin.register(Author)
 class AuthorAdmin(admin.ModelAdmin):
-    list_display = ["name", "paper_count", "first_seen", "last_seen"]
-    search_fields = ["name"]
+    list_display = ["name", "slug", "paper_count", "first_seen", "last_seen"]
+    search_fields = ["name", "slug"]
+    readonly_fields = ["slug"]
     ordering = ["-paper_count"]

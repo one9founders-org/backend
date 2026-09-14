@@ -37,6 +37,7 @@ class PaperListSerializer(serializers.ModelSerializer):
 
 class PaperDetailSerializer(serializers.ModelSerializer):
     has_code = serializers.SerializerMethodField()
+    authors_detail = serializers.SerializerMethodField()
 
     class Meta:
         model = Paper
@@ -45,6 +46,7 @@ class PaperDetailSerializer(serializers.ModelSerializer):
             "title",
             "abstract",
             "authors",
+            "authors_detail",
             "categories",
             "published_at",
             "updated_at_arxiv",
@@ -67,8 +69,18 @@ class PaperDetailSerializer(serializers.ModelSerializer):
     def get_has_code(self, obj):
         return bool(obj.code_url)
 
+    def get_authors_detail(self, obj):
+        author_names = obj.authors or []
+        authors = Author.objects.filter(name__in=author_names).only("name", "slug")
+        slugs_by_name = {author.name: author.slug for author in authors}
+        return [
+            {"name": name, "slug": slugs_by_name[name]}
+            for name in author_names
+            if name in slugs_by_name
+        ]
+
 
 class AuthorSerializer(serializers.ModelSerializer):
     class Meta:
         model = Author
-        fields = ["id", "name", "paper_count", "first_seen", "last_seen"]
+        fields = ["id", "name", "slug", "paper_count", "first_seen", "last_seen"]
