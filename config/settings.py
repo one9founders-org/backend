@@ -304,6 +304,9 @@ PIPELINE_API_KEY = os.getenv("PIPELINE_API_KEY", "")
 # Shared secret for cron-job.org /internal/run-discovery/ (header X-Trigger-Secret).
 DISCOVERY_TRIGGER_SECRET = os.getenv("DISCOVERY_TRIGGER_SECRET", "")
 
+# Where trend→blog draft digests are emailed (comma-separated OK).
+TREND_APPROVAL_EMAIL = os.getenv("TREND_APPROVAL_EMAIL", "hello@one9founders.com")
+
 
 # Logging Configuration
 LOGGING = {

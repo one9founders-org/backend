@@ -13,6 +13,7 @@ from .discovery.views import run_discovery_trigger
 from .fintech import list_fintech_ratings
 from .smart_search_views import decompose_task_search, smart_search_tools
 from .stack_views import assemble_stack, get_stack, save_stack
+from .trend_email_views import send_trend_approval_email
 
 router = DefaultRouter()
 router.register(r"tools", views.ToolViewSet, basename="tool")
@@ -62,6 +63,11 @@ urlpatterns = [
         "internal/run-discovery/",
         run_discovery_trigger,
         name="run-discovery-trigger",
+    ),
+    path(
+        "internal/trend-approval-email/",
+        send_trend_approval_email,
+        name="trend-approval-email",
     ),
     path(
         "newsletter/subscribe/", views.subscribe_newsletter, name="newsletter-subscribe"
