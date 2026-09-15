@@ -50,11 +50,15 @@ from .models import (
     ToolUsage,
     Workshop,
 )
-from .permissions import IsStaffOrNotFound, IsStaffOrReadOnly
+from .permissions import (
+    IsStaffOrListingOwnerOrReadOnly,
+    IsStaffOrNotFound,
+)
 from .serializers import (
     CategorySerializer,
     DealSerializer,
     FounderSurveySerializer,
+    FounderToolUpdateSerializer,
     GuideDetailSerializer,
     GuideListSerializer,
     LabDetailSerializer,
@@ -177,12 +181,17 @@ class ToolViewSet(viewsets.ModelViewSet):
         "categories", "source_references"
     )
     authentication_classes = [OptionalJWTAuthentication, SessionAuthentication]
-    permission_classes = [IsStaffOrReadOnly]
+    permission_classes = [IsStaffOrListingOwnerOrReadOnly]
     lookup_field = "slug"
     pagination_class = CustomPageNumberPagination
 
     def get_serializer_class(self):
-        if self.action in ("retrieve", "create", "update", "partial_update"):
+        if self.action in ("update", "partial_update"):
+            user = getattr(self.request, "user", None)
+            if user and user.is_authenticated and not user.is_staff:
+                return FounderToolUpdateSerializer
+            return ToolDetailSerializer
+        if self.action in ("retrieve", "create"):
             return ToolDetailSerializer
         return ToolListSerializer
 
