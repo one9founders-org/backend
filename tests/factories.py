@@ -3,7 +3,15 @@ from factory.django import DjangoModelFactory
 from faker import Faker
 
 from agents.models import AgentCategory, AIAgent
-from api.models import Category, Deal, News, NewsletterSubscription, Review, Tool
+from api.models import (
+    Category,
+    Deal,
+    News,
+    NewsletterSubscription,
+    Review,
+    Tool,
+    ToolSubmission,
+)
 
 fake = Faker()
 
@@ -81,6 +89,19 @@ class NewsFactory(DjangoModelFactory):
     content = factory.Faker("text", max_nb_chars=500)
     author = factory.Faker("name")
     is_published = True
+
+
+class ToolSubmissionFactory(DjangoModelFactory):
+    class Meta:
+        model = ToolSubmission
+
+    name = factory.Faker("company")
+    description = factory.Faker("text", max_nb_chars=200)
+    website = factory.Faker("url")
+    submitter_email = factory.Faker("email")
+    submitter_name = factory.Faker("name")
+    status = "approved"
+    enriched_data = factory.LazyFunction(lambda: {"tags": ["manual"]})
 
 
 class NewsletterSubscriptionFactory(DjangoModelFactory):

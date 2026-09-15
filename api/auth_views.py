@@ -12,6 +12,8 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from .listing_owners import owned_listings_payload
+
 User = get_user_model()
 FOUNDER_ROLES = {"founder", "cofounder"}
 
@@ -25,6 +27,7 @@ def _user_payload(user):
         "user_role": getattr(user, "user_role", ""),
         "profile_completed": getattr(user, "profile_completed", False),
         "is_staff": bool(user.is_staff),
+        "owned_listings": owned_listings_payload(user),
     }
 
 

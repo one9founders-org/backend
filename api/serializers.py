@@ -1,6 +1,8 @@
 from django.contrib.auth import get_user_model
+from django.db.models import Q
 from rest_framework import serializers
 
+from .listing_owners import normalized_email, user_owns_listing
 from .models import (
     Category,
     Deal,
@@ -261,12 +263,84 @@ class ToolDetailSerializer(ToolAssessmentSerializerMixin, serializers.ModelSeria
         data["categories"] = CategorySerializer(
             instance.categories.all(), many=True
         ).data
-        return overlay_verified_listing(
+        data = overlay_verified_listing(
             instance,
             data,
             exchange_rate=self._get_exchange_rate(),
             gst_rate=self._get_gst_rate(),
         )
+        request = self.context.get("request")
+        user = getattr(request, "user", None) if request else None
+        data["can_edit"] = user_owns_listing(user, instance)
+        return data
+
+
+FOUNDER_EDITABLE_FIELDS = (
+    "name",
+    "short_description",
+    "description",
+    "website",
+    "logo_url",
+    "video_demo_url",
+    "features",
+    "use_cases",
+    "startup_benefits",
+    "pricing_models",
+    "pricing_tiers",
+    "pricing_from",
+    "pricing_type",
+    "free_tier_available",
+)
+
+
+class FounderToolUpdateSerializer(serializers.ModelSerializer):
+    """Vendor-owned fields only. Editorial scores and flags stay staff-only."""
+
+    class Meta:
+        model = Tool
+        fields = list(FOUNDER_EDITABLE_FIELDS)
+        extra_kwargs = {
+            "website": {"required": False, "allow_blank": True, "allow_null": True},
+            "logo_url": {"required": False, "allow_blank": True, "allow_null": True},
+            "video_demo_url": {
+                "required": False,
+                "allow_blank": True,
+                "allow_null": True,
+            },
+            "short_description": {"required": False, "allow_blank": True},
+            "startup_benefits": {"required": False, "allow_blank": True},
+        }
+
+    def validate_website(self, value):
+        return value or None
+
+    def validate_logo_url(self, value):
+        return value or None
+
+    def validate_video_demo_url(self, value):
+        return value or None
+
+    def update(self, instance, validated_data):
+        previous_name = instance.name
+        tool = super().update(instance, validated_data)
+        request = self.context.get("request")
+        email = normalized_email(getattr(request, "user", None) if request else None)
+        if email:
+            ToolSubmission.objects.filter(
+                Q(approved_tool=tool) | Q(name=previous_name),
+                submitter_email__iexact=email,
+                status="approved",
+            ).update(
+                name=tool.name,
+                description=tool.description,
+                short_description=tool.short_description or "",
+                website=tool.website or "",
+                logo_url=tool.logo_url or "",
+            )
+        return tool
+
+    def to_representation(self, instance):
+        return ToolDetailSerializer(instance, context=self.context).data
 
 
 class ReviewSerializer(serializers.ModelSerializer):
