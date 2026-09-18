@@ -33,6 +33,7 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 
 from .authentication import OptionalJWTAuthentication
 from .directory_columns import DEFAULT_PER_COLUMN, build_directory_columns
+from .hygiene.indexability import indexable_queryset
 from .hygiene.visibility import publishable_queryset
 from .models import (
     Category,
@@ -584,12 +585,41 @@ def track_search_query(request):
 @api_view(["GET"])
 @permission_classes([AllowAny])
 def tool_sitemap(request):
-    """Every publishable tool slug + lastmod. Not filtered on list-only fields."""
-    queryset = publishable_queryset().only("slug", "updated_at").order_by("id")
+    """Indexable publishable tool slugs + lastmod for the public XML sitemap.
+
+    Thin stubs stay in the directory (and noindex on the page) but are omitted
+    here so Googlebot is not asked to index URLs we mark noindex.
+    Pass include_thin=1 to restore the full publishable set (ops/debug).
+    """
+    include_thin = request.query_params.get("include_thin") in ("1", "true", "yes")
+    base = publishable_queryset() if include_thin else indexable_queryset()
+    queryset = base.order_by("id")
     paginator = SitemapPagination()
     page = paginator.paginate_queryset(queryset, request)
     serializer = ToolSitemapSerializer(page, many=True)
     return paginator.get_paginated_response(serializer.data)
+
+
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def news_sitemap(request):
+    """Published news slugs + lastmod for the public XML sitemap."""
+    queryset = (
+        News.objects.filter(is_published=True)
+        .only("slug", "updated_at", "published_at")
+        .order_by("id")
+    )
+    paginator = SitemapPagination()
+    page = paginator.paginate_queryset(queryset, request)
+    rows = [
+        {
+            "slug": row.slug,
+            "updated_at": row.updated_at,
+            "published_at": row.published_at,
+        }
+        for row in page
+    ]
+    return paginator.get_paginated_response(rows)
 
 
 @api_view(["GET"])

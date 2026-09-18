@@ -94,8 +94,27 @@ class TestToolAPI:
         names = [row["name"] for row in response.data["results"]]
         assert names == ["High Score", "Mid Score", "No Score"]
 
-    def test_sitemap_returns_publishable_slugs(self, api_client):
-        live = ToolFactory(name="Live Sitemap Tool", is_active=True)
+    def test_sitemap_returns_indexable_publishable_slugs(self, api_client):
+        live = ToolFactory(
+            name="Live Sitemap Tool",
+            is_active=True,
+            description=(
+                "A substantive product description with enough words for the "
+                "sitemap indexability gate so Google is asked to index this "
+                "listing rather than a thin stub page without real content."
+            ),
+            pricing_models=["freemium"],
+            use_cases=["Writing", "Research"],
+        )
+        ToolFactory(
+            name="Thin Sitemap Tool",
+            is_active=True,
+            description="Too short.",
+            pricing_models=[],
+            use_cases=[],
+            pricing_type="",
+            criteria_completed=0,
+        )
         ToolFactory(name="Hidden Sitemap Tool", is_active=False)
 
         response = api_client.get(reverse("tool-sitemap"))
@@ -104,7 +123,32 @@ class TestToolAPI:
         assert {key for row in rows for key in row} <= {"slug", "updated_at"}
         slugs = {row["slug"] for row in rows}
         assert live.slug in slugs
+        assert "thin-sitemap-tool" not in slugs
         assert "hidden-sitemap-tool" not in slugs
+
+    def test_news_sitemap_returns_published_slugs(self, api_client):
+        from api.models import News
+
+        published = News.objects.create(
+            title="Published News Sitemap",
+            slug="published-news-sitemap",
+            excerpt="Short excerpt for the sitemap test.",
+            content="<p>Body</p>",
+            is_published=True,
+        )
+        News.objects.create(
+            title="Draft News Sitemap",
+            slug="draft-news-sitemap",
+            excerpt="Short excerpt for the sitemap test.",
+            content="<p>Body</p>",
+            is_published=False,
+        )
+
+        response = api_client.get(reverse("news-sitemap"))
+        assert response.status_code == status.HTTP_200_OK
+        slugs = {row["slug"] for row in response.data["results"]}
+        assert published.slug in slugs
+        assert "draft-news-sitemap" not in slugs
 
 
 @pytest.mark.django_db
