@@ -99,9 +99,10 @@ class TestToolAPI:
             name="Live Sitemap Tool",
             is_active=True,
             description=(
-                "A substantive product description with enough words for the "
-                "sitemap indexability gate so Google is asked to index this "
-                "listing rather than a thin stub page without real content."
+                "A substantive product description with enough words and "
+                "characters for the sitemap indexability gate so Google is "
+                "asked to index this listing rather than a thin stub page "
+                "without real content for founders evaluating AI tools."
             ),
             pricing_models=["freemium"],
             use_cases=["Writing", "Research"],

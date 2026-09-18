@@ -13,9 +13,10 @@ class TestIndexableSitemapFilter:
         tool = ToolFactory(
             name="Substantive Tool",
             description=(
-                "A substantive product description with enough words for the "
-                "sitemap indexability gate so Google is asked to index this "
-                "listing rather than a thin stub page without real content."
+                "A substantive product description with enough words and "
+                "characters for the sitemap indexability gate so Google is "
+                "asked to index this listing rather than a thin stub page "
+                "without real content for founders evaluating AI tools."
             ),
             pricing_models=["paid"],
             use_cases=["Coding"],
