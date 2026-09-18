@@ -4,6 +4,7 @@ import pytest
 
 from api.hygiene.indexability import indexable_queryset
 from api.hygiene.visibility import publishable_queryset
+from api.models import ToolSource
 from tests.factories import ToolFactory
 
 
@@ -48,10 +49,15 @@ class TestIndexableSitemapFilter:
         assert tool in list(indexable_queryset())
 
     def test_hn_catalogue_with_blurb_and_website(self):
+        # Combined blurb must be >= MIN_CATALOGUE_CHARS (75). Also attach a
+        # ToolSource row — production HN catalogue tools use source_references.
         tool = ToolFactory(
             name="HN Catalogue Tool",
-            description="A short but useful Show HN blurb for founders.",
-            short_description="Show HN launch",
+            description=(
+                "A short but useful Show HN blurb for founders evaluating "
+                "early AI tools discovered on Hacker News."
+            ),
+            short_description="Show HN launch notes",
             tags=["hackernews"],
             website="https://example.com/hn-tool",
             pricing_models=[],
@@ -59,4 +65,11 @@ class TestIndexableSitemapFilter:
             pricing_type="",
             criteria_completed=0,
         )
+        ToolSource.objects.create(
+            tool=tool,
+            source="hackernews",
+            url="https://news.ycombinator.com/item?id=1",
+            label="Hacker News",
+        )
+        assert len(tool.description) + len(tool.short_description) >= 75
         assert tool in list(indexable_queryset())
