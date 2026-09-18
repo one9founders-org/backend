@@ -42,7 +42,7 @@ def indexable_q() -> Q:
     )
     substantive = Q(_desc_len__gte=MIN_DESCRIPTION_CHARS) & secondary
 
-    hn = Q(tags__contains=["hackernews"]) | Q(sources__source="hackernews")
+    hn = Q(tags__contains=["hackernews"]) | Q(source_references__source="hackernews")
     catalogue_signal = (
         (Q(website__isnull=False) & ~Q(website=""))
         | _non_empty_json_list("pricing_models")
