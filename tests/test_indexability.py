@@ -1,0 +1,75 @@
+"""Tests for sitemap indexability filters."""
+
+import pytest
+
+from api.hygiene.indexability import indexable_queryset
+from api.hygiene.visibility import publishable_queryset
+from api.models import ToolSource
+from tests.factories import ToolFactory
+
+
+@pytest.mark.django_db
+class TestIndexableSitemapFilter:
+    def test_substantive_description_is_indexable(self):
+        tool = ToolFactory(
+            name="Substantive Tool",
+            description=(
+                "A substantive product description with enough words and "
+                "characters for the sitemap indexability gate so Google is "
+                "asked to index this listing rather than a thin stub page "
+                "without real content for founders evaluating AI tools."
+            ),
+            pricing_models=["paid"],
+            use_cases=["Coding"],
+        )
+        assert tool in list(indexable_queryset())
+
+    def test_thin_stub_excluded_even_when_publishable(self):
+        tool = ToolFactory(
+            name="Thin Stub Tool",
+            description="Short.",
+            pricing_models=[],
+            use_cases=[],
+            pricing_type="",
+            criteria_completed=0,
+            website="",
+        )
+        assert tool in list(publishable_queryset())
+        assert tool not in list(indexable_queryset())
+
+    def test_assessed_tool_included_even_with_short_description(self):
+        tool = ToolFactory(
+            name="Assessed Short Tool",
+            description="Short.",
+            criteria_completed=6,
+            overall_score=3.5,
+            pricing_models=[],
+            use_cases=[],
+        )
+        assert tool in list(indexable_queryset())
+
+    def test_hn_catalogue_with_blurb_and_website(self):
+        # Combined blurb must be >= MIN_CATALOGUE_CHARS (75). Also attach a
+        # ToolSource row — production HN catalogue tools use source_references.
+        tool = ToolFactory(
+            name="HN Catalogue Tool",
+            description=(
+                "A short but useful Show HN blurb for founders evaluating "
+                "early AI tools discovered on Hacker News."
+            ),
+            short_description="Show HN launch notes",
+            tags=["hackernews"],
+            website="https://example.com/hn-tool",
+            pricing_models=[],
+            use_cases=[],
+            pricing_type="",
+            criteria_completed=0,
+        )
+        ToolSource.objects.create(
+            tool=tool,
+            source="hackernews",
+            url="https://news.ycombinator.com/item?id=1",
+            label="Hacker News",
+        )
+        assert len(tool.description) + len(tool.short_description) >= 75
+        assert tool in list(indexable_queryset())
