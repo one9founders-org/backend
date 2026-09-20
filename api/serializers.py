@@ -69,12 +69,19 @@ class ToolSitemapSerializer(serializers.ModelSerializer):
 class ToolAssessmentSerializerMixin(serializers.Serializer):
     rating_status = serializers.SerializerMethodField()
     security_status = serializers.SerializerMethodField()
+    # Mirrors frontend isToolAssessedForIndex — provisional+ editorial coverage.
+    assessed = serializers.SerializerMethodField()
 
     def get_rating_status(self, obj):
         return obj.get_rating_status()
 
     def get_security_status(self, obj):
         return obj.get_security_status()
+
+    def get_assessed(self, obj):
+        from api.ratings import RATING_MIN_PROVISIONAL
+
+        return int(obj.criteria_completed or 0) >= RATING_MIN_PROVISIONAL
 
 
 class ToolSourceSerializer(serializers.ModelSerializer):
@@ -141,6 +148,7 @@ class ToolListSerializer(ToolAssessmentSerializerMixin, serializers.ModelSeriali
             "last_assessed_at",
             "rating_status",
             "security_status",
+            "assessed",
             "created_at",
             "updated_at",
         ]
@@ -568,6 +576,7 @@ class TrendingToolSerializer(
             "last_assessed_at",
             "rating_status",
             "security_status",
+            "assessed",
         ]
 
 
