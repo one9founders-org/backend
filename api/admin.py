@@ -283,12 +283,24 @@ class NewsletterSubscriptionAdmin(ImportExportModelAdmin):
 
 @admin.register(ToolSubmission)
 class ToolSubmissionAdmin(admin.ModelAdmin):
-    list_display = ["name", "submitter_name", "submitter_email", "status", "created_at"]
-    list_filter = ["status", "created_at"]
+    list_display = [
+        "name",
+        "submitter_name",
+        "submitter_email",
+        "status",
+        "listed_email_sent_at",
+        "created_at",
+    ]
+    list_filter = ["status", "created_at", "listed_email_sent_at"]
     search_fields = ["name", "submitter_email", "submitter_name"]
-    readonly_fields = ["enriched_data", "created_at", "updated_at"]
+    readonly_fields = [
+        "enriched_data",
+        "created_at",
+        "updated_at",
+        "listed_email_sent_at",
+    ]
     filter_horizontal = ["categories"]
-    actions = ["approve_submissions"]
+    actions = ["approve_submissions", "send_listed_notification"]
 
     def approve_submissions(self, request, queryset):
         created_count = 0
@@ -321,6 +333,35 @@ class ToolSubmissionAdmin(admin.ModelAdmin):
             )
 
     approve_submissions.short_description = "Approve selected submissions"
+
+    def send_listed_notification(self, request, queryset):
+        from .submission_mail import send_listed_email
+
+        sent = 0
+        skipped = 0
+        for submission in queryset.filter(
+            status="approved", approved_tool__isnull=False
+        ):
+            if submission.listed_email_sent_at:
+                skipped += 1
+                continue
+            try:
+                if send_listed_email(submission):
+                    sent += 1
+            except Exception as e:
+                self.message_user(
+                    request,
+                    f"Failed to email '{submission.submitter_email}': {e}",
+                    level="error",
+                )
+        self.message_user(
+            request,
+            f"Listed emails sent: {sent}. Already sent (skipped): {skipped}.",
+        )
+
+    send_listed_notification.short_description = (
+        "Email submitters that their tool is listed (skip already sent)"
+    )
 
 
 @admin.register(FounderSurvey)

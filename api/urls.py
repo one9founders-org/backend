@@ -75,6 +75,11 @@ urlpatterns = [
     path("tools/sitemap/", views.tool_sitemap, name="tool-sitemap"),
     path("news/sitemap/", views.news_sitemap, name="news-sitemap"),
     path("tools/trending/", views.trending_tools, name="trending-tools"),
+    path(
+        "tools/community-submissions/",
+        views.community_submitted_tools,
+        name="community-submitted-tools",
+    ),
     path("tools/stats/", views.tool_directory_stats, name="tool-directory-stats"),
     path(
         "tools/directory-columns/",

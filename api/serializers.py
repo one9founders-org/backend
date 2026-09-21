@@ -580,6 +580,38 @@ class TrendingToolSerializer(
         ]
 
 
+class CommunitySubmittedToolSerializer(
+    ToolAssessmentSerializerMixin, serializers.ModelSerializer
+):
+    """Homepage carousel card for founder-submitted tools."""
+
+    submitted_at = serializers.DateTimeField(read_only=True, required=False)
+
+    class Meta:
+        model = Tool
+        fields = [
+            "id",
+            "name",
+            "slug",
+            "short_description",
+            "logo_url",
+            "website",
+            "rating",
+            "review_count",
+            "views_count",
+            "is_featured",
+            "submitted_at",
+            "criteria_completed",
+            "overall_score",
+            "security_criterion_score",
+            "assessment_detail",
+            "last_assessed_at",
+            "rating_status",
+            "security_status",
+            "assessed",
+        ]
+
+
 class SiteConfigSerializer(serializers.ModelSerializer):
     class Meta:
         model = SiteConfig

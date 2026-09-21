@@ -172,6 +172,7 @@ AWS_SES_REGION_NAME = os.getenv("AWS_SES_REGION_NAME", "ap-south-1")
 AWS_SES_REGION_ENDPOINT = f"email.{AWS_SES_REGION_NAME}.amazonaws.com"
 DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "noreply@one9founders.com")
 SERVER_EMAIL = DEFAULT_FROM_EMAIL
+PUBLIC_SITE_URL = os.getenv("PUBLIC_SITE_URL", "https://www.one9founders.com")
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
