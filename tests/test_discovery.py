@@ -397,6 +397,54 @@ class TestCandidateReview:
         assert result["staged"] == 1
         assert result["by_source"] == {"producthunt": {"staged": 1}}
 
+    def test_review_sources_stage_even_when_outranked_by_github_cap(self, settings):
+        """Product Hunt must not lose to GitHub stars under max_new."""
+        from api.discovery.pipeline import run_new_tool_discovery
+
+        settings.EXTERNAL_DISCOVERY_AUTO_PUBLISH_SOURCES = set()
+        github_a = {
+            "name": "Huge Stars",
+            "url": "https://github.com/example/huge-stars",
+            "sourceType": "github",
+            "sourceUrl": "https://github.com/example/huge-stars",
+            "rawSignal": {"stars": 50000},
+        }
+        github_b = {
+            "name": "Also Huge",
+            "url": "https://github.com/example/also-huge",
+            "sourceType": "github",
+            "sourceUrl": "https://github.com/example/also-huge",
+            "rawSignal": {"stars": 40000},
+        }
+        producthunt = {
+            "name": "Quiet Launch",
+            "url": "",
+            "sourceType": "producthunt",
+            "sourceUrl": "https://www.producthunt.com/posts/quiet-launch",
+            "rawSignal": {"upvotes": 3},
+        }
+        with patch("api.discovery.pipeline.process_candidate") as process:
+            process.return_value = {
+                "passed": False,
+                "reasons": ["skipped in test"],
+                "candidate": github_a,
+            }
+            result = run_new_tool_discovery(
+                candidates=[github_a, github_b, producthunt],
+                max_new=1,
+            )
+
+        assert result["staged"] == 1
+        assert result["by_source"]["producthunt"] == {"staged": 1}
+        assert ExternalToolCandidate.objects.filter(
+            source="producthunt",
+            source_url="https://www.producthunt.com/posts/quiet-launch",
+        ).exists()
+        # Cap still applies to auto-publish sources (GitHub).
+        assert process.call_count == 1
+        assert result["deferred_over_cap"] == 1
+        assert result["rejected"] == 1
+
     def test_approval_links_existing_tool_and_publishes_source(self):
         from api.discovery.pipeline import approve_external_candidate
 
