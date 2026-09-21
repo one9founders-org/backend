@@ -1,0 +1,28 @@
+name: Apply Free AI Music Creator logo fix
+
+# Push-triggered so the cloud agent token can start it without the
+# workflow existing on main first.
+on:
+  push:
+    paths:
+      - "scripts/fix_free_ai_music_creator_logo.flag"
+    branches:
+      - main
+      - "cursor/fix-free-ai-music-creator-logo-174f"
+
+jobs:
+  fix-logo:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Update logo_url on EC2
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
+          timeout: 60s
+          command_timeout: 5m
+          script_path: scripts/fix_free_ai_music_creator_logo.sh

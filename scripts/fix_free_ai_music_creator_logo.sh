@@ -14,7 +14,7 @@ if not tool:
 
 print("before", tool.id, tool.name, tool.logo_url)
 tool.logo_url = logo
-tool.save(update_fields=["logo_url", "updated_at"] if hasattr(tool, "updated_at") else ["logo_url"])
+tool.save(update_fields=["logo_url", "updated_at"])
 print("after", tool.logo_url)
 
 updated = ToolSubmission.objects.filter(
