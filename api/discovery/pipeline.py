@@ -733,12 +733,6 @@ def run_new_tool_discovery(
             full_hn_sweep=full_hn_sweep,
         )
     ranked = sorted(candidates, key=candidate_signal, reverse=True)
-    if max_new is None:
-        to_process = ranked
-        deferred = []
-    else:
-        to_process = ranked[:max_new]
-        deferred = ranked[max_new:]
 
     published = rejected = errored = staged = candidate_updates = 0
     by_source: dict[str, dict[str, int]] = {}
@@ -747,7 +741,58 @@ def run_new_tool_discovery(
         source_counts = by_source.setdefault(source or "unknown", {})
         source_counts[outcome] = source_counts.get(outcome, 0) + 1
 
-    for candidate in deferred:
+    # Stage review sources before the publish cap. Product Hunt / TAAFT votes
+    # are tiny next to GitHub stars, so mixing them into max_new left the
+    # admin queue frozen while forge repos filled every slot.
+    to_publish: list[tuple[dict, ExternalToolCandidate | None]] = []
+    for candidate in ranked:
+        source = _source_key(candidate)
+        name = candidate.get("name") or ""
+        url = candidate_source_url(candidate) or candidate_official_url(candidate)
+        if source not in REVIEW_SOURCES:
+            to_publish.append((candidate, None))
+            continue
+        review_record = None
+        try:
+            review_record, created = stage_external_candidate(candidate)
+            can_auto_publish = source in getattr(
+                settings, "EXTERNAL_DISCOVERY_AUTO_PUBLISH_SOURCES", set()
+            )
+            if not can_auto_publish or not candidate_official_url(candidate):
+                if created:
+                    staged += 1
+                    increment(source, "staged")
+                else:
+                    candidate_updates += 1
+                    increment(source, "updated")
+                continue
+            to_publish.append((candidate, review_record))
+        except Exception as exc:
+            logger.exception("Discovery staging failed for %s", name)
+            log_run(
+                run_type="new",
+                tool_name=name,
+                url=url,
+                status="error",
+                reasons=str(exc),
+            )
+            errored += 1
+            increment(source, "error")
+            if review_record:
+                review_record.status = ExternalToolCandidate.STATUS_ERROR
+                review_record.review_notes = str(exc)
+                review_record.save(
+                    update_fields=["status", "review_notes", "updated_at"]
+                )
+
+    if max_new is None:
+        publish_batch = to_publish
+        deferred = []
+    else:
+        publish_batch = to_publish[:max_new]
+        deferred = to_publish[max_new:]
+
+    for candidate, _review_record in deferred:
         log_run(
             run_type="new",
             tool_name=candidate.get("name") or "",
@@ -756,25 +801,11 @@ def run_new_tool_discovery(
             reasons="deferred, over cap",
         )
 
-    for candidate in to_process:
+    for candidate, review_record in publish_batch:
         name = candidate.get("name") or ""
         url = candidate_source_url(candidate) or candidate_official_url(candidate)
         source = _source_key(candidate)
-        review_record = None
         try:
-            if source in REVIEW_SOURCES:
-                review_record, created = stage_external_candidate(candidate)
-                can_auto_publish = source in getattr(
-                    settings, "EXTERNAL_DISCOVERY_AUTO_PUBLISH_SOURCES", set()
-                )
-                if not can_auto_publish or not candidate_official_url(candidate):
-                    if created:
-                        staged += 1
-                        increment(source, "staged")
-                    else:
-                        candidate_updates += 1
-                        increment(source, "updated")
-                    continue
             result = process_candidate(candidate)
             if result["passed"]:
                 try:
