@@ -658,6 +658,12 @@ class ToolSubmission(models.Model):
         blank=True,
         related_name="submission",
     )
+    listed_email_sent_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="When we emailed the submitter that their tool is live.",
+    )
 
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)

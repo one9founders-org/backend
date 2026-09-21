@@ -51,12 +51,10 @@ from .models import (
     ToolUsage,
     Workshop,
 )
-from .permissions import (
-    IsStaffOrListingOwnerOrReadOnly,
-    IsStaffOrNotFound,
-)
+from .permissions import IsStaffOrListingOwnerOrReadOnly, IsStaffOrNotFound
 from .serializers import (
     CategorySerializer,
+    CommunitySubmittedToolSerializer,
     DealSerializer,
     FounderSurveySerializer,
     FounderToolUpdateSerializer,
@@ -643,6 +641,37 @@ def trending_tools(request):
     )
 
     return Response(TrendingToolSerializer(tools, many=True).data)
+
+
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def community_submitted_tools(request):
+    """Homepage carousel: tools submitted by founders (approved submissions)."""
+    from .hygiene.visibility import row_is_publishable
+    from .submission_mail import community_submission_queryset
+
+    try:
+        limit = int(request.query_params.get("limit", 160))
+    except (TypeError, ValueError):
+        limit = 160
+    limit = max(1, min(limit, 300))
+
+    tools = []
+    seen: set[int] = set()
+    # Over-fetch a bit in case some linked tools are unpublished.
+    for submission in community_submission_queryset()[: limit * 3]:
+        tool = submission.approved_tool
+        if tool is None or tool.id in seen:
+            continue
+        if not row_is_publishable(tool):
+            continue
+        tool.submitted_at = submission.created_at
+        tools.append(tool)
+        seen.add(tool.id)
+        if len(tools) >= limit:
+            break
+
+    return Response(CommunitySubmittedToolSerializer(tools, many=True).data)
 
 
 @api_view(["GET"])
