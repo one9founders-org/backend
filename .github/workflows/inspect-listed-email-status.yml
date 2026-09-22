@@ -1,0 +1,25 @@
+name: Inspect listed email status
+
+on:
+  push:
+    paths:
+      - "scripts/inspect_listed_email_status.flag"
+    branches:
+      - main
+      - "cursor/inspect-listed-email-status-174f"
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Query listed_email_sent_at on EC2
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
+          timeout: 60s
+          command_timeout: 5m
+          script_path: scripts/inspect_listed_email_status.sh
