@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django_summernote.admin import SummernoteModelAdmin
 from import_export import resources
-from import_export.admin import ImportExportModelAdmin
+from import_export.admin import ImportExportActionModelAdmin, ImportExportModelAdmin
 
 from .models import (
     Category,
@@ -82,7 +82,9 @@ class UserResource(resources.ModelResource):
 
 
 @admin.register(User)
-class UserAdmin(ImportExportModelAdmin):
+class UserAdmin(ImportExportActionModelAdmin):
+    """Import/Export buttons + 'Export selected …' in the Action dropdown."""
+
     resource_class = UserResource
     list_display = [
         "email",
