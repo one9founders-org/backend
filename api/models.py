@@ -1,5 +1,6 @@
 import logging
 import math
+import uuid
 
 from django.contrib.auth.models import AbstractUser
 from django.db import models
@@ -664,6 +665,20 @@ class ToolSubmission(models.Model):
         db_index=True,
         help_text="When we emailed the submitter that their tool is live.",
     )
+    public_token = models.UUIDField(null=True, blank=True, unique=True, editable=False)
+    enrichment_status = models.CharField(
+        max_length=20,
+        default="pending",
+        db_index=True,
+        choices=[
+            ("pending", "Pending"),
+            ("succeeded", "Succeeded"),
+            ("failed", "Failed"),
+            ("skipped", "Skipped"),
+        ],
+    )
+    enrichment_error = models.TextField(blank=True)
+    enrichment_attempts = models.PositiveSmallIntegerField(default=0)
 
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
@@ -684,18 +699,8 @@ class ToolSubmission(models.Model):
                     f"{self.admin_notes}\n{note}".strip() if self.admin_notes else note
                 )
 
-        # Auto-enrich on creation
-        if not self.pk and not self.enriched_data:
-            try:
-                from .ai_enrichment import enrich_tool_data
-
-                self.enriched_data = enrich_tool_data(
-                    self.name, self.description, self.website
-                )
-            except Exception as e:
-                logger.warning(
-                    "AI enrichment failed for submission '%s': %s", self.name, e
-                )
+        if not self.public_token:
+            self.public_token = uuid.uuid4()
         super().save(*args, **kwargs)
 
     def approve_and_create_tool(self):
@@ -842,6 +847,12 @@ class ToolClick(models.Model):
     session_id = models.CharField(max_length=255, blank=True, db_index=True)
     ip_address = models.GenericIPAddressField(blank=True, null=True)
     referrer = models.URLField(blank=True)
+    surface = models.CharField(max_length=64, blank=True)
+    result_position = models.PositiveIntegerField(null=True, blank=True)
+    query_id = models.CharField(max_length=64, blank=True)
+    campaign = models.CharField(max_length=128, blank=True)
+    event_id = models.UUIDField(null=True, blank=True, unique=True)
+    counts_for_ranking = models.BooleanField(default=True, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -852,7 +863,71 @@ class ToolClick(models.Model):
         ordering = ["-created_at"]
         indexes = [
             models.Index(fields=["tool", "action", "-created_at"]),
+            models.Index(fields=["counts_for_ranking", "-created_at"]),
         ]
+
+
+class CatalogEvent(models.Model):
+    """Ranking and funnel events. Query text and contact details stay out."""
+
+    event_name = models.CharField(max_length=64, db_index=True)
+    event_id = models.UUIDField(unique=True)
+    entity_type = models.CharField(max_length=32, blank=True)
+    entity_id = models.CharField(max_length=64, blank=True)
+    entity_slug = models.CharField(max_length=255, blank=True)
+    surface = models.CharField(max_length=64, blank=True)
+    result_position = models.PositiveIntegerField(null=True, blank=True)
+    query_id = models.CharField(max_length=64, blank=True)
+    campaign = models.CharField(max_length=128, blank=True)
+    session_id = models.CharField(max_length=64, blank=True, db_index=True)
+    context = models.JSONField(default=dict, blank=True)
+    counts_for_ranking = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "catalog_events"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["event_name", "-created_at"]),
+            models.Index(fields=["entity_type", "entity_slug"]),
+        ]
+
+    def __str__(self):
+        return f"{self.event_name} {self.entity_slug or self.entity_id}"
+
+
+class ServiceInquiry(models.Model):
+    OFFER_CHOICES = [
+        ("workflow_audit", "Workflow audit"),
+        ("implementation", "Scoped implementation"),
+        ("maintenance", "Maintenance"),
+    ]
+    STATUS_CHOICES = [
+        ("new", "New"),
+        ("reviewing", "Reviewing"),
+        ("closed", "Closed"),
+    ]
+
+    offer = models.CharField(max_length=32, choices=OFFER_CHOICES, db_index=True)
+    workflow = models.TextField()
+    current_tools = models.TextField(blank=True)
+    team_context = models.TextField(blank=True)
+    desired_outcome = models.TextField()
+    contact_name = models.CharField(max_length=255)
+    contact_email = models.EmailField(db_index=True)
+    company = models.CharField(max_length=255, blank=True)
+    status = models.CharField(
+        max_length=20, choices=STATUS_CHOICES, default="new", db_index=True
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "service_inquiries"
+        ordering = ["-created_at"]
+        verbose_name_plural = "Service inquiries"
+
+    def __str__(self):
+        return f"{self.offer} from {self.contact_email}"
 
 
 class News(models.Model):

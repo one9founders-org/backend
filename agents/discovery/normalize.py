@@ -250,16 +250,17 @@ def map_pricing(value: str) -> str:
 
 
 def map_access(value: str, github_url: str = "") -> str:
-    text = safe_str(value).lower()
-    if text in {"open source", "open-source", "opensource"}:
+    """Map an explicit license label. A GitHub URL alone is not open source."""
+    del github_url
+    text = safe_str(value).lower().replace("_", " ").replace("-", " ")
+    text = " ".join(text.split())
+    if text in {"open source", "opensource"}:
         return "Open Source"
-    if text in {"closed source", "closed-source", "closedsource"}:
+    if text in {"closed source", "closedsource"}:
         return "Closed Source"
     if text == "api":
         return "API"
-    if github_url:
-        return "Open Source"
-    return safe_str(value)
+    return ""
 
 
 def popularity_from(item: dict) -> int:

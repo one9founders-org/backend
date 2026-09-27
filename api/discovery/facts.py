@@ -12,6 +12,7 @@ from django.conf import settings
 from api.models import Category
 
 from .sources import USER_AGENT, canonicalize_http_url
+from .url_safety import host_is_blocked
 
 logger = logging.getLogger(__name__)
 
@@ -172,6 +173,10 @@ def _fetch_github_facts(repo: str) -> Facts:
 def _fetch_html_facts(url: str) -> Facts:
     from .sources import _robots_allows
 
+    host = urlparse(url).hostname or ""
+    if host_is_blocked(host):
+        logger.warning("HTML fetch skipped for non-public host %s", host)
+        return Facts()
     if not _robots_allows(url):
         logger.warning("HTML fetch skipped because robots.txt disallows %s", url)
         return Facts()
@@ -190,6 +195,9 @@ def _fetch_html_facts(url: str) -> Facts:
 
     final_url = _response_url(response, url)
     requested_host = _host(url)
+    if host_is_blocked(_host(final_url)):
+        logger.warning("HTML fetch resolved to a non-public host: %s", final_url)
+        return Facts()
     if not requested_host or _host(final_url) != requested_host:
         logger.warning("HTML fetch left official host: %s -> %s", url, final_url)
         return Facts()
@@ -422,6 +430,9 @@ def fetch_facts(url: str, *, prefer_firecrawl: bool = False) -> Facts:
     """
     clean = canonicalize_http_url(url)
     if not clean:
+        return Facts()
+    if host_is_blocked(urlparse(clean).hostname or ""):
+        logger.warning("Refusing facts fetch for non-public URL %s", clean)
         return Facts()
     url = clean
     if prefer_firecrawl:

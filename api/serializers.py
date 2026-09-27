@@ -101,6 +101,7 @@ class ToolSourceSerializer(serializers.ModelSerializer):
 
 class ToolListSerializer(ToolAssessmentSerializerMixin, serializers.ModelSerializer):
     categories = CategorySerializer(many=True, read_only=True)
+    preferred_path = serializers.SerializerMethodField()
     sources = ToolSourceSerializer(
         source="source_references", many=True, read_only=True
     )
@@ -149,9 +150,15 @@ class ToolListSerializer(ToolAssessmentSerializerMixin, serializers.ModelSeriali
             "rating_status",
             "security_status",
             "assessed",
+            "preferred_path",
             "created_at",
             "updated_at",
         ]
+
+    def get_preferred_path(self, obj):
+        from .identity import preferred_path_for_tool
+
+        return preferred_path_for_tool(obj)
 
     def _get_exchange_rate(self):
         """Get cached exchange rate from SiteConfig."""
@@ -204,6 +211,7 @@ class ToolDetailSerializer(ToolAssessmentSerializerMixin, serializers.ModelSeria
         many=True, queryset=Category.objects.all(), required=False
     )
     alternatives = ToolListSerializer(many=True, read_only=True)
+    preferred_path = serializers.SerializerMethodField()
     sources = ToolSourceSerializer(
         source="source_references", many=True, read_only=True
     )
@@ -228,6 +236,11 @@ class ToolDetailSerializer(ToolAssessmentSerializerMixin, serializers.ModelSeria
             "assessment_detail",
             "track",
         ]
+
+    def get_preferred_path(self, obj):
+        from .identity import preferred_path_for_tool
+
+        return preferred_path_for_tool(obj)
 
     def _get_exchange_rate(self):
         """Get cached exchange rate from SiteConfig."""
@@ -460,8 +473,16 @@ class ToolSubmissionSerializer(serializers.ModelSerializer):
             "categories",
             "pricing_info",
             "created_at",
+            "public_token",
+            "status",
+            "enrichment_status",
         ]
-        read_only_fields = ["created_at"]
+        read_only_fields = [
+            "created_at",
+            "public_token",
+            "status",
+            "enrichment_status",
+        ]
 
 
 class FounderSurveySerializer(serializers.ModelSerializer):

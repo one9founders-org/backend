@@ -2,7 +2,7 @@ import logging
 from datetime import timedelta
 
 from django.contrib.postgres.search import SearchQuery, SearchRank, SearchVector
-from django.db.models import Q
+from django.db.models import Max, Q
 from django.utils import timezone
 from rest_framework import viewsets
 from rest_framework.pagination import PageNumberPagination
@@ -40,13 +40,17 @@ class AuthorSitemapView(APIView):
     def get(self, request):
         queryset = (
             Author.objects.filter(paper_count__gt=0)
-            .only("slug", "last_seen")
+            .annotate(content_updated_at=Max("papers__published_at"))
             .order_by("id")
         )
         paginator = SitemapPagination()
         page = paginator.paginate_queryset(queryset, request, view=self)
         results = [
-            {"slug": author.slug, "last_seen": author.last_seen} for author in page
+            {
+                "slug": author.slug,
+                "content_updated_at": author.content_updated_at or author.first_seen,
+            }
+            for author in page
         ]
         return paginator.get_paginated_response(results)
 

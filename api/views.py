@@ -32,9 +32,11 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.authentication import JWTAuthentication
 
 from .authentication import OptionalJWTAuthentication
+from .catalog import apply_directory_query
 from .directory_columns import DEFAULT_PER_COLUMN, build_directory_columns
 from .hygiene.indexability import indexable_queryset
 from .hygiene.visibility import publishable_queryset
+from .identity import annotate_preferred_agent, exclude_preferred_agent_duplicates
 from .models import (
     Category,
     Deal,
@@ -151,25 +153,6 @@ def _run_search(query: str):
     return ToolListSerializer(tools, many=True).data
 
 
-def _tool_ordering(raw: str) -> list:
-    """Sort by overall_score puts unrated (null) rows last, not first."""
-    fields = []
-    for part in raw.split(","):
-        name = part.strip()
-        if not name:
-            continue
-        descending = name.startswith("-")
-        field = name.lstrip("-")
-        if field == "overall_score":
-            expr = F("overall_score")
-            fields.append(
-                expr.desc(nulls_last=True) if descending else expr.asc(nulls_last=True)
-            )
-        else:
-            fields.append(name)
-    return fields
-
-
 # ---------------------------------------------------------------------------
 # ViewSets
 # ---------------------------------------------------------------------------
@@ -235,11 +218,8 @@ class ToolViewSet(viewsets.ModelViewSet):
         elif rated == "rated":
             queryset = queryset.filter(criteria_completed=10)
 
-        ordering = self.request.query_params.get("ordering")
-        if ordering:
-            queryset = queryset.order_by(*_tool_ordering(ordering))
-
-        return queryset.distinct()
+        queryset = apply_directory_query(queryset, self.request.query_params)
+        return annotate_preferred_agent(queryset).distinct()
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -374,7 +354,13 @@ class ToolSubmissionViewSet(viewsets.ModelViewSet):
         return queryset
 
     def create(self, request, *args, **kwargs):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from .discovery.sources import canonicalize_http_url
         from .recaptcha import verify_recaptcha
+        from .submission_enrichment import schedule_submission_enrichment
 
         recaptcha_token = request.data.get("recaptcha_token")
         if recaptcha_token:
@@ -384,7 +370,45 @@ class ToolSubmissionViewSet(viewsets.ModelViewSet):
                     {"error": result["error"], "recaptcha_failed": True},
                     status=status.HTTP_403_FORBIDDEN,
                 )
-        return super().create(request, *args, **kwargs)
+
+        website = canonicalize_http_url(request.data.get("website") or "")
+        if not website:
+            return Response(
+                {"website": ["Enter a public http(s) product URL."]},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        email = (request.data.get("submitter_email") or "").strip()
+        existing = (
+            ToolSubmission.objects.filter(
+                website__iexact=website.rstrip("/"),
+                submitter_email__iexact=email,
+                created_at__gte=timezone.now() - timedelta(days=30),
+            )
+            .order_by("-created_at")
+            .first()
+        )
+        if existing is None:
+            existing = (
+                ToolSubmission.objects.filter(
+                    website__iexact=website,
+                    submitter_email__iexact=email,
+                    created_at__gte=timezone.now() - timedelta(days=30),
+                )
+                .order_by("-created_at")
+                .first()
+            )
+        if existing:
+            return Response(
+                ToolSubmissionSerializer(existing).data, status=status.HTTP_200_OK
+            )
+
+        data = request.data.copy()
+        data["website"] = website
+        serializer = self.get_serializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        schedule_submission_enrichment(serializer.instance.pk)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
 @api_view(["GET"])
@@ -540,6 +564,11 @@ def track_tool_click(request):
     except Tool.DoesNotExist:
         return Response({"error": "Tool not found"}, status=status.HTTP_404_NOT_FOUND)
 
+    from .engagement import looks_like_automation
+
+    internal = request.headers.get("X-One9-Internal") == "1" or (
+        request.user.is_authenticated and request.user.is_staff
+    )
     click = ToolClick.objects.create(
         tool=tool,
         action=action,
@@ -547,9 +576,73 @@ def track_tool_click(request):
         session_id=session_id,
         ip_address=get_client_ip(request),
         referrer=referrer,
+        surface=(request.data.get("surface") or "")[:64],
+        query_id=(request.data.get("query_id") or "")[:64],
+        campaign=(request.data.get("campaign") or "")[:128],
+        counts_for_ranking=not looks_like_automation(
+            request.META.get("HTTP_USER_AGENT", ""), internal
+        ),
     )
     return Response(
         {"message": "Click tracked", "id": click.id}, status=status.HTTP_201_CREATED
+    )
+
+
+@api_view(["POST"])
+@permission_classes([AllowAny])
+@authentication_classes([JWTAuthentication])
+def track_catalog_event(request):
+    """Single collector for discovery events. Navigation must not depend on it."""
+    from .engagement import record_catalog_event
+
+    internal = request.headers.get("X-One9-Internal") == "1" or (
+        request.user.is_authenticated and request.user.is_staff
+    )
+    try:
+        event, created = record_catalog_event(
+            payload=request.data,
+            user_agent=request.META.get("HTTP_USER_AGENT", ""),
+            internal=internal,
+        )
+    except ValueError as exc:
+        return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+    return Response(
+        {
+            "id": event.id,
+            "event_id": str(event.event_id),
+            "created": created,
+            "counts_for_ranking": event.counts_for_ranking,
+        },
+        status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+    )
+
+
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def submission_status(request):
+    from .submission_enrichment import submission_requirements
+
+    token = (request.query_params.get("token") or "").strip()
+    if not token:
+        return Response(
+            {"detail": "token is required"}, status=status.HTTP_400_BAD_REQUEST
+        )
+    submission = ToolSubmission.objects.filter(public_token=token).first()
+    if submission is None:
+        return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+    return Response(
+        {
+            "name": submission.name,
+            "moderation_status": submission.status,
+            "enrichment_status": submission.enrichment_status,
+            "facts_verified": False,
+            "verification_note": (
+                "Moderation publishes the listing. It is not a hands-on review "
+                "or a check of every pricing and license claim."
+            ),
+            "missing": submission_requirements(submission),
+            "created_at": submission.created_at,
+        }
     )
 
 
@@ -591,7 +684,7 @@ def tool_sitemap(request):
     """
     include_thin = request.query_params.get("include_thin") in ("1", "true", "yes")
     base = publishable_queryset() if include_thin else indexable_queryset()
-    queryset = base.order_by("id")
+    queryset = exclude_preferred_agent_duplicates(base).order_by("id")
     paginator = SitemapPagination()
     page = paginator.paginate_queryset(queryset, request)
     serializer = ToolSitemapSerializer(page, many=True)
@@ -634,7 +727,13 @@ def trending_tools(request):
                 "usages", filter=Q(usages__created_at__gte=since), distinct=True
             ),
             click_count=Count(
-                "clicks", filter=Q(clicks__created_at__gte=since), distinct=True
+                "clicks",
+                filter=Q(
+                    clicks__created_at__gte=since,
+                    clicks__counts_for_ranking=True,
+                    clicks__action="visit_tool",
+                ),
+                distinct=True,
             ),
         )
         .order_by("-usage_count", "-click_count", "-views_count")[:limit]

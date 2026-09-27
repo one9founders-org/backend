@@ -49,3 +49,23 @@ def passes_quality_gate(
         reasons.append("tool name is empty")
 
     return (len(reasons) == 0, reasons)
+
+
+def usefulness_gaps(tool_name: str, facts: Facts, url: str) -> list[str]:
+    """Extra publication checks. Unknown commercial terms stay unknown."""
+    from .sources import canonicalize_http_url
+
+    gaps: list[str] = []
+    if len((tool_name or "").strip()) < 2:
+        gaps.append("product identity is missing")
+    if not canonicalize_http_url(url or ""):
+        gaps.append("official product URL is missing")
+    grounded = bool(
+        (facts.category or "").strip()
+        or facts.categories
+        or (facts.meta_description or "").strip()
+        or facts.topics
+    )
+    if not grounded:
+        gaps.append("no sourced capability or category")
+    return gaps

@@ -3,6 +3,7 @@
 import hashlib
 import json
 import logging
+import math
 from decimal import Decimal, InvalidOperation
 
 from django.conf import settings
@@ -37,7 +38,7 @@ from .india_sources import (
     is_lead_host,
     looks_like_listicle,
 )
-from .quality_gate import passes_quality_gate, similarity_ratio
+from .quality_gate import passes_quality_gate, similarity_ratio, usefulness_gaps
 from .sources import (
     candidate_official_url,
     candidate_signal,
@@ -60,6 +61,59 @@ RETRY_INSTRUCTION = (
     "and do not reuse wording from typical marketing or README copy."
 )
 REVIEW_SOURCES = {"producthunt", "taaft"}
+SOURCE_BUDGET_RATIO = 0.5
+
+
+def select_with_source_budget(ranked, max_new, *, cap_ratio=SOURCE_BUDGET_RATIO):
+    """Cap one source so it cannot take every publication slot."""
+    ranked = list(ranked)
+    if max_new is None:
+        return ranked, []
+    if max_new <= 0:
+        return [], ranked
+    cap = max(1, math.ceil(max_new * cap_ratio))
+    selected = []
+    deferred = []
+    overflow = []
+    counts: dict[str, int] = {}
+    for candidate in ranked:
+        source = _source_key(candidate)
+        if len(selected) >= max_new:
+            deferred.append(candidate)
+            continue
+        if counts.get(source, 0) >= cap:
+            overflow.append(candidate)
+            continue
+        selected.append(candidate)
+        counts[source] = counts.get(source, 0) + 1
+    for candidate in overflow:
+        if len(selected) >= max_new:
+            deferred.append(candidate)
+            continue
+        selected.append(candidate)
+    return selected, deferred
+
+
+def structured_refresh_updates(tool, facts: Facts) -> dict:
+    """Pricing and availability changes that should persist even when prose does not."""
+    updates = {}
+    if facts.pricing and facts.pricing != tool.pricing_type:
+        updates["pricing_type"] = facts.pricing
+    if (
+        facts.free_tier_available is not None
+        and facts.free_tier_available != tool.free_tier_available
+    ):
+        updates["free_tier_available"] = facts.free_tier_available
+    if facts.pricing_from is not None:
+        try:
+            price = Decimal(str(facts.pricing_from))
+        except (InvalidOperation, TypeError, ValueError):
+            price = None
+        if price is not None and tool.pricing_from != price:
+            updates["pricing_from"] = price
+    if facts.has_india_pricing and not tool.pricing_has_india_plan:
+        updates["pricing_has_india_plan"] = True
+    return updates
 
 
 def _source_key(candidate: dict) -> str:
@@ -586,6 +640,11 @@ def process_candidate(candidate: dict) -> dict:
                 name, generated, facts, facts.source_text
             )
 
+    gaps = usefulness_gaps(name, facts, url)
+    if gaps:
+        passed = False
+        reasons = [*reasons, *gaps]
+
     return {
         "name": name,
         "url": url,
@@ -733,12 +792,7 @@ def run_new_tool_discovery(
             full_hn_sweep=full_hn_sweep,
         )
     ranked = sorted(candidates, key=candidate_signal, reverse=True)
-    if max_new is None:
-        to_process = ranked
-        deferred = []
-    else:
-        to_process = ranked[:max_new]
-        deferred = ranked[max_new:]
+    to_process, deferred = select_with_source_budget(ranked, max_new)
 
     published = rejected = errored = staged = candidate_updates = 0
     by_source: dict[str, dict[str, int]] = {}
@@ -923,22 +977,37 @@ def run_refresh_descriptions(limit: int = 50) -> dict:
                 rejected += 1
                 continue
 
+            now = timezone.now()
+            fact_updates = structured_refresh_updates(tool, facts)
             if (
                 similarity_ratio(generated, tool.description or "")
                 >= REFRESH_NOOP_RATIO
             ):
-                Tool.objects.filter(pk=tool.pk).update(last_enriched_at=timezone.now())
-                skipped += 1
+                _persist_first_party_facts(tool, facts, tool.website or "")
+                if fact_updates:
+                    fact_updates["updated_at"] = now
+                    fact_updates["last_enriched_at"] = now
+                    Tool.objects.filter(pk=tool.pk).update(**fact_updates)
+                    log_run(
+                        run_type="refresh",
+                        tool_name=tool.name,
+                        url=tool.website or "",
+                        status="facts_updated",
+                    )
+                    updated += 1
+                else:
+                    Tool.objects.filter(pk=tool.pk).update(last_enriched_at=now)
+                    skipped += 1
                 continue
 
             updates = {
                 "description": generated,
-                "last_enriched_at": timezone.now(),
+                "last_enriched_at": now,
+                "updated_at": now,
             }
             if facts.logo_url and not tool.logo_url and len(facts.logo_url) <= _URL_MAX:
                 updates["logo_url"] = facts.logo_url
-            if facts.pricing and tool.pricing_type == "freemium":
-                updates["pricing_type"] = facts.pricing
+            updates.update(fact_updates)
             Tool.objects.filter(pk=tool.pk).update(**updates)
             _persist_first_party_facts(tool, facts, tool.website or "")
             if facts.category or facts.categories:
