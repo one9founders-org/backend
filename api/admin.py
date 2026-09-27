@@ -21,6 +21,8 @@ from .models import (
     PricingReport,
     Review,
     SiteConfig,
+    CatalogEvent,
+    ServiceInquiry,
     Tool,
     ToolFact,
     ToolSource,
@@ -288,16 +290,21 @@ class ToolSubmissionAdmin(admin.ModelAdmin):
         "submitter_name",
         "submitter_email",
         "status",
+        "enrichment_status",
         "listed_email_sent_at",
         "created_at",
     ]
-    list_filter = ["status", "created_at", "listed_email_sent_at"]
+    list_filter = ["status", "enrichment_status", "created_at", "listed_email_sent_at"]
     search_fields = ["name", "submitter_email", "submitter_name"]
     readonly_fields = [
         "enriched_data",
         "created_at",
         "updated_at",
         "listed_email_sent_at",
+        "public_token",
+        "enrichment_status",
+        "enrichment_attempts",
+        "enrichment_error",
     ]
     filter_horizontal = ["categories"]
     actions = ["approve_submissions", "send_listed_notification"]
@@ -923,3 +930,26 @@ class FintechEvidencePageAdmin(admin.ModelAdmin):
     search_fields = ["tool__name", "url", "title"]
     raw_id_fields = ["tool"]
     readonly_fields = ["crawled_at"]
+
+
+@admin.register(ServiceInquiry)
+class ServiceInquiryAdmin(admin.ModelAdmin):
+    list_display = ["offer", "contact_name", "contact_email", "status", "created_at"]
+    list_filter = ["offer", "status", "created_at"]
+    search_fields = ["contact_email", "contact_name", "company", "workflow"]
+    readonly_fields = ["created_at"]
+
+
+@admin.register(CatalogEvent)
+class CatalogEventAdmin(admin.ModelAdmin):
+    list_display = [
+        "event_name",
+        "entity_type",
+        "entity_slug",
+        "surface",
+        "counts_for_ranking",
+        "created_at",
+    ]
+    list_filter = ["event_name", "counts_for_ranking", "entity_type"]
+    search_fields = ["entity_slug", "event_id", "session_id"]
+    readonly_fields = ["created_at", "event_id", "context"]

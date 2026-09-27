@@ -11,6 +11,7 @@ from .auth_views import (
 )
 from .discovery.views import run_discovery_trigger
 from .fintech import list_fintech_ratings
+from .service_views import create_service_inquiry
 from .smart_search_views import decompose_task_search, smart_search_tools
 from .stack_views import assemble_stack, get_stack, save_stack
 
@@ -71,7 +72,14 @@ urlpatterns = [
     # Tracking endpoints
     path("track/usage/", views.track_tool_usage, name="track-tool-usage"),
     path("track/click/", views.track_tool_click, name="track-tool-click"),
+    path("track/event/", views.track_catalog_event, name="track-catalog-event"),
     path("track/search/", views.track_search_query, name="track-search-query"),
+    path("services/inquiries/", create_service_inquiry, name="service-inquiry"),
+    path(
+        "submissions/status/",
+        views.submission_status,
+        name="submission-status",
+    ),
     path("tools/sitemap/", views.tool_sitemap, name="tool-sitemap"),
     path("news/sitemap/", views.news_sitemap, name="news-sitemap"),
     path("tools/trending/", views.trending_tools, name="trending-tools"),
