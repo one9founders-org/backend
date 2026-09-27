@@ -25,9 +25,20 @@ Prepared changes are on `cursor/growth-discovery-3b84` in the backend and fronte
 - `/tool/11sight` already returns `noindex, follow` in production HTML.
 - Cloudflare unique counts, the coverage export, and the AI-feature export are historical inputs. They were not re-pulled. They do not prove a Google click decline or a penalty.
 
+## Local verification on 27 Sep 2026
+
+The frontend dev server was restarted after a Reticle daemon matching the installed SDK (`@reticlehq/react` 2.14.0) was already listening. A newer daemon (3.3.0) returned `verified: unknown` with `verifiedReason: version_skew` even though the same elements were present. That result is not a pass. The matching daemon then returned `verified: yes` (`verifiedReason: proved`) for:
+
+- Homepage: heading “Find the right AI. Put it to work.”, nav links “AI Services” and “Submit a tool”, and the “Customer-support automation” guide heading.
+- `/?pricing=free`: status “Showing 1-20 of 817 tools” from `Top20Tools.tsx`. That count is the production API’s free-pricing total. `q` and job filters still do not change the production count.
+- `/services/workflow-audit`: “Workflow audit”, “Send intake”, and “Not included”.
+- `/agents/wondershare-filmora`: the catalog-not-a-review note, “What it does”, and no visible “106/100”.
+
+These checks are presence-grade. No store is registered, so they do not prove a network round trip. Console errors before the SDK attached were not observed. Search relevance, job filters, `preferred_path`, and catalog-event receipt still depend on the backend branch and are covered by `tests/test_growth_discovery.py`, not by production.
+
 ## Not done
 
 - No production deploy, DNS or cache change, bulk listing edit, email, or campaign.
 - Search Console clicks, queries, and positions were not available.
 - Production receipt of the new catalog events is unverified.
-- Reticle MCP tools were not available in this session. Browser verification is recorded separately after the dev server run.
+- No 301s. The identity map is review-only.
