@@ -6,7 +6,7 @@ Do not deploy from this note. It is the sequence to use after review.
 
 1. Backend `cursor/growth-discovery-3b84` first. It adds migration `0030_growth_discovery_events`, directory query params, `preferred_path`, catalog events, service inquiries, and submission status.
 2. Confirm migrate, `/tools/?q=video&ordering=relevance`, `/submissions/status/` without a token (400), and `/services/inquiries/` validation.
-3. Frontend after that. The directory sends `q`, `job_cluster`, `deployment`, and `integration`. An old API ignores unknown params in Django, but relevance ordering and job filters will not apply until the backend is live. Canonical `preferred_path` is null until then, so tool pages stay self-canonical.
+3. Frontend after that. The directory sends `q`, `job_cluster`, `deployment`, and `integration`. An old API ignores unknown params in Django, but text relevance and job filters will not apply until the backend is live. Search requests omit `ordering` when the sort is relevance, because the new API treats that as relevance and the current production API returns 500 for `ordering=relevance`. Canonical `preferred_path` is null until the backend is live, so tool pages stay self-canonical.
 4. No DNS change. No Cloudflare configuration change. No bulk listing update. No email.
 
 ## Rollback
