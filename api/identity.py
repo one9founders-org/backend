@@ -49,7 +49,6 @@ def overlap_rows(limit: int = 500) -> list[dict]:
     """Reviewable map. Redirects are not applied."""
     from api.models import Tool
 
-    agent = _agent_model()
     preferred = {
         row.slug: row
         for row in preferred_agent_queryset().only(

@@ -41,7 +41,9 @@ def looks_like_automation(user_agent: str, internal: bool) -> bool:
     return any(marker in ua for marker in BOT_MARKERS)
 
 
-def record_catalog_event(*, payload: dict, user_agent: str = "", internal: bool = False):
+def record_catalog_event(
+    *, payload: dict, user_agent: str = "", internal: bool = False
+):
     """Persist one event. Returns (event, created)."""
     raw_id = payload.get("event_id") or ""
     try:

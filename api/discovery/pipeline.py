@@ -65,7 +65,7 @@ SOURCE_BUDGET_RATIO = 0.5
 
 
 def select_with_source_budget(ranked, max_new, *, cap_ratio=SOURCE_BUDGET_RATIO):
-    """Keep one source from taking every publication slot when others have candidates."""
+    """Cap one source so it cannot take every publication slot."""
     ranked = list(ranked)
     if max_new is None:
         return ranked, []

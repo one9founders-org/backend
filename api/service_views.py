@@ -73,9 +73,12 @@ def create_service_inquiry(request):
 
     email = serializer.validated_data["contact_email"]
     since = timezone.now() - timedelta(hours=1)
-    if ServiceInquiry.objects.filter(
-        contact_email__iexact=email, created_at__gte=since
-    ).count() >= 3:
+    if (
+        ServiceInquiry.objects.filter(
+            contact_email__iexact=email, created_at__gte=since
+        ).count()
+        >= 3
+    ):
         return Response(
             {"detail": "Too many inquiries from this address. Try again later."},
             status=status.HTTP_429_TOO_MANY_REQUESTS,

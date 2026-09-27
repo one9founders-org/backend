@@ -4,6 +4,7 @@ from import_export import resources
 from import_export.admin import ImportExportModelAdmin
 
 from .models import (
+    CatalogEvent,
     Category,
     Deal,
     DiscoveryRun,
@@ -20,9 +21,8 @@ from .models import (
     NewsUpvote,
     PricingReport,
     Review,
-    SiteConfig,
-    CatalogEvent,
     ServiceInquiry,
+    SiteConfig,
     Tool,
     ToolFact,
     ToolSource,

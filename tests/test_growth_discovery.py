@@ -59,7 +59,12 @@ class TestDirectoryQuery:
 
         response = api_client.get(
             "/tools/",
-            {"q": "support", "pricing_type": "paid", "ordering": "-created_at", "page_size": 1},
+            {
+                "q": "support",
+                "pricing_type": "paid",
+                "ordering": "-created_at",
+                "page_size": 1,
+            },
         )
         assert response.status_code == 200
         payload = response.json()
@@ -115,7 +120,9 @@ class TestIdentity:
         AIAgent.objects.create(
             slug="15minutes",
             name="15Minutes",
-            short_description="Book summaries and analysis for busy founders and operators.",
+            short_description=(
+                "Book summaries and analysis for busy founders and operators."
+            ),
             website="https://www.15minutes.ai/",
         )
         response = api_client.get(reverse("tool-sitemap"))
@@ -230,16 +237,19 @@ class TestSubmissionsAndEvents:
             django_capture_on_commit_callbacks(execute=True),
         ):
             response = api_client.post(
-                    "/submissions/",
-                    {
-                        "name": "Helper",
-                        "description": "Helper drafts replies for a support inbox used by a small team.",
-                        "website": "https://helper.example",
-                        "submitter_email": "founder@example.com",
-                        "submitter_name": "A Founder",
-                    },
-                    format="json",
-                )
+                "/submissions/",
+                {
+                    "name": "Helper",
+                    "description": (
+                        "Helper drafts replies for a support "
+                        "inbox used by a small team."
+                    ),
+                    "website": "https://helper.example",
+                    "submitter_email": "founder@example.com",
+                    "submitter_name": "A Founder",
+                },
+                format="json",
+            )
         assert response.status_code == 201
         saved = ToolSubmission.objects.get(submitter_email="founder@example.com")
         assert saved.enrichment_status == "failed"
@@ -256,7 +266,9 @@ class TestSubmissionsAndEvents:
             "/submissions/",
             {
                 "name": "Helper",
-                "description": "Helper drafts replies for a support inbox used by a small team.",
+                "description": (
+                    "Helper drafts replies for a support inbox used by a small team."
+                ),
                 "website": "https://helper.example",
                 "submitter_email": "founder@example.com",
                 "submitter_name": "A Founder",
@@ -267,7 +279,9 @@ class TestSubmissionsAndEvents:
             "/submissions/",
             {
                 "name": "Helper",
-                "description": "Helper drafts replies for a support inbox used by a small team.",
+                "description": (
+                    "Helper drafts replies for a support inbox used by a small team."
+                ),
                 "website": "https://helper.example/",
                 "submitter_email": "founder@example.com",
                 "submitter_name": "A Founder",
@@ -343,4 +357,6 @@ class TestSubmissionsAndEvents:
             format="json",
         )
         assert honeypot.status_code == 201
-        assert ServiceInquiry.objects.filter(contact_email="bot@example.com").count() == 0
+        assert (
+            ServiceInquiry.objects.filter(contact_email="bot@example.com").count() == 0
+        )

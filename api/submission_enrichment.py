@@ -16,7 +16,9 @@ def submission_requirements(submission) -> list[str]:
     if len((submission.description or "").strip()) < 40:
         missing.append("a description of what the product does")
     if submission.enrichment_status == "failed":
-        missing.append("automatic draft enrichment failed; a reviewer can still continue")
+        missing.append(
+            "automatic draft enrichment failed; a reviewer can still continue"
+        )
     return missing
 
 
@@ -35,9 +37,7 @@ def enrich_submission(submission_id: int) -> None:
             submission.name, submission.description, submission.website
         )
     except Exception as exc:
-        logger.warning(
-            "Submission %s enrichment failed: %s", submission_id, exc
-        )
+        logger.warning("Submission %s enrichment failed: %s", submission_id, exc)
         ToolSubmission.objects.filter(pk=submission_id).update(
             enrichment_status="failed",
             enrichment_error=str(exc)[:500],
