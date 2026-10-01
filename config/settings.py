@@ -246,6 +246,17 @@ AUTHENTICATION_BACKENDS = [
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+# Workload identity. When the rule, organization, and service account are
+# set, Claude calls use the EC2 role's STS web identity token and ignore
+# ANTHROPIC_API_KEY.
+ANTHROPIC_FEDERATION_RULE_ID = os.getenv("ANTHROPIC_FEDERATION_RULE_ID", "")
+ANTHROPIC_ORGANIZATION_ID = os.getenv("ANTHROPIC_ORGANIZATION_ID", "")
+ANTHROPIC_SERVICE_ACCOUNT_ID = os.getenv("ANTHROPIC_SERVICE_ACCOUNT_ID", "")
+ANTHROPIC_WORKSPACE_ID = os.getenv("ANTHROPIC_WORKSPACE_ID", "")
+ANTHROPIC_STS_REGION = os.getenv("ANTHROPIC_STS_REGION", "us-east-1")
+ANTHROPIC_ENRICH_MODEL = os.getenv(
+    "ANTHROPIC_ENRICH_MODEL", "claude-haiku-4-5-20251001"
+)
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
 # Firecrawl — India + new-tool discovery scrape/search (optional; discovery
 # still works from GitHub/PH/HN when unset).

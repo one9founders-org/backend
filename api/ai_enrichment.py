@@ -3,7 +3,8 @@ import logging
 import re
 
 from django.conf import settings
-from openai import OpenAI
+
+from .claude_identity import get_anthropic_client
 
 logger = logging.getLogger(__name__)
 
@@ -55,9 +56,7 @@ def sanitize_enriched(data):
 
 
 def enrich_tool_data(name, description, url=None):
-    """Use AI to populate all tool fields from basic info"""
-
-    client = OpenAI(api_key=settings.OPENAI_API_KEY)
+    """Use Claude to populate all tool fields from basic info."""
 
     prompt = f"""Analyze this tool and provide structured data:
 
@@ -101,14 +100,24 @@ Only return valid JSON.
 """
 
     try:
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": prompt}],
+        client = get_anthropic_client()
+        response = client.messages.create(
+            model=getattr(
+                settings, "ANTHROPIC_ENRICH_MODEL", "claude-haiku-4-5-20251001"
+            ),
+            max_tokens=1500,
             temperature=0.3,
+            messages=[{"role": "user", "content": prompt}],
         )
-
-        # Extract JSON from response
-        text = response.choices[0].message.content.strip()
+        text = next(
+            (block.text for block in response.content if getattr(block, "text", None)),
+            "",
+        ).strip()
+        if text.startswith("```"):
+            text = text.split("\n", 1)[-1]
+            if text.endswith("```"):
+                text = text[:-3]
+            text = text.strip()
         json_match = re.search(r"\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}", text, re.DOTALL)
         if json_match:
             data = json.loads(json_match.group())
