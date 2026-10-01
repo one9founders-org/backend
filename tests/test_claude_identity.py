@@ -42,6 +42,7 @@ class TestClaudeIdentity:
             "https://example.tokens.sts.global.api.aws",
             "arn:aws:iam::123456789012:role/one9founders-claude-wif",
         )
+        assert bodies["issuer"]["name"] == "one9founders-backend"
         assert bodies["issuer"]["jwks"] == {"type": "discovery"}
         assert bodies["rule"]["match"] == {
             "subject_prefix": "arn:aws:iam::123456789012:role/one9founders-claude-wif",

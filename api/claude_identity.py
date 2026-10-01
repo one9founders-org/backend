@@ -19,7 +19,7 @@ from django.conf import settings
 
 ANTHROPIC_AUDIENCE = "https://api.anthropic.com"
 INSTANCE_ROLE_NAME = "one9founders-claude-wif"
-ISSUER_NAME = "aws-sts-one9"
+ISSUER_NAME = "one9founders-backend"
 SERVICE_ACCOUNT_NAME = "one9founders-backend"
 FEDERATION_RULE_NAME = "one9founders-backend"
 TOKEN_SECONDS = 900
