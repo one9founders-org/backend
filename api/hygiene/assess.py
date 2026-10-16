@@ -26,9 +26,7 @@ from api.llm import (
     complete_json,
 )
 from api.llm import model_name as claude_model_name
-from api.llm import (
-    provider_is_claude,
-)
+from api.llm import provider_is_claude
 
 logger = logging.getLogger(__name__)
 
