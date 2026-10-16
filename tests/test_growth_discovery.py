@@ -1,11 +1,13 @@
 """Catalog query, identity, events, submissions, and discovery safeguards."""
 
+import re
 import uuid
 from datetime import timedelta
 from decimal import Decimal
 from unittest.mock import patch
 
 import pytest
+from django.core import mail
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework.test import APIClient
@@ -20,7 +22,14 @@ from api.discovery.pipeline import (
 )
 from api.discovery.quality_gate import usefulness_gaps
 from api.discovery.url_safety import host_is_blocked
-from api.models import CatalogEvent, ServiceInquiry, Tool, ToolClick, ToolSubmission
+from api.models import (
+    CatalogEvent,
+    EmailVerificationCode,
+    ServiceInquiry,
+    Tool,
+    ToolClick,
+    ToolSubmission,
+)
 
 
 @pytest.fixture
@@ -224,6 +233,22 @@ class TestRefreshFacts:
         assert summary["noop_skipped"] == 0
 
 
+def _with_email_code(api_client, payload):
+    email = payload["submitter_email"]
+    EmailVerificationCode.objects.filter(email=email).update(
+        created_at=timezone.now() - timedelta(seconds=61)
+    )
+    sent = api_client.post(
+        "/submissions/request-email-code/",
+        {"email": email},
+        format="json",
+    )
+    assert sent.status_code == 200
+    code = re.search(r"\b(\d{6})\b", mail.outbox[-1].body)
+    assert code
+    return {**payload, "email_code": code.group(1)}
+
+
 @pytest.mark.django_db
 class TestSubmissionsAndEvents:
     def test_submission_is_saved_when_enrichment_fails(
@@ -236,18 +261,18 @@ class TestSubmissionsAndEvents:
             ),
             django_capture_on_commit_callbacks(execute=True),
         ):
+            payload = {
+                "name": "Helper",
+                "description": (
+                    "Helper drafts replies for a support " "inbox used by a small team."
+                ),
+                "website": "https://helper.example",
+                "submitter_email": "founder@example.com",
+                "submitter_name": "A Founder",
+            }
             response = api_client.post(
                 "/submissions/",
-                {
-                    "name": "Helper",
-                    "description": (
-                        "Helper drafts replies for a support "
-                        "inbox used by a small team."
-                    ),
-                    "website": "https://helper.example",
-                    "submitter_email": "founder@example.com",
-                    "submitter_name": "A Founder",
-                },
+                _with_email_code(api_client, payload),
                 format="json",
             )
         assert response.status_code == 201
@@ -262,30 +287,25 @@ class TestSubmissionsAndEvents:
         assert body["facts_verified"] is False
 
     def test_repeat_submission_does_not_duplicate(self, api_client):
+        base = {
+            "name": "Helper",
+            "description": (
+                "Helper drafts replies for a support inbox used by a small team."
+            ),
+            "website": "https://helper.example",
+            "submitter_email": "founder@example.com",
+            "submitter_name": "A Founder",
+        }
         first = api_client.post(
             "/submissions/",
-            {
-                "name": "Helper",
-                "description": (
-                    "Helper drafts replies for a support inbox used by a small team."
-                ),
-                "website": "https://helper.example",
-                "submitter_email": "founder@example.com",
-                "submitter_name": "A Founder",
-            },
+            _with_email_code(api_client, base),
             format="json",
         )
         second = api_client.post(
             "/submissions/",
-            {
-                "name": "Helper",
-                "description": (
-                    "Helper drafts replies for a support inbox used by a small team."
-                ),
-                "website": "https://helper.example/",
-                "submitter_email": "founder@example.com",
-                "submitter_name": "A Founder",
-            },
+            _with_email_code(
+                api_client, {**base, "website": "https://helper.example/"}
+            ),
             format="json",
         )
         assert first.status_code == 201
