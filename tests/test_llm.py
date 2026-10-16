@@ -1,3 +1,4 @@
+import json
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -221,7 +222,9 @@ def test_enrich_uses_claude_when_the_provider_is_set(settings):
     claude.assert_called_once()
     assert result["pricing_type"] == "freemium"
     assert result["usage"]["cost_usd"] == 0.02
-    assert "allowed_tags" not in claude.call_args.kwargs["user"]
+    user_payload = json.loads(claude.call_args.kwargs["user"])
+    assert "allowed_tags" not in user_payload
+    assert "allowed_tags" in claude.call_args.kwargs["system"]
 
 
 def test_assess_uses_claude_cost(settings):
