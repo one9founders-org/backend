@@ -356,6 +356,22 @@ class ToolSubmissionViewSet(viewsets.ModelViewSet):
     authentication_classes = [OptionalJWTAuthentication, SessionAuthentication]
     permission_classes = [IsStaffOrNotFound]
 
+    def initialize_request(self, request, *args, **kwargs):
+        # Authenticators run before the action is normally set. Public posts
+        # must skip session auth, which rejects a cross-origin form that has
+        # no CSRF cookie.
+        method = request.method.lower()
+        if method == "options":
+            self.action = "metadata"
+        else:
+            self.action = self.action_map.get(method)
+        return super().initialize_request(request, *args, **kwargs)
+
+    def get_authenticators(self):
+        if self.action in ("create", "request_email_code"):
+            return [OptionalJWTAuthentication()]
+        return super().get_authenticators()
+
     def get_permissions(self):
         # Public tool-submit form may request an email code and create a
         # submission. Listing, editing, and approving are staff-only.

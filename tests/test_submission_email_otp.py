@@ -36,6 +36,20 @@ def _request_code(client, email="founder@example.com"):
     )
 
 
+@pytest.mark.django_db
+def test_logged_in_session_can_request_a_code_without_csrf():
+    User.objects.create_user(
+        username="session@example.com",
+        email="session@example.com",
+        password="pass12345",
+    )
+    client = APIClient(enforce_csrf_checks=True)
+    assert client.login(username="session@example.com", password="pass12345")
+    response = _request_code(client, "founder@example.com")
+    assert response.status_code == status.HTTP_200_OK
+    assert len(mail.outbox) == 1
+
+
 @pytest.fixture
 def api_client():
     return APIClient()
