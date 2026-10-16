@@ -47,6 +47,11 @@ class User(AbstractUser):
     ai_comfort_level = models.CharField(max_length=100, blank=True, default="")
     referral_source = models.CharField(max_length=100, blank=True, default="")
     profile_completed = models.BooleanField(default=False)
+    email_verified_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When this email was confirmed with a one-time code.",
+    )
 
     class Meta:
         db_table = "users"
@@ -744,6 +749,37 @@ class ToolSubmission(models.Model):
     class Meta:
         db_table = "tool_submissions"
         ordering = ["-created_at"]
+
+
+class EmailVerificationCode(models.Model):
+    """One-time code proving a submitter can read the address they typed."""
+
+    PURPOSE_TOOL_SUBMIT = "tool_submit"
+
+    email = models.EmailField(db_index=True)
+    purpose = models.CharField(max_length=32, default=PURPOSE_TOOL_SUBMIT)
+    code_hash = models.CharField(max_length=64)
+    expires_at = models.DateTimeField()
+    attempts = models.PositiveSmallIntegerField(default=0)
+    consumed_at = models.DateTimeField(null=True, blank=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.email} ({self.purpose})"
+
+    class Meta:
+        db_table = "email_verification_codes"
+        indexes = [
+            models.Index(
+                fields=["email", "purpose", "-created_at"],
+                name="email_code_email_purpose_idx",
+            ),
+            models.Index(
+                fields=["ip_address", "-created_at"],
+                name="email_code_ip_created_idx",
+            ),
+        ]
 
 
 class NewsletterSubscription(models.Model):

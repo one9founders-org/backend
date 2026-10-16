@@ -172,6 +172,11 @@ AWS_SES_REGION_NAME = os.getenv("AWS_SES_REGION_NAME", "ap-south-1")
 AWS_SES_REGION_ENDPOINT = f"email.{AWS_SES_REGION_NAME}.amazonaws.com"
 DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "noreply@one9founders.com")
 SERVER_EMAIL = DEFAULT_FROM_EMAIL
+EMAIL_OTP_TTL_SECONDS = int(os.getenv("EMAIL_OTP_TTL_SECONDS", "600"))
+EMAIL_OTP_MAX_ATTEMPTS = int(os.getenv("EMAIL_OTP_MAX_ATTEMPTS", "5"))
+EMAIL_OTP_RESEND_SECONDS = int(os.getenv("EMAIL_OTP_RESEND_SECONDS", "60"))
+EMAIL_OTP_MAX_PER_HOUR = int(os.getenv("EMAIL_OTP_MAX_PER_HOUR", "5"))
+EMAIL_OTP_MAX_PER_IP_PER_HOUR = int(os.getenv("EMAIL_OTP_MAX_PER_IP_PER_HOUR", "20"))
 PUBLIC_SITE_URL = os.getenv("PUBLIC_SITE_URL", "https://www.one9founders.com")
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"

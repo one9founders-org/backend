@@ -134,7 +134,7 @@ class TestToolWriteAuth:
 
 @pytest.mark.django_db
 class TestSubmissionAuth:
-    def test_create_submission_remains_public(self, api_client):
+    def test_create_submission_without_email_code_is_rejected(self, api_client):
         response = api_client.post(
             reverse("submission-list"),
             {
@@ -146,7 +146,7 @@ class TestSubmissionAuth:
             },
             format="json",
         )
-        assert response.status_code == status.HTTP_201_CREATED
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
 
     def test_list_submissions_unauthenticated_returns_404(self, api_client):
         response = api_client.get(reverse("submission-list"))

@@ -13,7 +13,7 @@ import logging
 from datetime import timedelta
 
 from django.conf import settings
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
 from django.db.models import Count, F, Q
 from django.http import JsonResponse
 from django.utils import timezone
@@ -80,6 +80,23 @@ from .serializers import (
 from .tool_stats import get_tool_directory_stats
 
 logger = logging.getLogger(__name__)
+
+
+def _email_code_response(exc):
+    return Response(
+        {"detail": exc.message, "error": exc.message},
+        status=exc.status_code,
+    )
+
+
+def _accept_verified_submission(email, name, challenge_id):
+    from .email_otp import consume_tool_submit_code, ensure_verified_submitter_account
+
+    with transaction.atomic():
+        consume_tool_submit_code(challenge_id)
+        _user, created = ensure_verified_submitter_account(email, name)
+    return created
+
 
 openai_client = OpenAI(api_key=settings.OPENAI_API_KEY)
 
@@ -340,9 +357,9 @@ class ToolSubmissionViewSet(viewsets.ModelViewSet):
     permission_classes = [IsStaffOrNotFound]
 
     def get_permissions(self):
-        # Public tool-submit form may create a submission. Listing, editing,
-        # deleting, and approving (which writes the tools table) are staff-only.
-        if self.action == "create":
+        # Public tool-submit form may request an email code and create a
+        # submission. Listing, editing, and approving are staff-only.
+        if self.action in ("create", "request_email_code"):
             return [AllowAny()]
         return [IsStaffOrNotFound()]
 
@@ -359,6 +376,7 @@ class ToolSubmissionViewSet(viewsets.ModelViewSet):
         from django.utils import timezone
 
         from .discovery.sources import canonicalize_http_url
+        from .email_otp import EmailCodeError, match_tool_submit_code, normalize_email
         from .recaptcha import verify_recaptcha
         from .submission_enrichment import schedule_submission_enrichment
 
@@ -377,7 +395,13 @@ class ToolSubmissionViewSet(viewsets.ModelViewSet):
                 {"website": ["Enter a public http(s) product URL."]},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        email = (request.data.get("submitter_email") or "").strip()
+        try:
+            email = normalize_email(request.data.get("submitter_email"))
+            challenge = match_tool_submit_code(
+                email, request.data.get("email_code") or ""
+            )
+        except EmailCodeError as exc:
+            return _email_code_response(exc)
         existing = (
             ToolSubmission.objects.filter(
                 website__iexact=website.rstrip("/"),
@@ -398,17 +422,65 @@ class ToolSubmissionViewSet(viewsets.ModelViewSet):
                 .first()
             )
         if existing:
-            return Response(
-                ToolSubmissionSerializer(existing).data, status=status.HTTP_200_OK
+            created = _accept_verified_submission(
+                email, existing.submitter_name, challenge.pk
             )
+            payload = ToolSubmissionSerializer(existing).data
+            payload["account_created"] = created
+            payload["email_verified"] = True
+            return Response(payload, status=status.HTTP_200_OK)
 
         data = request.data.copy()
         data["website"] = website
+        data["submitter_email"] = email
         serializer = self.get_serializer(data=data)
         serializer.is_valid(raise_exception=True)
-        self.perform_create(serializer)
+        try:
+            with transaction.atomic():
+                self.perform_create(serializer)
+                created = _accept_verified_submission(
+                    email,
+                    serializer.validated_data.get("submitter_name") or "",
+                    challenge.pk,
+                )
+        except EmailCodeError as exc:
+            return _email_code_response(exc)
         schedule_submission_enrichment(serializer.instance.pk)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        payload = serializer.data
+        payload["account_created"] = created
+        payload["email_verified"] = True
+        return Response(payload, status=status.HTTP_201_CREATED)
+
+    @action(
+        detail=False,
+        methods=["post"],
+        url_path="request-email-code",
+        permission_classes=[AllowAny],
+    )
+    def request_email_code(self, request):
+        from .email_otp import EmailCodeError, issue_tool_submit_code
+        from .recaptcha import verify_recaptcha
+
+        recaptcha_token = request.data.get("recaptcha_token")
+        if recaptcha_token:
+            result = verify_recaptcha(recaptcha_token, action="verify_submitter_email")
+            if not result["success"]:
+                return Response(
+                    {
+                        "error": result["error"],
+                        "detail": result["error"],
+                        "recaptcha_failed": True,
+                    },
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+        try:
+            expires_in = issue_tool_submit_code(
+                request.data.get("email") or request.data.get("submitter_email") or "",
+                ip_address=get_client_ip(request),
+            )
+        except EmailCodeError as exc:
+            return _email_code_response(exc)
+        return Response({"detail": "Verification code sent.", "expires_in": expires_in})
 
 
 @api_view(["GET"])

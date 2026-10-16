@@ -79,6 +79,7 @@ class UserResource(resources.ModelResource):
             "is_active",
             "date_joined",
             "last_login",
+            "email_verified_at",
         )
         export_order = fields
 
@@ -93,6 +94,7 @@ class UserAdmin(ImportExportModelAdmin):
         "last_name",
         "is_startup",
         "is_active",
+        "email_verified_at",
     ]
     search_fields = ["email", "username"]
     list_filter = ["is_startup", "is_active"]
