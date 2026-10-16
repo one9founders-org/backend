@@ -1,14 +1,10 @@
-import anthropic
 import json
 import logging
-from django.conf import settings
 from django.utils import timezone
 from .models import ToolSentiment
 from .scraper import gather_all_mentions
 
 logger = logging.getLogger(__name__)
-
-client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
 
 AGENT_SYSTEM_PROMPT = """
 You are a senior analyst at One9Founders, India's security-validated AI tools 
@@ -71,7 +67,9 @@ def run_sentiment_agent(tool_name: str) -> ToolSentiment:
     # Step 4. Send to Claude
     logger.info(f"[Agent] Sending {len(mentions)} mentions to Claude...")
     try:
-        response = client.messages.create(
+        from api.claude_identity import get_anthropic_client
+
+        response = get_anthropic_client().messages.create(
             model="claude-sonnet-4-20250514",
             max_tokens=800,
             system=AGENT_SYSTEM_PROMPT,

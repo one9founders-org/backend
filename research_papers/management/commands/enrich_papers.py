@@ -2,8 +2,6 @@ import json
 import logging
 import time
 
-import anthropic
-from django.conf import settings
 from django.core.management.base import BaseCommand
 
 from research_papers.models import Paper
@@ -23,12 +21,13 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        api_key = getattr(settings, "ANTHROPIC_API_KEY", "")
-        if not api_key:
-            self.stdout.write(self.style.ERROR("ANTHROPIC_API_KEY not set in settings"))
-            return
+        from api.claude_identity import ClaudeIdentityError, get_anthropic_client
 
-        client = anthropic.Anthropic(api_key=api_key)
+        try:
+            client = get_anthropic_client()
+        except ClaudeIdentityError as exc:
+            self.stdout.write(self.style.ERROR(str(exc)))
+            return
         limit = options["limit"]
 
         papers = Paper.objects.filter(is_enriched=False).order_by("-published_at")[
