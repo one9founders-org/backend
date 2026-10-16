@@ -264,7 +264,22 @@ def apply_tool_changes(
                     ", ".join(missing),
                 )
             tool.categories.set(categories)
-        elif field in {"description", "pricing_type", "pricing_models"}:
+        elif field in {
+            "description",
+            "pricing_type",
+            "pricing_models",
+            "short_description",
+            "website",
+            "free_tier_available",
+            "startup_friendly",
+            "is_active",
+            "features",
+            "use_cases",
+            "integrations",
+            "tags",
+            "platforms",
+            "ideal_for",
+        }:
             scalar_update[field] = value
         else:
             logger.warning(
@@ -272,6 +287,7 @@ def apply_tool_changes(
             )
     if scalar_update:
         scalar_update["updated_at"] = timezone.now()
+        scalar_update["last_enriched_at"] = timezone.now()
         Tool.objects.filter(pk=tool.pk).update(**scalar_update)
 
 

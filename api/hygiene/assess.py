@@ -20,6 +20,16 @@ from urllib.parse import urlparse
 from django.conf import settings
 from openai import OpenAI, OpenAIError
 
+from api.llm import (
+    ClaudeCallError,
+    SpendCapExceeded,
+    complete_json,
+)
+from api.llm import model_name as claude_model_name
+from api.llm import (
+    provider_is_claude,
+)
+
 logger = logging.getLogger(__name__)
 
 DEFAULT_MODEL = "gpt-4o-mini"
@@ -169,7 +179,32 @@ def _client() -> OpenAI:
     return OpenAI(api_key=settings.OPENAI_API_KEY)
 
 
+def _criterion_schema() -> dict:
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["score", "evidence_url", "reasoning"],
+        "properties": {
+            "score": {"type": ["integer", "null"]},
+            "evidence_url": {"type": ["string", "null"]},
+            "reasoning": {"type": "string"},
+        },
+    }
+
+
+def assess_schema() -> dict:
+    properties = {cid: _criterion_schema() for cid in AUTOMATABLE}
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "required": list(AUTOMATABLE),
+        "properties": properties,
+    }
+
+
 def _model_name() -> str:
+    if provider_is_claude():
+        return claude_model_name()
     return getattr(settings, "HYGIENE_ASSESS_MODEL", DEFAULT_MODEL)
 
 
@@ -366,18 +401,35 @@ def assess(name: str, website: str, evidence: dict) -> dict:
     model = _model_name()
     payload = build_prompt_payload(name, website, evidence)
     try:
-        response = _client().chat.completions.create(
-            model=model,
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": json.dumps(payload, default=str)},
-            ],
-            response_format={"type": "json_object"},
-            temperature=0.1,
-            max_tokens=1200,
-        )
-        data = json.loads(response.choices[0].message.content or "{}")
-        usage = _usage_from(response, model)
+        if provider_is_claude():
+            data, call_usage = complete_json(
+                system=SYSTEM_PROMPT,
+                user=json.dumps(payload, default=str),
+                schema=assess_schema(),
+                max_tokens=8192,
+            )
+            usage = call_usage.as_dict()
+        else:
+            response = _client().chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "user", "content": json.dumps(payload, default=str)},
+                ],
+                response_format={"type": "json_object"},
+                temperature=0.1,
+                max_tokens=1200,
+            )
+            data = json.loads(response.choices[0].message.content or "{}")
+            usage = _usage_from(response, model)
+    except SpendCapExceeded:
+        raise
+    except ClaudeCallError as exc:
+        logger.warning("Assessment failed for %s: %s", name, exc)
+        extra = {"error": str(exc)}
+        if exc.usage is not None:
+            extra["usage"] = exc.usage.as_dict()
+        return _empty_result(**extra)
     except (OpenAIError, json.JSONDecodeError, IndexError, TypeError) as exc:
         logger.warning("Assessment failed for %s: %s", name, exc)
         return _empty_result(error=str(exc))

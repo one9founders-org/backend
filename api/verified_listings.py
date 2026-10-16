@@ -157,6 +157,17 @@ VERIFIED_LISTINGS = {
 }
 
 
+def protected_from_ai(tool) -> bool:
+    """Rows a model must not rewrite.
+
+    `verified` is a staff flag. Slugs in VERIFIED_LISTINGS are hand-written
+    facts (pricing, plans) that an earlier model pass got wrong.
+    """
+    if getattr(tool, "verified", False):
+        return True
+    return (getattr(tool, "slug", "") or "") in VERIFIED_LISTINGS
+
+
 def fields_for_stale_tool(tool) -> dict | None:
     listing = VERIFIED_LISTINGS.get(getattr(tool, "slug", "") or "")
     if not listing:

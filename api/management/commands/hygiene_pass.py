@@ -80,6 +80,15 @@ class Command(BaseCommand):
             action="store_true",
             help="Skip LLM enrichment; still migrates legacy tags.",
         )
+        parser.add_argument(
+            "--budget-usd",
+            type=float,
+            default=0,
+            help=(
+                "When HYGIENE_PROVIDER=claude, stop once Claude spend reaches "
+                "this many USD. 0 uses HYGIENE_CLAUDE_BUDGET_USD (default $5)."
+            ),
+        )
 
     def handle(self, *args, **options):
         if options["limit"] < 0:
@@ -119,12 +128,18 @@ class Command(BaseCommand):
             only_unchecked=options["only_unchecked"],
             stale_days=options["stale_days"],
             search_budget=options["search_budget"],
+            budget_usd=options["budget_usd"] or None,
         )
 
         self.stdout.write(f"Selected:     {summary['selected']}")
         self.stdout.write(f"With changes: {summary['with_changes']}")
         self.stdout.write(f"Updated:      {summary['updated']}")
         self.stdout.write(f"Skipped:      {summary['skipped']}")
+        self.stdout.write(f"Spent:        ${summary.get('spent_usd', 0):.4f}")
+        if summary.get("aborted"):
+            self.stdout.write(
+                self.style.WARNING(f"Aborted:      {summary['abort_reason']}")
+            )
         self.stdout.write(f"Log:          {summary['log_path']}")
         if not options["apply"]:
             self.stdout.write(

@@ -192,6 +192,14 @@ jobs:
             # Run migrations
             docker compose exec -T web python manage.py migrate --noinput
 
+            # One-shot: publish the 16 Oct 2026 web-checked listings.
+            # Marker is on the host so later deploys do not overwrite edits.
+            if [ ! -f /var/www/one9founders/claude-verification-applied-2026-10-16 ]; then
+              echo "===== Apply Claude verification ====="
+              docker compose exec -T web python manage.py apply_claude_verification --apply
+              touch /var/www/one9founders/claude-verification-applied-2026-10-16
+            fi
+
             # Translate known non-English blurbs and flag the rest for review
             docker compose exec -T web python manage.py lint_tool_languages --fix
 

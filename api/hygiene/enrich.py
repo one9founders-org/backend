@@ -12,6 +12,8 @@ import logging
 from django.conf import settings
 from openai import OpenAI, OpenAIError
 
+from api.llm import ClaudeCallError, SpendCapExceeded, complete_json, provider_is_claude
+
 from . import (
     MAX_TAGS,
     MIN_TAGS,
@@ -24,6 +26,8 @@ from .websearch import SearchEvidence
 logger = logging.getLogger(__name__)
 
 DEFAULT_MODEL = "gpt-4o-mini"
+# Below this, the hygiene pass keeps the stored row and flags the draft.
+MIN_WRITE_CONFIDENCE = 0.6
 
 SYSTEM_PROMPT = """You write factual entries for a software tool directory.
 
@@ -40,6 +44,38 @@ to true and leave the other fields empty. This is expected and useful.
 - Choose tags ONLY from the provided allowed_tags list. Never invent a tag.
 
 Return a single JSON object, no prose around it."""
+
+ENRICH_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": [
+        "insufficient_evidence",
+        "short_description",
+        "description",
+        "tags",
+        "use_cases",
+        "features",
+        "ideal_for",
+        "startup_benefits",
+        "pricing_type",
+        "confidence",
+    ],
+    "properties": {
+        "insufficient_evidence": {"type": "boolean"},
+        "short_description": {"type": "string"},
+        "description": {"type": "string"},
+        "tags": {"type": "array", "items": {"type": "string"}},
+        "use_cases": {"type": "array", "items": {"type": "string"}},
+        "features": {"type": "array", "items": {"type": "string"}},
+        "ideal_for": {"type": "array", "items": {"type": "string"}},
+        "startup_benefits": {"type": "string"},
+        "pricing_type": {
+            "type": "string",
+            "enum": ["free", "freemium", "paid", "unknown"],
+        },
+        "confidence": {"type": "number"},
+    },
+}
 
 RESPONSE_SHAPE = {
     "insufficient_evidence": "boolean",
@@ -106,6 +142,17 @@ def build_evidence_payload(
     return payload
 
 
+def accepts_write(enriched: dict) -> bool:
+    """True only when the model had enough evidence and confidence to store."""
+    if not isinstance(enriched, dict) or enriched.get("insufficient_evidence"):
+        return False
+    try:
+        confidence = float(enriched.get("confidence") or 0)
+    except (TypeError, ValueError):
+        return False
+    return confidence >= MIN_WRITE_CONFIDENCE
+
+
 def _coerce_list(value, limit: int) -> list[str]:
     if not isinstance(value, list):
         return []
@@ -115,6 +162,37 @@ def _coerce_list(value, limit: int) -> list[str]:
         if text:
             out.append(text)
     return out[:limit]
+
+
+def _call_model(payload: dict) -> tuple[dict, dict]:
+    if provider_is_claude():
+        user_payload = dict(payload)
+        allowed = user_payload.pop("allowed_tags", [])
+        system = (
+            SYSTEM_PROMPT
+            + "\n\nallowed_tags (choose only from this list):\n"
+            + json.dumps(allowed)
+        )
+        data, usage = complete_json(
+            system=system,
+            user=json.dumps(user_payload, default=str),
+            schema=ENRICH_SCHEMA,
+            max_tokens=8192,
+        )
+        return data, usage.as_dict()
+
+    response = _client().chat.completions.create(
+        model=_model_name(),
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": json.dumps(payload, default=str)},
+        ],
+        response_format={"type": "json_object"},
+        temperature=0.3,
+        max_tokens=800,
+    )
+    raw = response.choices[0].message.content or "{}"
+    return json.loads(raw), {}
 
 
 def enrich(
@@ -144,24 +222,27 @@ def enrich(
     )
 
     try:
-        response = _client().chat.completions.create(
-            model=_model_name(),
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": json.dumps(payload, default=str)},
-            ],
-            response_format={"type": "json_object"},
-            temperature=0.3,
-            max_tokens=800,
-        )
-        raw = response.choices[0].message.content or "{}"
-        data = json.loads(raw)
+        data, usage = _call_model(payload)
+    except SpendCapExceeded:
+        raise
+    except ClaudeCallError as exc:
+        logger.warning("Enrichment failed for %s: %s", name, exc)
+        result = {"insufficient_evidence": True, "error": str(exc)}
+        if exc.usage is not None:
+            result["usage"] = exc.usage.as_dict()
+        return result
     except (OpenAIError, json.JSONDecodeError, IndexError) as exc:
         logger.warning("Enrichment failed for %s: %s", name, exc)
         return {"insufficient_evidence": True, "error": str(exc)}
 
     if data.get("insufficient_evidence"):
-        return {"insufficient_evidence": True, "confidence": data.get("confidence", 0)}
+        result = {
+            "insufficient_evidence": True,
+            "confidence": data.get("confidence", 0),
+        }
+        if usage:
+            result["usage"] = usage
+        return result
 
     # Tags are the field most likely to drift, so validate hard and top up
     # from the deterministic inference rather than trusting the model.
@@ -170,10 +251,15 @@ def enrich(
         tags = balance(dedupe(tags + candidate_tags))
 
     pricing = str(data.get("pricing_type") or "").strip().lower()
-    if pricing not in {"free", "freemium", "paid"}:
+    if pricing == "unknown" or pricing not in {"free", "freemium", "paid"}:
         pricing = ""
 
-    return {
+    try:
+        confidence = float(data.get("confidence") or 0)
+    except (TypeError, ValueError):
+        confidence = 0.0
+
+    result = {
         "insufficient_evidence": False,
         "short_description": str(data.get("short_description") or "").strip(),
         "description": str(data.get("description") or "").strip(),
@@ -183,5 +269,8 @@ def enrich(
         "ideal_for": _coerce_list(data.get("ideal_for"), 4),
         "startup_benefits": str(data.get("startup_benefits") or "").strip(),
         "pricing_type": pricing,
-        "confidence": float(data.get("confidence") or 0),
+        "confidence": confidence,
     }
+    if usage:
+        result["usage"] = usage
+    return result

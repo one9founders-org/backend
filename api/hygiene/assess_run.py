@@ -44,13 +44,22 @@ class SpendGuard:
     model: str = DEFAULT_MODEL
     prompt_tokens: int = 0
     completion_tokens: int = 0
+    reported_usd: float = 0.0
+    use_reported: bool = False
 
-    def add(self, prompt: int, completion: int) -> None:
+    def add(self, prompt: int, completion: int, cost_usd: float | None = None) -> None:
         self.prompt_tokens += int(prompt or 0)
         self.completion_tokens += int(completion or 0)
+        # Claude reports a dollar cost that includes cache and web search.
+        # When that figure is present it is the spend, not a reprice of tokens.
+        if cost_usd is not None:
+            self.reported_usd += float(cost_usd)
+            self.use_reported = True
 
     @property
     def usd(self) -> float:
+        if self.use_reported:
+            return self.reported_usd
         return token_cost_usd(self.prompt_tokens, self.completion_tokens, self.model)
 
     def remaining(self) -> float:
@@ -222,7 +231,11 @@ def run(
             )
             result = None
         usage = outcome.usage or {}
-        guard.add(usage.get("prompt_tokens") or 0, usage.get("completion_tokens") or 0)
+        guard.add(
+            usage.get("prompt_tokens") or 0,
+            usage.get("completion_tokens") or 0,
+            cost_usd=usage.get("cost_usd") if "cost_usd" in usage else None,
+        )
         outcomes.append(outcome)
         if (
             apply

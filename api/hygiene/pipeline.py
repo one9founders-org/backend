@@ -16,17 +16,20 @@ import sqlite3
 from dataclasses import asdict, dataclass, field
 from datetime import timedelta
 
+from django.conf import settings
 from django.db.models import F, Q
 from django.utils import timezone
 
 from api.discovery.facts import fetch_facts
+from api.llm import SpendCapExceeded, provider_is_claude, spend_cap
 from api.models import Tool
 from api.tool_enrichment import write_enrichment_log
 from api.tool_stats import bust_tool_stats_cache
+from api.verified_listings import protected_from_ai
 
 from . import RANK_FEATURE_THRESHOLD
 from .classify import classify, is_publishable
-from .enrich import enrich
+from .enrich import MIN_WRITE_CONFIDENCE, accepts_write, enrich
 from .linkcheck import BROKEN, MALFORMED, UNREACHABLE, check_url
 from .logos import resolve_logo
 from .rank import RankInputs, completeness_score, display_order_for, score
@@ -214,10 +217,18 @@ def process_tool(
         if evidence.ok and not evidence.official_site_matched:
             outcome.notes.append("google did not surface the listed website")
 
-    if stages.llm:
+    if stages.llm and protected_from_ai(tool):
+        outcome.notes.append("AI skipped: protected listing")
+    elif stages.llm:
         enriched = enrich(tool.name, resolved_url, facts, evidence, signals)
-        if enriched.get("insufficient_evidence"):
-            outcome.notes.append("insufficient evidence; content left unchanged")
+        if not accepts_write(enriched):
+            if enriched.get("insufficient_evidence"):
+                outcome.notes.append("insufficient evidence; content left unchanged")
+            else:
+                outcome.notes.append(
+                    f"confidence {enriched.get('confidence')} below "
+                    f"{MIN_WRITE_CONFIDENCE}; content left unchanged"
+                )
         else:
             for field_name in (
                 "short_description",
@@ -285,6 +296,14 @@ def apply_outcome(outcome: ToolOutcome) -> bool:
     return True
 
 
+def _claude_budget(budget_usd: float | None, stages: Stages) -> float | None:
+    if not provider_is_claude() or not stages.llm:
+        return None
+    if budget_usd and budget_usd > 0:
+        return float(budget_usd)
+    return float(getattr(settings, "HYGIENE_CLAUDE_BUDGET_USD", 5) or 5)
+
+
 def run(
     *,
     limit: int = 50,
@@ -296,6 +315,7 @@ def run(
     only_unchecked: bool = False,
     stale_days: int = 0,
     search_budget: int = 8000,
+    budget_usd: float | None = None,
 ) -> dict:
     stages = stages or Stages()
     if stages.search and not search_configured():
@@ -325,32 +345,47 @@ def run(
     outcomes: list[ToolOutcome] = []
     searches_used = 0
     applied = 0
-    for index, tool in enumerate(tools, start=1):
-        if stages.search and searches_used >= search_budget:
-            stages.search = False
-            logger.warning(
-                "Hygiene search budget of %s reached; remaining rows skip Google.",
-                search_budget,
-            )
-        try:
-            before_search = stages.search
-            outcome = process_tool(tool, stages, connection)
-            outcomes.append(outcome)
-            if before_search and not outcome.skipped:
-                searches_used += 1
-            # Apply as we go so a killed run still keeps finished rows.
-            # --only-unchecked then resumes from the rest.
-            if apply and outcome.changes and apply_outcome(outcome):
-                applied += 1
-        except Exception:
-            logger.exception("Hygiene pass failed for tool id=%s", tool.id)
-        if index % 50 == 0:
-            logger.info(
-                "Hygiene progress %s/%s applied=%s",
-                index,
-                len(tools),
-                applied,
-            )
+    aborted = ""
+    cap = _claude_budget(budget_usd, stages)
+    with spend_cap(cap) as meter:
+        for index, tool in enumerate(tools, start=1):
+            if meter is not None and meter.exceeded():
+                aborted = (
+                    f"spend ${meter.spent_usd:.4f} reached cap "
+                    f"${meter.budget_usd:.2f} after {index - 1} tools"
+                )
+                logger.warning("Hygiene abort: %s", aborted)
+                break
+            if stages.search and searches_used >= search_budget:
+                stages.search = False
+                logger.warning(
+                    "Hygiene search budget of %s reached; remaining rows skip Google.",
+                    search_budget,
+                )
+            try:
+                before_search = stages.search
+                outcome = process_tool(tool, stages, connection)
+                outcomes.append(outcome)
+                if before_search and not outcome.skipped:
+                    searches_used += 1
+                # Apply as we go so a killed run still keeps finished rows.
+                # --only-unchecked then resumes from the rest.
+                if apply and outcome.changes and apply_outcome(outcome):
+                    applied += 1
+            except SpendCapExceeded as exc:
+                aborted = str(exc)
+                logger.warning("Hygiene abort: %s", aborted)
+                break
+            except Exception:
+                logger.exception("Hygiene pass failed for tool id=%s", tool.id)
+            if index % 50 == 0:
+                logger.info(
+                    "Hygiene progress %s/%s applied=%s",
+                    index,
+                    len(tools),
+                    applied,
+                )
+    spent = round(meter.spent_usd, 6) if meter is not None else 0.0
 
     if connection is not None:
         connection.close()
@@ -367,6 +402,9 @@ def run(
         "with_changes": len(changed),
         "updated": applied,
         "stages": asdict(stages),
+        "spent_usd": spent,
+        "aborted": bool(aborted),
+        "abort_reason": aborted,
         "entries": [asdict(o) for o in outcomes],
     }
     log_path = write_enrichment_log(payload)
@@ -376,5 +414,8 @@ def run(
         "with_changes": len(changed),
         "updated": applied,
         "skipped": sum(1 for o in outcomes if o.skipped),
+        "spent_usd": spent,
+        "aborted": bool(aborted),
+        "abort_reason": aborted,
         "log_path": str(log_path),
     }

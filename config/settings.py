@@ -288,6 +288,14 @@ PRODUCT_HUNT_API_TOKEN = os.getenv("PRODUCT_HUNT_API_TOKEN", "")
 TRANCO_DB_PATH = os.getenv("TRANCO_DB_PATH", str(BASE_DIR / "data" / "tranco.sqlite3"))
 HYGIENE_ENRICH_MODEL = os.getenv("HYGIENE_ENRICH_MODEL", "gpt-4o-mini")
 HYGIENE_ASSESS_MODEL = os.getenv("HYGIENE_ASSESS_MODEL", "gpt-4o-mini")
+# openai (default) or claude. Claude is opt-in so a normal hygiene run
+# cannot spend the Anthropic credit by accident.
+HYGIENE_PROVIDER = os.getenv("HYGIENE_PROVIDER", "openai").strip().lower()
+HYGIENE_CLAUDE_MODEL = os.getenv("HYGIENE_CLAUDE_MODEL", "claude-opus-5-5")
+HYGIENE_CLAUDE_EFFORT = os.getenv("HYGIENE_CLAUDE_EFFORT", "medium").strip().lower()
+# Hard cap for hygiene_pass when HYGIENE_PROVIDER=claude and --budget-usd
+# is omitted. assess_tools has its own --budget-usd.
+HYGIENE_CLAUDE_BUDGET_USD = float(os.getenv("HYGIENE_CLAUDE_BUDGET_USD", "5"))
 
 # Optional paid fallback. Google Programmable Search is $5 per 1,000
 # queries with a 10,000/day cap. The free signals cover ranking without
