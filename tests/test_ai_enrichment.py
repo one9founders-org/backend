@@ -14,8 +14,9 @@ def test_chat_model_prefers_tool_enrich_setting():
 
 
 def test_default_chat_model_is_gpt_4_1():
-    from api import ai_enrichment
     from django.conf import settings
+
+    from api import ai_enrichment
 
     assert ai_enrichment.DEFAULT_CHAT_MODEL == "gpt-4.1"
     # Production default when TOOL_ENRICH_MODEL env is unset.
