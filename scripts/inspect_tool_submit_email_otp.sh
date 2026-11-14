@@ -134,3 +134,58 @@ docker compose logs --tail=400 web 2>/dev/null | grep -E -i \
   || echo "(no matching lines in last 400 web log lines)"
 
 echo "===== done ====="
+
+echo "===== Sample enrichment_error (last 7d failed) ====="
+docker compose exec -T web python manage.py shell -c '
+from datetime import timedelta
+from django.db.models import Count
+from django.utils import timezone
+from api.models import ToolSubmission
+from django.conf import settings
+
+week_ago = timezone.now() - timedelta(days=7)
+failed = ToolSubmission.objects.filter(
+    created_at__gte=week_ago, enrichment_status="failed"
+)
+print("failed_count", failed.count())
+print("OPENAI_API_KEY_set", bool(getattr(settings, "OPENAI_API_KEY", None)))
+print("OPENAI_API_KEY_len", len(getattr(settings, "OPENAI_API_KEY", "") or ""))
+errs = (
+    failed.exclude(enrichment_error="")
+    .values("enrichment_error")
+    .annotate(n=Count("id"))
+    .order_by("-n")[:15]
+)
+print("--- enrichment_error histogram ---")
+for row in errs:
+    print(row["n"], repr(row["enrichment_error"][:300]))
+print("--- latest 5 ---")
+for row in failed.order_by("-created_at")[:5]:
+    print(row.created_at.isoformat(), row.name[:40], repr((row.enrichment_error or "")[:300]), "attempts=", row.enrichment_attempts)
+'
+
+echo "===== OpenAI probe (models.list + tiny chat) ====="
+docker compose exec -T web python manage.py shell -c '
+from django.conf import settings
+from openai import OpenAI
+key = settings.OPENAI_API_KEY or ""
+print("key_prefix", (key[:7] + "...") if key else "(empty)")
+client = OpenAI(api_key=key)
+try:
+    models = list(client.models.list())
+    ids = sorted(m.id for m in models if "gpt" in m.id)[:20]
+    print("gpt_models_sample", ids)
+except Exception as e:
+    print("models_list_error", type(e).__name__, str(e)[:400])
+for model in ("gpt-3.5-turbo", "gpt-4o-mini"):
+    try:
+        r = client.chat.completions.create(
+            model=model,
+            messages=[{"role":"user","content":"Reply with JSON only: {\"ok\": true}"}],
+            temperature=0,
+            max_tokens=20,
+        )
+        print("chat_ok", model, repr(r.choices[0].message.content)[:120])
+    except Exception as e:
+        print("chat_error", model, type(e).__name__, str(e)[:400])
+'
