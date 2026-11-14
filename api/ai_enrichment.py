@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 PLACEHOLDER_ITEM_RE = re.compile(
     r"^(tool|integration|item|example|tag|feature)\s*\d+$", re.I
 )
-DEFAULT_CHAT_MODEL = "gpt-4o-mini"
+DEFAULT_CHAT_MODEL = "gpt-4.1"
 
 
 class EnrichmentError(Exception):

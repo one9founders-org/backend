@@ -201,7 +201,7 @@ jobs:
             fi
 
             # One-shot: re-enrich submissions that failed while gpt-3.5-turbo
-            # was deprecated. New code uses gpt-4o-mini (TOOL_ENRICH_MODEL).
+            # was deprecated. New code uses gpt-4.1 (TOOL_ENRICH_MODEL).
             if [ ! -f /var/www/one9founders/submission-enrichment-gpt4omini-2026-11-14 ]; then
               echo "===== Re-enrich failed tool submissions ====="
               docker compose exec -T web python manage.py reenrich_failed_submissions --limit 200

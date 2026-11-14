@@ -8,9 +8,18 @@ from api.models import ToolSubmission
 from api.submission_enrichment import enrich_submission
 
 
-@override_settings(TOOL_ENRICH_MODEL="gpt-4o-mini", HYGIENE_ENRICH_MODEL="gpt-4o-mini")
+@override_settings(TOOL_ENRICH_MODEL="gpt-4.1", HYGIENE_ENRICH_MODEL="gpt-4o-mini")
 def test_chat_model_prefers_tool_enrich_setting():
-    assert chat_model() == "gpt-4o-mini"
+    assert chat_model() == "gpt-4.1"
+
+
+def test_default_chat_model_is_gpt_4_1():
+    from api import ai_enrichment
+    from django.conf import settings
+
+    assert ai_enrichment.DEFAULT_CHAT_MODEL == "gpt-4.1"
+    # Production default when TOOL_ENRICH_MODEL env is unset.
+    assert settings.TOOL_ENRICH_MODEL == "gpt-4.1"
 
 
 @override_settings(OPENAI_API_KEY="")
@@ -19,7 +28,7 @@ def test_enrich_requires_api_key():
         enrich_tool_data("Acme", "Writes copy", "https://acme.example")
 
 
-@override_settings(OPENAI_API_KEY="sk-test", TOOL_ENRICH_MODEL="gpt-4o-mini")
+@override_settings(OPENAI_API_KEY="sk-test", TOOL_ENRICH_MODEL="gpt-4.1")
 def test_enrich_uses_configured_model_and_json_object_format():
     payload = {
         "short_description": "Writes product copy",
@@ -55,11 +64,11 @@ def test_enrich_uses_configured_model_and_json_object_format():
     assert data["short_description"] == "Writes product copy"
     assert data["tags"] == ["writing"]
     kwargs = create.call_args.kwargs
-    assert kwargs["model"] == "gpt-4o-mini"
+    assert kwargs["model"] == "gpt-4.1"
     assert kwargs["response_format"] == {"type": "json_object"}
 
 
-@override_settings(OPENAI_API_KEY="sk-test", TOOL_ENRICH_MODEL="gpt-4o-mini")
+@override_settings(OPENAI_API_KEY="sk-test", TOOL_ENRICH_MODEL="gpt-4.1")
 def test_enrich_surfaces_deprecated_model_errors():
     with patch("api.ai_enrichment.OpenAI") as openai_cls:
         openai_cls.return_value.chat.completions.create.side_effect = Exception(
@@ -70,7 +79,7 @@ def test_enrich_surfaces_deprecated_model_errors():
 
 
 @pytest.mark.django_db
-@override_settings(OPENAI_API_KEY="sk-test", TOOL_ENRICH_MODEL="gpt-4o-mini")
+@override_settings(OPENAI_API_KEY="sk-test", TOOL_ENRICH_MODEL="gpt-4.1")
 def test_failed_submission_stores_real_model_error():
     submission = ToolSubmission.objects.create(
         name="Broken Enrich",
