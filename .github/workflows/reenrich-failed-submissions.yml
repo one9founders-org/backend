@@ -1,0 +1,33 @@
+name: Re-enrich failed tool submissions
+
+# Optional ops re-run after the one-shot deploy marker already exists.
+# Push-triggered (no workflow_dispatch) so a cloud agent token can start it.
+on:
+  push:
+    paths:
+      - "scripts/reenrich_failed_submissions.flag"
+    branches:
+      - main
+
+jobs:
+  reenrich:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Re-enrich failed submissions on EC2
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
+          timeout: 60s
+          command_timeout: 30m
+          script: |
+            set -euo pipefail
+            cd /var/www/one9founders
+            echo "===== Dry run ====="
+            docker compose exec -T web python manage.py reenrich_failed_submissions --dry-run --limit 200
+            echo "===== Apply ====="
+            docker compose exec -T web python manage.py reenrich_failed_submissions --limit 200

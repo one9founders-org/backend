@@ -10,6 +10,19 @@ logger = logging.getLogger(__name__)
 PLACEHOLDER_ITEM_RE = re.compile(
     r"^(tool|integration|item|example|tag|feature)\s*\d+$", re.I
 )
+DEFAULT_CHAT_MODEL = "gpt-4o-mini"
+
+
+class EnrichmentError(Exception):
+    """Raised when OpenAI enrichment cannot produce usable tool fields."""
+
+
+def chat_model() -> str:
+    return (
+        getattr(settings, "TOOL_ENRICH_MODEL", None)
+        or getattr(settings, "HYGIENE_ENRICH_MODEL", None)
+        or DEFAULT_CHAT_MODEL
+    )
 
 
 def sanitize_enriched(data):
@@ -54,10 +67,35 @@ def sanitize_enriched(data):
     return cleaned
 
 
+def _parse_json_object(text: str) -> dict:
+    raw = (text or "").strip()
+    if raw.startswith("```"):
+        raw = re.sub(r"^```(?:json)?\s*", "", raw, flags=re.I)
+        raw = re.sub(r"\s*```$", "", raw)
+    try:
+        data = json.loads(raw)
+        return data if isinstance(data, dict) else {}
+    except json.JSONDecodeError:
+        match = re.search(r"\{.*\}", raw, re.DOTALL)
+        if not match:
+            return {}
+        try:
+            data = json.loads(match.group())
+        except json.JSONDecodeError:
+            return {}
+        return data if isinstance(data, dict) else {}
+
+
 def enrich_tool_data(name, description, url=None):
-    """Use AI to populate all tool fields from basic info"""
+    """Use AI to populate all tool fields from basic info.
+
+    Raises EnrichmentError when the model call fails or returns no JSON.
+    """
+    if not settings.OPENAI_API_KEY:
+        raise EnrichmentError("OPENAI_API_KEY is not configured.")
 
     client = OpenAI(api_key=settings.OPENAI_API_KEY)
+    model = chat_model()
 
     prompt = f"""Analyze this tool and provide structured data:
 
@@ -102,18 +140,17 @@ Only return valid JSON.
 
     try:
         response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model=model,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3,
+            response_format={"type": "json_object"},
         )
+    except Exception as exc:
+        logger.warning("AI enrichment error for %s (%s): %s", name, model, exc)
+        raise EnrichmentError(f"{type(exc).__name__}: {exc}") from exc
 
-        # Extract JSON from response
-        text = response.choices[0].message.content.strip()
-        json_match = re.search(r"\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}", text, re.DOTALL)
-        if json_match:
-            data = json.loads(json_match.group())
-            return sanitize_enriched(data)
-        return {}
-    except Exception as e:
-        logger.warning("AI enrichment error: %s", e)
-        return {}
+    text = (response.choices[0].message.content or "").strip()
+    data = sanitize_enriched(_parse_json_object(text))
+    if not data:
+        raise EnrichmentError("Enrichment returned no usable JSON.")
+    return data

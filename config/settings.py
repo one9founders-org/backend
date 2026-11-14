@@ -288,6 +288,9 @@ PRODUCT_HUNT_API_TOKEN = os.getenv("PRODUCT_HUNT_API_TOKEN", "")
 TRANCO_DB_PATH = os.getenv("TRANCO_DB_PATH", str(BASE_DIR / "data" / "tranco.sqlite3"))
 HYGIENE_ENRICH_MODEL = os.getenv("HYGIENE_ENRICH_MODEL", "gpt-4o-mini")
 HYGIENE_ASSESS_MODEL = os.getenv("HYGIENE_ASSESS_MODEL", "gpt-4o-mini")
+# Used by founder tool-submission enrichment (api/ai_enrichment.py).
+# gpt-3.5-turbo was removed from the OpenAI API; default to gpt-4o-mini.
+TOOL_ENRICH_MODEL = os.getenv("TOOL_ENRICH_MODEL", HYGIENE_ENRICH_MODEL)
 # openai (default) or claude. Claude is opt-in so a normal hygiene run
 # cannot spend the Anthropic credit by accident.
 HYGIENE_PROVIDER = os.getenv("HYGIENE_PROVIDER", "openai").strip().lower()

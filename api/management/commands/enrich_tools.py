@@ -120,8 +120,13 @@ Example: ["Writing", "Marketing", "SEO"]
 JSON array:"""
 
     try:
+        from django.conf import settings
+
+        model = getattr(settings, "TOOL_ENRICH_MODEL", None) or getattr(
+            settings, "HYGIENE_ENRICH_MODEL", "gpt-4o-mini"
+        )
         response = openai_client.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model=model,
             messages=[{"role": "user", "content": prompt}],
             temperature=0,
             max_tokens=100,
@@ -158,8 +163,13 @@ Pricing types:
 Return ONLY one word: free, freemium, or paid"""
 
     try:
+        from django.conf import settings
+
+        model = getattr(settings, "TOOL_ENRICH_MODEL", None) or getattr(
+            settings, "HYGIENE_ENRICH_MODEL", "gpt-4o-mini"
+        )
         response = openai_client.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model=model,
             messages=[{"role": "user", "content": prompt}],
             temperature=0,
             max_tokens=10,

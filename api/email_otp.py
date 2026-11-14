@@ -150,7 +150,8 @@ def issue_tool_submit_code(email: str, *, ip_address: str = "") -> int:
 
     raw_code = f"{secrets.randbelow(1_000_000):06d}"
     expires_in = _ttl_seconds()
-    _active_codes(email).update(consumed_at=now)
+    # Create the new row first. Only invalidate older codes after SES accepts
+    # the send — otherwise a failed resend would leave the user with no code.
     row = EmailVerificationCode.objects.create(
         email=email,
         purpose=PURPOSE_TOOL_SUBMIT,
@@ -167,6 +168,7 @@ def issue_tool_submit_code(email: str, *, ip_address: str = "") -> int:
             "We could not send the verification email. Try again.",
             status_code=503,
         ) from None
+    _active_codes(email).exclude(pk=row.pk).update(consumed_at=timezone.now())
     logger.info("Sent tool-submit verification code to %s", email)
     return expires_in
 
@@ -174,7 +176,7 @@ def issue_tool_submit_code(email: str, *, ip_address: str = "") -> int:
 def match_tool_submit_code(email: str, raw_code: str) -> EmailVerificationCode:
     """Confirm the code without consuming it. Wrong guesses burn an attempt."""
     email = normalize_email(email)
-    code = (raw_code or "").strip().replace(" ", "")
+    code = str(raw_code or "").strip().replace(" ", "")
     if not code.isdigit() or len(code) != 6:
         raise EmailCodeError("Enter the 6-digit code from your email.")
 

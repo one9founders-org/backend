@@ -241,3 +241,27 @@ def test_invalid_submission_does_not_consume_the_code(api_client):
         format="json",
     )
     assert accepted.status_code == status.HTTP_201_CREATED
+
+@pytest.mark.django_db
+def test_failed_resend_keeps_the_previous_code(api_client, monkeypatch):
+    assert _request_code(api_client).status_code == status.HTTP_200_OK
+    first = EmailVerificationCode.objects.get()
+    first_code = _code_from_outbox()
+    first.created_at = timezone.now() - timedelta(seconds=61)
+    first.save(update_fields=["created_at"])
+
+    def boom(*args, **kwargs):
+        raise OSError("ses down")
+
+    monkeypatch.setattr("django.core.mail.EmailMultiAlternatives.send", boom)
+    failed = _request_code(api_client)
+    assert failed.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
+    first.refresh_from_db()
+    assert first.consumed_at is None
+    accepted = api_client.post(
+        reverse("submission-list"),
+        {**PAYLOAD, "email_code": first_code},
+        format="json",
+    )
+    assert accepted.status_code == status.HTTP_201_CREATED
+
