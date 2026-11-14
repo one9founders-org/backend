@@ -40,7 +40,11 @@ def test_enrich_uses_configured_model_and_json_object_format():
     }
     fake_response = MagicMock()
     fake_response.choices = [
-        MagicMock(message=MagicMock(content='```json\n' + __import__("json").dumps(payload) + "\n```"))
+        MagicMock(
+            message=MagicMock(
+                content="```json\n" + __import__("json").dumps(payload) + "\n```"
+            )
+        )
     ]
     create = MagicMock(return_value=fake_response)
 

@@ -242,6 +242,7 @@ def test_invalid_submission_does_not_consume_the_code(api_client):
     )
     assert accepted.status_code == status.HTTP_201_CREATED
 
+
 @pytest.mark.django_db
 def test_failed_resend_keeps_the_previous_code(api_client, monkeypatch):
     assert _request_code(api_client).status_code == status.HTTP_200_OK
@@ -264,4 +265,3 @@ def test_failed_resend_keeps_the_previous_code(api_client, monkeypatch):
         format="json",
     )
     assert accepted.status_code == status.HTTP_201_CREATED
-
