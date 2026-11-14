@@ -1,0 +1,27 @@
+name: Inspect tool-submit email OTP
+
+# Push-triggered (no workflow_dispatch) so a cloud agent token can start it.
+on:
+  push:
+    paths:
+      - "scripts/inspect_tool_submit_email_otp.flag"
+    branches:
+      - main
+      - "cursor/inspect-tool-submit-email-otp-89b8"
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Inspect email OTP + SES on EC2
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
+          timeout: 60s
+          command_timeout: 5m
+          script_path: scripts/inspect_tool_submit_email_otp.sh
