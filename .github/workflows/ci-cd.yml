@@ -200,6 +200,14 @@ jobs:
               touch /var/www/one9founders/claude-verification-applied-2026-10-16
             fi
 
+            # One-shot: re-enrich submissions that failed while gpt-3.5-turbo
+            # was deprecated. New code uses gpt-4.1 (TOOL_ENRICH_MODEL).
+            if [ ! -f /var/www/one9founders/submission-enrichment-gpt4omini-2026-11-14 ]; then
+              echo "===== Re-enrich failed tool submissions ====="
+              docker compose exec -T web python manage.py reenrich_failed_submissions --limit 200
+              touch /var/www/one9founders/submission-enrichment-gpt4omini-2026-11-14
+            fi
+
             # Translate known non-English blurbs and flag the rest for review
             docker compose exec -T web python manage.py lint_tool_languages --fix
 

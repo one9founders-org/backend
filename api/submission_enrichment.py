@@ -23,7 +23,7 @@ def submission_requirements(submission) -> list[str]:
 
 
 def enrich_submission(submission_id: int) -> None:
-    from .ai_enrichment import enrich_tool_data
+    from .ai_enrichment import EnrichmentError, enrich_tool_data
     from .models import ToolSubmission
 
     submission = ToolSubmission.objects.filter(pk=submission_id).first()
@@ -36,11 +36,19 @@ def enrich_submission(submission_id: int) -> None:
         data = enrich_tool_data(
             submission.name, submission.description, submission.website
         )
-    except Exception as exc:
+    except EnrichmentError as exc:
         logger.warning("Submission %s enrichment failed: %s", submission_id, exc)
         ToolSubmission.objects.filter(pk=submission_id).update(
             enrichment_status="failed",
             enrichment_error=str(exc)[:500],
+            enrichment_attempts=attempts,
+        )
+        return
+    except Exception as exc:
+        logger.warning("Submission %s enrichment failed: %s", submission_id, exc)
+        ToolSubmission.objects.filter(pk=submission_id).update(
+            enrichment_status="failed",
+            enrichment_error=f"{type(exc).__name__}: {exc}"[:500],
             enrichment_attempts=attempts,
         )
         return

@@ -568,8 +568,11 @@ class Review(models.Model):
 Return JSON: {{"pros": ["pro1", "pro2"], "cons": ["con1", "con2"]}}
 Only return JSON."""
 
+                model = getattr(settings, "TOOL_ENRICH_MODEL", None) or getattr(
+                    settings, "HYGIENE_ENRICH_MODEL", "gpt-4o-mini"
+                )
                 response = client.chat.completions.create(
-                    model="gpt-3.5-turbo",
+                    model=model,
                     messages=[{"role": "user", "content": prompt}],
                     temperature=0,
                 )

@@ -146,8 +146,11 @@ def generate_description(
     if extra_instruction:
         user_parts.append(extra_instruction)
 
+    model = getattr(settings, "TOOL_ENRICH_MODEL", None) or getattr(
+        settings, "HYGIENE_ENRICH_MODEL", "gpt-4o-mini"
+    )
     response = client.chat.completions.create(
-        model="gpt-3.5-turbo",
+        model=model,
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": "\n".join(user_parts)},
