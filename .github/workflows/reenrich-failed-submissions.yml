@@ -8,6 +8,7 @@ on:
       - "scripts/reenrich_failed_submissions.flag"
     branches:
       - main
+      - "cursor/detach-submission-reenrich-89b8"
 
 jobs:
   reenrich:
@@ -23,11 +24,19 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           port: 22
           timeout: 60s
-          command_timeout: 30m
+          command_timeout: 45m
           script: |
             set -euo pipefail
             cd /var/www/one9founders
+            echo "===== Health ====="
+            docker compose ps
+            echo "===== Failed enrichment remaining ====="
+            docker compose exec -T web python manage.py shell -c "from api.models import ToolSubmission; print('failed', ToolSubmission.objects.filter(enrichment_status=\"failed\").count()); print('succeeded', ToolSubmission.objects.filter(enrichment_status=\"succeeded\").count()); print('pending', ToolSubmission.objects.filter(enrichment_status=\"pending\").count())"
             echo "===== Dry run ====="
             docker compose exec -T web python manage.py reenrich_failed_submissions --dry-run --limit 200
             echo "===== Apply ====="
             docker compose exec -T web python manage.py reenrich_failed_submissions --limit 200
+            echo "===== Finish deploy steps skipped by timeout ====="
+            docker compose exec -T web python manage.py lint_tool_languages --fix || true
+            docker compose exec -T web python manage.py collectstatic --noinput || true
+            echo "===== done ====="
